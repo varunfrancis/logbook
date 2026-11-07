@@ -169,6 +169,29 @@ test('one resident per project on main, helpers for parallel windows, own charac
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("today's cost breaks down by project, then by agent, and adds up to the total", async () => {
+  const { refreshAgents, buildState } = await import('../daemon/state.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const now = Date.now();
+  db.prepare("INSERT INTO projects(id, name) VALUES('gh:a/cat', 'Cat'), ('gh:a/dog', 'Dog')").run();
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at, cost_usd) VALUES(?, ?, ?, ?, ?, ?, ?)');
+  ins.run('c1', 'gh:a/cat', 'main', null, now - 9000, now - 8000, 2);   // resident, first shift
+  ins.run('c2', 'gh:a/cat', 'main', null, now - 7000, now - 6000, 3);   // same resident, second shift
+  ins.run('c3', 'gh:a/cat', 'seo', 'seo', now - 5000, now - 4000, 10); // worktree character
+  ins.run('d1', 'gh:a/dog', 'main', null, now - 5000, now - 4000, 1);
+  ins.run('y', 'gh:a/dog', 'main', null, now - 9e8, now - 8e8, 99);     // long ago: not today
+  refreshAgents(db, 0, new Map());
+  const s = buildState(db, new Map(), now);
+  const b = s.costBreakdown;
+  assert.deepEqual(b.map((p) => [p.projectId, p.usd]), [['gh:a/cat', 15], ['gh:a/dog', 1]]);
+  assert.deepEqual(b[0].agents.map((a) => [a.usd, a.shifts]), [[10, 1], [5, 2]]);
+  assert.equal(b[0].agents[1].sessionId, 'c2'); // opens their latest shift
+  assert.equal(b.reduce((n, p) => n + p.usd, 0), s.totals.costToday);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('a character keeps one job: the one they do most', async () => {
   const { refreshAgents, agentOf } = await import('../daemon/state.ts');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
