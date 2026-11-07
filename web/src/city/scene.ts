@@ -3,7 +3,7 @@ import type { GraveEntry, ProjectView, RoutineView, SessionView, StateView } fro
 import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
 import type { Mood } from '../crew/Avatar.tsx';
 import { compact, nextRunText } from '../format.ts';
-import { shortDoing } from '../copy.ts';
+import { shortDoing, shortJob, type Bubble } from '../copy.ts';
 
 // Pastel colors as authored (matches the prototype); no linear-space conversion.
 THREE.ColorManagement.enabled = false;
@@ -96,8 +96,8 @@ export class CityScene {
   private disposeFns: (() => void)[] = [];
   private chatEls = new Map<string, HTMLElement>();
   private doingEls = new Map<string, HTMLElement>();
-  /** What each agent's always-on bubble says: the project they're on, or their current task in 2–3 words. */
-  private bubble: 'project' | 'task' = 'project';
+  /** What each agent's always-on bubble says: the job they're on, the project, or their current step in 2–3 words. */
+  private bubble: Bubble = 'job';
   private projectNames = new Map<string, string>();
   // New agents walk in from the street and say hi: when each session was first seen arriving (ms), and every session seen so far.
   private arrivals = new Map<string, number>();
@@ -275,14 +275,17 @@ export class CityScene {
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
   }
 
-  setBubble(mode: 'project' | 'task') {
+  setBubble(mode: Bubble) {
     if (mode === this.bubble) return;
     this.bubble = mode;
     if (this.last) this.refreshBubbles(this.last.data);
   }
 
   private bubbleText(s: SessionView) {
-    return this.bubble === 'project' ? this.projectNames.get(s.projectId ?? '') ?? shortDoing(s) : shortDoing(s);
+    if (this.bubble === 'task') return shortDoing(s);
+    const project = this.projectNames.get(s.projectId ?? '');
+    if (this.bubble === 'project') return project ?? shortDoing(s);
+    return shortJob(s.title) ?? project ?? shortDoing(s);
   }
 
   private refreshBubbles(data: StateView) {
@@ -860,7 +863,7 @@ export class CityScene {
       helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
-    // Always-on label: the project they're on (or what they're doing, in 2–3 words — a setting); their name appears when you hover or select the building.
+    // Always-on label: the job they're on, the project, or their current step (a setting); their name appears when you hover or select the building.
     const next = sleeper ? nextRunText(sleeper.nextAt) : null;
     const doing = sleeper ? (next ? `asleep · up ${next}` : 'asleep') : this.bubbleText(s);
     const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : sleeper ? 'sleep' : 'rest'}`, `<span class="doing">${esc(doing)}</span><span class="grp"></span><span class="who">${esc(a.name)}</span>`);

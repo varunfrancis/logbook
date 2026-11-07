@@ -49,6 +49,19 @@ export function plainAction(action: string | null, voice: Voice): string | null 
 }
 
 /** What an agent is doing, in 2–3 words, for the label over their head in the town. */
+/** What the bubble over an agent in Town says. */
+export type Bubble = 'job' | 'project' | 'task';
+
+/** The job an agent is on, from its session title ("Extend the offer"), trimmed to fit a bubble. Null until there's a real title. */
+export function shortJob(title: string | null | undefined, max = 30): string | null {
+  const t = (title ?? '').replace(/^\/\S+\s*/, '').replace(/[`"“”]/g, '').replace(/\s+/g, ' ').replace(/…$/, '').trim();
+  if (!t || /^new session$/i.test(t)) return null;
+  const cap = (x: string) => x.replace(/^\w/, (c) => c.toUpperCase());
+  if (t.length <= max) return cap(t.replace(/[.,:;!?]+$/, ''));
+  const cut = t.slice(0, max + 1).replace(/\s+\S*$/, '');
+  return cap(cut || t.slice(0, max)).replace(/[\s.,:;!?-]+$/, '').replace(/\s+(and|or|the|a|an|to|of|for|with|in|on|at|from|into)$/i, '') + '…';
+}
+
 export function shortDoing(s: { status: string; away?: boolean; action: string | null; stuck?: unknown }): string {
   if (s.status === 'needs_input') return 'needs you';
   if (s.away) return 'napping';

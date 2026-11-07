@@ -3,14 +3,14 @@ import type { StateView } from '../../../daemon/types.ts';
 import { CityScene } from './scene.ts';
 import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.ts';
 import { isoDate, post, useDay } from '../useLogbook.ts';
-import { PROJECT, useVoice } from '../copy.ts';
+import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 
 export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null }: {
   /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
   tourFocus?: string | null;
   state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
-  focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: 'project' | 'task'; dark: boolean; onShare: () => void;
+  focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: Bubble; dark: boolean; onShare: () => void;
 }) {
   const voice = useVoice();
   const host = useRef<HTMLDivElement>(null);

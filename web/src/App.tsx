@@ -10,7 +10,7 @@ import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
-import { bricks, money, VoiceContext, type Voice } from './copy.ts';
+import { bricks, money, VoiceContext, type Bubble, type Voice } from './copy.ts';
 import { compact } from './format.ts';
 import { setMusic, useSound } from './audio.ts';
 import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
@@ -42,7 +42,7 @@ export function App() {
   const [sel, setSel] = useState<Sel>(null);
   const [showLots, setShowLots] = useState(store.get('logbook.lots') !== '0');
   const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
-  const [bubble, setBubble] = useState<'project' | 'task'>(store.get('logbook.bubble') === 'task' ? 'task' : 'project');
+  const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('logbook.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const theme = useTheme();
@@ -56,7 +56,7 @@ export function App() {
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { store.set('logbook.lots', showLots ? '1' : '0'); }, [showLots]);
   useEffect(() => { store.set('logbook.voice', voice); }, [voice]);
-  useEffect(() => { store.set('logbook.bubble', bubble); }, [bubble]);
+  useEffect(() => { store.set('logbook.bubbleMode', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
     document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Logbook'}`;
