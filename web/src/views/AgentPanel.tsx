@@ -1,7 +1,7 @@
 import type { StateView } from '../../../daemon/types.ts';
 import { scorecard } from '../crew/scorecard.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
-import { clock, mins, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
+import { clock, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useLogbook.ts';
@@ -139,7 +139,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
           </section>
         ) : null}
         {s.outcome && s.status === 'ended' ? <section><h3>Last words</h3><p className="outcome-full">{s.outcome}</p></section> : null}
-        <p className="sub">{s.status === 'ended' ? `Clocked out ${ago(s.endedAt, now)} after ${duration(s.startedAt, s.endedAt)}.` : `On shift for ${duration(s.startedAt, now)}.`} {money(s.costUsd)}{s.costEstimated ? ' (est.)' : ''} · {voice === 'plain' ? `${s.bricks.toLocaleString()} bricks` : `${compact(s.tokens)} tokens`} · waited on you {d ? mins(d.waitedMs) : '…'}</p>
+        <p className="sub">{s.status === 'ended' ? `Clocked out ${ago(s.endedAt, now)} after ${duration(s.startedAt, s.endedAt)}.` : `On shift for ${duration(s.startedAt, now)}.`} {money(s.costUsd)}{s.costEstimated ? ' (est.)' : ''} · {voice === 'plain' ? `${s.bricks.toLocaleString()} bricks` : `${compact(s.tokens)} tokens`}</p>
         {voice === 'technical' ? <p className="path">{tildify(s.cwd)} · {s.branch ?? '—'} · {s.model ?? ''} · session {s.id}</p> : null}
       </details>
     </aside>

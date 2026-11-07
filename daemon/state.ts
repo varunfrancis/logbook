@@ -10,7 +10,7 @@ import { agentKey, allocateIdentities, helperKey, identityFor, isHeadless, isHel
 import { routinesView } from './routines.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
-import { crewsToday, notesView } from './crews.ts';
+import { crewsToday, letGoIds, notesView } from './crews.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
 import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, Welcome, WrappedView } from './types.ts';
 
@@ -353,6 +353,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     costBreakdown,
     crews: crewsToday(db, todayRows, live, names, now),
     notes: notesView(db, names, now),
+    letGo: letGoIds(db),
     totals: {
       live: sessions.filter((s) => s.status !== 'ended').length,
       running: count('running'), needs: count('needs_input'), idle: count('idle'),

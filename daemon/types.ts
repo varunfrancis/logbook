@@ -162,6 +162,7 @@ export type StateView = {
   costBreakdown: CostBreakdown;
   crews: CrewDay[];
   notes: CrewNote[];
+  letGo: string[]; // finished jobs you chose not to pick back up (the Crew tab's Today list)
   totals: {
     live: number; running: number; needs: number; idle: number; doneToday: number; shippedToday: number;
     tokensToday: number; bricksToday: number; costToday: number; waitedTodayMs: number; peakToday: number;

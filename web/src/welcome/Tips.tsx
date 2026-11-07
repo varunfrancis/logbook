@@ -17,7 +17,7 @@ function pending(state: StateView, view: string, seen: Set<string>, doneAt: numb
     () => { const p = state.projects.find((x) => x.checksFailing); return p ? { id: 'fire', projectId: p.id, text: `A small fire at ${p.name} means checks just failed. That's normal mid-job. Only worry if it's still burning when they clock out.` } : null; },
     () => { const p = state.projects.find((x) => x.justMerged); return p ? { id: 'ship', projectId: p.id, text: `Fireworks! Work on ${p.name} just went live. Want to show it off? The Share button makes a card for it.` } : null; },
     () => { const g = state.graveyard.find((x) => x.at > doneAt); return g ? { id: 'grave', projectId: null, text: `Some of ${g.agent.name}'s work on ${g.projectName} didn't make it, so it got a tombstone in the graveyard. Nothing disappears without a trace here.` } : null; },
-    () => (view === 'day' ? { id: 'bricks', projectId: null, text: 'This is your day, one lane per agent. Effort is counted in bricks: one brick is about 10,000 tokens of work. Switch to Technical in the header to see raw numbers.' } : null),
+    () => (view === 'crew' ? { id: 'bricks', projectId: null, text: 'This is your crew. Today, further down, shows what still needs a decision from you and what got shipped. Effort is counted in bricks: one brick is about 10,000 tokens of work. Switch to Technical in Settings to see raw numbers.' } : null),
   ];
   for (const f of tips) { const t = f(); if (t && !seen.has(t.id)) return t; }
   return null;

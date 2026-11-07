@@ -1,20 +1,18 @@
 import { useRef, useState } from 'react';
 import { toBlob, toPng } from 'html-to-image';
 import type { StateView } from '../../../daemon/types.ts';
-import { GraveyardCard, ReceiptCard, WaitedCard, WrappedCards, type Privacy } from './Cards.tsx';
+import { GraveyardCard, ReceiptCard, WrappedCards, type Privacy } from './Cards.tsx';
 import { isoDate, useDay, useWrapped } from '../useLogbook.ts';
-import { mins } from '../copy.ts';
 
-export type ShareKind = 'waited' | 'receipt' | 'graveyard' | 'wrapped';
+export type ShareKind = 'receipt' | 'graveyard' | 'wrapped';
 const TABS: { key: ShareKind; label: string }[] = [
-  { key: 'waited', label: 'Waited on you' },
   { key: 'receipt', label: 'Receipt' },
   { key: 'graveyard', label: 'Graveyard' },
   { key: 'wrapped', label: 'Wrapped' },
 ];
-const SIZE: Record<ShareKind, [number, number]> = { waited: [1200, 675], graveyard: [1200, 675], receipt: [520, 1180], wrapped: [1330, 940] };
+const SIZE: Record<ShareKind, [number, number]> = { graveyard: [1200, 675], receipt: [520, 1180], wrapped: [1330, 940] };
 
-export function ShareSheet({ state, onClose, initial = 'waited', extra }: { state: StateView; onClose: () => void; initial?: ShareKind; extra?: React.ReactNode }) {
+export function ShareSheet({ state, onClose, initial = 'receipt', extra }: { state: StateView; onClose: () => void; initial?: ShareKind; extra?: React.ReactNode }) {
   const [kind, setKind] = useState<ShareKind>(initial);
   const [privacy, setPrivacy] = useState<Privacy>({ names: true, costs: true });
   const [msg, setMsg] = useState<string | null>(null);
@@ -41,8 +39,7 @@ export function ShareSheet({ state, onClose, initial = 'waited', extra }: { stat
       setMsg('Copied. Paste it into your post.');
     } catch { setMsg('Your browser blocked copying images. Use Save image instead.'); }
   };
-  const text = kind === 'waited' && day ? `My AI agents spent ${mins(day.stats.waitedMs)} today waiting for me to say yes.`
-    : kind === 'receipt' ? `Today's receipt from ${state.town.name}, where my AI agents build things.`
+  const text = kind === 'receipt' ? `Today's receipt from ${state.town.name}, where my AI agents build things.`
     : kind === 'graveyard' ? `My agent graveyard. They tried their best.`
     : `My ${state.town.name} Wrapped.`;
   const post = async () => { await save(); window.open(`https://x.com/intent/post?text=${encodeURIComponent(text + ' (made with Swarmville)')}`, '_blank'); setMsg('Image saved. Attach it to the post that just opened.'); };
@@ -60,7 +57,6 @@ export function ShareSheet({ state, onClose, initial = 'waited', extra }: { stat
           <div style={{ width: W, height: H, transform: `scale(${scale})`, transformOrigin: 'top left', marginLeft: `max(0px, calc((100% - ${W * scale}px) / 2))` }}>
             <div ref={ref} style={{ width: W, height: H }}>
               {!ready ? <div className="card loading-card">Getting it ready…</div>
-                : kind === 'waited' ? <WaitedCard state={state} day={day!} privacy={privacy} />
                 : kind === 'receipt' ? <ReceiptCard state={state} day={day!} privacy={privacy} />
                 : kind === 'graveyard' ? <GraveyardCard state={state} graves={state.graveyard} privacy={privacy} />
                 : <WrappedCards state={state} w={w!} />}

@@ -19,7 +19,7 @@ import { labelNextFocus } from './focus.ts';
 import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
-import { addNote, dismissFlag, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
+import { addNote, dismissFlag, letGo, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
 import type { Setup, StateView, Welcome } from './types.ts';
 import { NEW_WELCOME } from './state.ts';
 import { addAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
@@ -271,6 +271,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && /^\/api\/notes\/\d+\/remove$/.test(p)) { removeNote(db, Number(p.split('/')[3])); refresh(); return json(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/crews/dismiss') { const body = await readJson(req); dismissFlag(db, String(body.projectId ?? '')); refresh(); return json(res, 200, { ok: true }); }
+    if (req.method === 'POST' && p === '/api/today/letgo') { const body = await readJson(req); const id = String(body.id ?? ''); if (!id) return json(res, 400, { ok: false, message: 'Which job?' }); letGo(db, id, body.undo === true); refresh(); return json(res, 200, { ok: true }); }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));

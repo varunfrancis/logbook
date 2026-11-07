@@ -6,9 +6,9 @@ Everything your Claude Code agents are doing, told as a little town. (Formerly L
 
 - **Town**: a low-poly isometric world. Each project is a building with a plain-English name ("Support Bot", "Sales Training"). Projects with crew on site rise up and glow; others are *under construction* (worked on in the last 7 days), *just completed* (7–30 days), *complete*, or *for sale* (on GitHub, never worked on here). Agents are characters on the scaffolding. A rain cloud means someone is stuck, a small fire means checks just failed, fireworks mean work went live. Scrapped work gets a tombstone in the graveyard. Agents on a coffee break leave their building for the café at the edge of town, where they sit at a table with a steaming mug until you're back (when the tables fill up, they queue at the counter). Similar projects share a neighborhood ("Money & Investing", "Learning & Practice"), sorted by the small Claude model and re-sorted when a new project shows up. Unrelated neighborhoods are a park apart. Drag to pan, scroll to zoom, right-drag or shift-drag (or Q / E, or the ⟲ ⟳ buttons) to turn the town all the way around. It settles on one of the four corner views, where the grid keeps its proportions. Clicking a building flies to it and centers it beside its panel.
 - **Crew**: who raised a hand (and what they need), who's building, who's on a coffee break, and who clocked out today, stamped from git as *Shipped / Sent for review / Saved, not sent / Left unfinished / Scrapped / Just a chat*. Warnings when an agent is stuck on the same problem or two agents are changing the same file.
-- **Day**: one lane per agent through the day, showing building, hands raised (waiting on you) and coffee breaks, with saves, checks and reviews marked.
+- **Today** (on the Crew tab): what still needs a decision from you (reviews waiting to merge, work left unfinished or scrapped, with *Resume* and *Let it go*) and what shipped today, grouped by project. A background job whose review merged counts as shipped.
 - **Agent profiles**: what you asked for, how it went, what the agent said vs. what actually happened, and the shift in numbers.
-- **Share**: "waited on you" card, daily receipt, graveyard, monthly Wrapped, a 20-second time-lapse video of the day, and a skyline image for your GitHub README. Repo names, branches, files and prompts never appear in anything you share.
+- **Share**: daily receipt, graveyard, monthly Wrapped, a 20-second time-lapse video of the day, and a skyline image for your GitHub README. Repo names, branches, files and prompts never appear in anything you share.
 
 Everything runs on your machine. Swarmville talks to GitHub with your own `gh` login, and asks the small Claude model (through your own Claude Code login) for one plain-English name per project.
 
@@ -52,12 +52,12 @@ Install opens your town in the browser. The first launch is a short welcome tour
 3. **Pip, the foreman**, says hello. Pip is the guide and never works a shift.
 4. **Roll call**: up to three agents (different projects first) introduce themselves: who they are, what they're on, one fact from their record. A plain line appears instantly; the small Claude model writes a livelier one in the background (one call for the roll call, cached per agent per day).
 5. **Four signs**: raised hand, rain cloud, fireworks, coffee mug, each pointing at a real example in your town when there is one.
-6. **Where to look**: Town, Crew, Day.
+6. **Where to look**: Town, Crew.
 7. **Your turn**: pick a project and *Brainstorm with me*, *Plan with me* (opens Claude Code in plan mode, so nothing changes until you approve) or *Fix something*.
 8. It opens in VS Code (or Terminal), with an option to have **agents say hi in the terminal** (off by default).
 9. Your new agent **walks into town** and says hi.
 
-After that, Pip explains the rest the first time it happens (first raised hand, rain cloud, fire, fireworks, tombstone, and bricks on the Day view). A skipped tour can be finished from the header for a week; Settings → *Replay the welcome* runs it again. Every agent's profile has **Work with {name}** with the same starting moves, led by what their job is good at.
+After that, Pip explains the rest the first time it happens (first raised hand, rain cloud, fire, fireworks, tombstone, and bricks on the Crew tab). A skipped tour can be finished from the header for a week; Settings → *Replay the welcome* runs it again. Every agent's profile has **Work with {name}** with the same starting moves, led by what their job is good at.
 
 New agents walk in from the street with a "Hi, I'm …" bubble whenever they start, and a note in the corner says who joined.
 

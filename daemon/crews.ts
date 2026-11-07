@@ -111,6 +111,15 @@ export function dismissFlag(db: Db, projectId: string, now = Date.now()) {
   kvSet(db, 'crews.dismissed', { date, ids: [...new Set([...(cur.date === date ? cur.ids : []), projectId])] });
 }
 
+/** "Let it go": a finished job you've decided not to pick back up, taken off the Crew tab's Today list for good. */
+export function letGo(db: Db, sessionId: string, undo = false) {
+  const cur = kvGet<string[]>(db, 'today.letGo', []);
+  const next = undo ? cur.filter((id) => id !== sessionId) : [...new Set([...cur, sessionId])];
+  kvSet(db, 'today.letGo', next.slice(-500)); // older entries have long since aged off the list anyway
+}
+
+export const letGoIds = (db: Db) => kvGet<string[]>(db, 'today.letGo', []);
+
 // ---------- the manager's notes ----------
 
 export function addNote(db: Db, projectId: string, text: string, now = Date.now()): number | null {
