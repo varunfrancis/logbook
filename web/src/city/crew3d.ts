@@ -9,7 +9,7 @@ import { Avatar, type Mood } from '../crew/Avatar.tsx';
  * (crate, box, blueprint) for what they're doing. Whatever angle you look from, you see their face.
  */
 
-export type CrewMode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit' | 'stuck' | 'stand';
+export type CrewMode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit' | 'stuck' | 'stand' | 'sleep';
 export type CrewSpec = { shape: string; color: string; accessory: string; job: string; mood: Mood; mode: CrewMode };
 type Mat = (c: string) => THREE.Material;
 
@@ -102,9 +102,15 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?:
   let seat = 0;
   if (spec.mode === 'sit') { mesh(new THREE.BoxGeometry(0.55, 0.3, 0.45), '#a8774c', 0, 0.15, -0.05); seat = 0.28; }
   if (spec.mode === 'carry') mesh(new THREE.BoxGeometry(0.42, 0.28, 0.34), '#c27a4a', 0, S * 0.98, 0, body);
+  if (spec.mode === 'sleep') { // a bedroll and pillow beside the building: a scheduled job between runs
+    mesh(new THREE.BoxGeometry(1.5, 0.08, 0.75), '#7d9bd1', -0.1, 0.04, 0);
+    mesh(new THREE.BoxGeometry(0.4, 0.12, 0.5), '#f4efe6', 0.5, 0.12, 0);
+  }
   if (spec.mode === 'read') { const bp = mesh(new THREE.BoxGeometry(0.5, 0.02, 0.36), '#4a80d6', 0.05, 0.45, 0.35, body); bp.rotation.x = -0.6; }
 
   const ph = Math.random() * 10;
+  /** 0 = upright, 1 = lying down asleep. The town eases it to show someone waking up or dozing off. */
+  let lie = spec.mode === 'sleep' ? 1 : 0;
   const update = (t: number) => {
     const k = t + ph;
     let y = seat, sq = 0, rot = 0;
@@ -116,11 +122,13 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?:
       case 'sit': sq = Math.sin(k * 0.8) * 0.015; break;
       case 'stuck': rot = Math.sin(k * 1.5) * 0.08; break;
       case 'stand': rot = Math.sin(k * 0.6) * 0.03; sq = Math.sin(k * 0.9) * 0.01; break; // shifting weight in a queue
+      case 'sleep': sq = Math.sin(k * 0.9) * 0.025; break; // slow breathing
     }
+    if (lie > 0) { y = y * (1 - lie) + lie * S * 0.42; rot = rot * (1 - lie) + lie * (Math.PI / 2); }
     fig.position.y = y;
     fig.scale.set(S * (1 + sq), S * (1 - sq), 1);
     mat.rotation = rot;
-    shadow.scale.setScalar(1 - Math.min(0.3, (y - seat) * 2));
+    shadow.scale.setScalar(lie > 0 ? 1 + lie * 0.4 : 1 - Math.min(0.3, (y - seat) * 2));
     if (halo && pool) {
       const p = 0.5 + 0.5 * Math.sin(k * 3);
       halo.position.y = y; (halo.material as THREE.SpriteMaterial).opacity = (opts.dark ? 0.75 : 0.5) + (opts.dark ? 0.35 : 0.3) * p;
@@ -134,5 +142,6 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?:
       (sp.material as THREE.SpriteMaterial).opacity = (1 - u) * 0.95; sp.scale.setScalar(0.18 * (1 - u * 0.6));
     });
   };
-  return { root, body, update, height: S * 0.95 + seat };
+  const setLie = (u: number) => { lie = Math.max(0, Math.min(1, u)); };
+  return { root, body, update, setLie, height: spec.mode === 'sleep' ? S * 0.75 : S * 0.95 + seat };
 }

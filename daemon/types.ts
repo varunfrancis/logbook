@@ -15,7 +15,7 @@ export type Agent = {
   shape: string;
   color: string;
   accessory: string;
-  role: 'resident' | 'helper' | 'workbench'; // resident: the project's own character · helper: a temporary extra on main · workbench: tied to a worktree/branch
+  role: 'resident' | 'helper' | 'workbench' | 'routine'; // resident: the project's own character · helper: a temporary extra on main · workbench: tied to a worktree/branch · routine: a scheduled job that wakes up, works, sleeps
 };
 
 export type SessionView = {
@@ -32,6 +32,7 @@ export type SessionView = {
   worktree: string | null;
   cwd: string | null;
   kind: string | null; // interactive | bg
+  scheduled: boolean; // a headless run (cron, launchd, a script) rather than someone typing
   startedAt: number | null;
   lastEventAt: number | null;
   endedAt: number | null;
@@ -96,6 +97,28 @@ export type ProjectView = {
   commits: number;
 };
 
+/**
+ * A scheduled job's character. Between runs it sleeps beside its building; when a run starts it
+ * wakes up, works (as a normal session), then goes back to sleep.
+ */
+export type RoutineView = {
+  key: string;
+  projectId: string;
+  agent: Agent;
+  title: string;          // what the job does, from its latest run
+  prompt: string | null;  // the job's brief
+  state: 'awake' | 'asleep';
+  liveSessionId: string | null;
+  lastSessionId: string;
+  runs: number;           // runs in the last 30 days (a burst of retries counts once)
+  lastRunAt: number | null;
+  lastEndedAt: number | null;
+  lastStamp: Stamp | null;
+  lastOutcome: string | null;
+  intervalMs: number | null; // typical gap between runs, once there are two
+  nextAt: number | null;     // a guess from that gap; null when the job doesn't look regular
+};
+
 export type GraveEntry = { sessionId: string; agent: Agent; projectName: string; epitaph: string; sub: string; at: number; bricks: number };
 
 export type GithubMeta = {
@@ -112,6 +135,7 @@ export type StateView = {
   projects: ProjectView[];
   districts: { name: string; x0: number; z0: number; x1: number; z1: number }[];
   sessions: SessionView[];
+  routines: RoutineView[];
   graveyard: GraveEntry[];
   totals: {
     live: number; running: number; needs: number; idle: number; doneToday: number; shippedToday: number;

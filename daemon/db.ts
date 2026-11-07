@@ -83,7 +83,7 @@ const ADD: Record<string, Record<string, string>> = {
     agent_key: 'TEXT', job: 'TEXT', err_sig: 'TEXT', err_count: 'INTEGER DEFAULT 0', err_at: 'INTEGER',
     test_at: 'INTEGER', test_ok: 'INTEGER', tests_ok: 'INTEGER DEFAULT 0', tests_fail: 'INTEGER DEFAULT 0',
     files: 'TEXT', edits: 'INTEGER DEFAULT 0', asks: 'INTEGER DEFAULT 0', reads: 'INTEGER DEFAULT 0', webs: 'INTEGER DEFAULT 0',
-    stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER',
+    stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER', entrypoint: 'TEXT',
   },
   projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER', summary: 'TEXT', summary_tried_at: 'INTEGER' },
   offsets: { state: 'TEXT' },

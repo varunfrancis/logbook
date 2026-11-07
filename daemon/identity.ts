@@ -43,10 +43,27 @@ export type Identity = { key: string; name: string; shape: string; color: string
  * A second window on main while the resident is busy becomes a helper (see refreshAgents).
  */
 export function agentKey(s: Row): string {
+  if (isHeadless(s) && s.project_id) return routineKey(s.project_id, s.first_prompt ?? s.id);
   const wb = s.worktree || (s.branch && !/^(main|master|develop|dev|trunk|HEAD)$/.test(s.branch) ? s.branch : null);
   if (wb) return `${s.project_id ?? ''}#${wb}`;
   return s.project_id ? residentKey(s.project_id) : s.id;
 }
+/** A headless `claude -p` run (cron, launchd, a script): nobody is typing to it. */
+export const isHeadless = (s: Row) => s.entrypoint === 'sdk-cli';
+/**
+ * The same scheduled job is the same prompt every time, give or take dates, counts and ids.
+ * Runs that share a project and a prompt fingerprint are one recurring character.
+ */
+export function promptFingerprint(prompt: string): string {
+  return prompt.toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, '') // uuids
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+export const routineKey = (projectId: string, prompt: string) => `${projectId}#routine:${hash(promptFingerprint(prompt)).toString(36)}`;
+export const isRoutineKey = (key: string) => key.includes('#routine:');
 export const residentKey = (projectId: string) => `${projectId}#resident`;
 export const helperKey = (projectId: string, sessionId: string) => `${residentKey(projectId)}~${sessionId}`;
 export const isHelperKey = (key: string) => key.includes('#resident~');
