@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../copy.ts';
@@ -97,6 +97,55 @@ function RoutineCard({ r, p, now, open }: { r: RoutineView; p?: ProjectView; now
   );
 }
 
+/** A section you can fold away. Starts closed unless you left it open last time. */
+function Fold({ id, title, note, children }: { id: string; title: string; note?: ReactNode; children: ReactNode }) {
+  const key = `logbook.crew.fold.${id}`;
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) === '1'; } catch { return false; } });
+  return (
+    <section>
+      <details className="fold" open={open} onToggle={(e) => {
+        const o = (e.currentTarget as HTMLDetailsElement).open;
+        setOpen(o);
+        try { localStorage.setItem(key, o ? '1' : '0'); } catch { /* private window */ }
+      }}>
+        <summary><h2>{title} {note != null ? <small>{note}</small> : null}</h2></summary>
+        {open ? children : null}
+      </details>
+    </section>
+  );
+}
+
+const finishedAt = (s: SessionView) => (s.status === 'ended' ? s.endedAt : s.lastEventAt) ?? 0;
+
+/** What each agent just finished: the job, and the first line of what they said when they stopped. */
+function FinishedList({ items, projects, now, open }: { items: SessionView[]; projects: Map<string, ProjectView>; now: number; open: Open }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, 6);
+  if (!items.length) return <Empty title="Nothing finished yet today." />;
+  return (
+    <>
+      <ul className="closed finished">
+        {shown.map((s) => {
+          const said = firstLine(s.outcome, 220);
+          return (
+            <li key={s.id} onClick={() => open.agent(s.id)}>
+              <AgentAvatar agent={s.agent} mood={s.status === 'ended' ? moodFor(s) : 'break'} size={36} />
+              <div className="closed-body">
+                <div><b>{s.title}</b> <span className="sub">· {s.agent.name} · {projects.get(s.projectId ?? '')?.name}</span></div>
+                {said ? <div className="said" title={s.outcome ?? ''}>{said}</div> : null}
+              </div>
+              {s.status === 'ended' ? (s.stamp ? <Stamp stamp={s.stamp} /> : <span className="pill s-ended">Clocked out</span>) : <span className="pill s-idle">{s.away ? 'Away' : 'On a break'}</span>}
+              <PrChip url={s.prUrl} state={s.prState} />
+              <span className="muted when">{ago(finishedAt(s), now)}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {items.length > 6 ? <button className="ghost more" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show ${items.length - 6} more`}</button> : null}
+    </>
+  );
+}
+
 export function CrewView({ state, open }: { state: StateView; open: Open }) {
   const voice = useVoice();
   const now = useNow(15000);
@@ -106,6 +155,7 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
   const working = state.sessions.filter((s) => s.status === 'running');
   const idle = state.sessions.filter((s) => s.status === 'idle');
   const closed = state.sessions.filter((s) => s.status === 'ended' && (s.endedAt ?? 0) >= today.getTime());
+  const finished = [...idle, ...closed].sort((a, b) => finishedAt(b) - finishedAt(a));
   const order = [...needs, ...working];
   // Keyboard focus sticks to an agent (not a slot in the list) and only shows once you start using j/k.
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -155,14 +205,16 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
           </div>
         </section>
       ) : null}
-      {state.routines?.length ? (
-        <section>
-          <h2>Scheduled <small>jobs that wake up, do their run, and go back to sleep</small></h2>
-          <div className="grid routines">{state.routines.map((r) => <RoutineCard key={r.key} r={r} p={projects.get(r.projectId)} now={now} open={open} />)}</div>
-        </section>
-      ) : null}
       <section>
-        <h2>Clocked out today <small>{closed.length}</small></h2>
+        <h2>Just finished <small>what they did before their break</small></h2>
+        <FinishedList items={finished} projects={projects} now={now} open={open} />
+      </section>
+      {state.routines?.length ? (
+        <Fold id="scheduled" title="Scheduled" note={`${state.routines.length} · jobs that wake up, do their run, and go back to sleep`}>
+          <div className="grid routines">{state.routines.map((r) => <RoutineCard key={r.key} r={r} p={projects.get(r.projectId)} now={now} open={open} />)}</div>
+        </Fold>
+      ) : null}
+      <Fold id="closed" title="Clocked out today" note={closed.length}>
         {closed.length ? (
           <ul className="closed">
             {closed.map((s) => (
@@ -179,9 +231,8 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
             ))}
           </ul>
         ) : <Empty title="Nobody has clocked out yet today." />}
-      </section>
-      <section>
-        <h2>The town <small>{town.length} buildings</small></h2>
+      </Fold>
+      <Fold id="town" title="The town" note={`${town.length} buildings`}>
         <div className="ptable-wrap">
           <table className="ptable">
             <thead><tr><th>Building</th><th>Stage</th><th className="r">On site</th><th className="r">Shifts</th><th className="r">{voice === 'plain' ? 'Bricks' : 'Tokens'}</th><th className="r">Last work</th></tr></thead>
@@ -199,7 +250,7 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
             </tbody>
           </table>
         </div>
-      </section>
+      </Fold>
       <footer className="keys"><span><kbd>j</kbd>/<kbd>k</kbd> move</span><span><kbd>↵</kbd> go to agent</span><span><kbd>o</kbd> open profile</span></footer>
     </div>
   );
