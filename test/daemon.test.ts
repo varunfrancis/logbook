@@ -83,6 +83,11 @@ test('status rules', () => {
   assert.equal(floorsFor(1e7), 7);
   assert.equal(projectState({ root: '/x', sessionsTotal: 3, lastActivity: now }, ['ended', 'needs_input'], now), 'needs');
   assert.equal(projectState({ root: null, sessionsTotal: 0, lastActivity: null }, [], now), 'lot');
+  const day = 24 * 3600_000, T = 100 * day;
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T }, ['running'], T), 'site');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 2 * day }, ['ended'], T), 'construction');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 10 * day }, [], T), 'recent');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 40 * day }, [], T), 'done');
 });
 
 test('hooks drive a session from start to needs-you to closed', () => {
@@ -104,7 +109,7 @@ test('hooks drive a session from start to needs-you to closed', () => {
   handleHook(db, { ...base, hook_event_name: 'SessionEnd', reason: 'prompt_input_exit' }, t0 + 60);
   const st = buildState(db, new Map(), t0 + 70);
   assert.equal(st.sessions[0].status, 'ended');
-  assert.equal(st.projects[0].state, 'done');
+  assert.equal(st.projects[0].state, 'construction');
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

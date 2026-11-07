@@ -30,11 +30,12 @@ export function CityView({ state, selected, onSelect, showLots, dark }: {
         <button className="tool" onClick={() => scene.current?.fit()} aria-label="Fit whole city">⤢</button>
       </div>
       <div className="legend">
-        <span><i className="p-build" />Building</span>
-        <span><i className="p-needs" />Needs you</span>
+        <span><i className="p-site" />Crew on site</span>
+        <span><i className="p-needs" />Raised a hand</span>
+        <span><i className="p-construction" />Under construction <small>last 7 days</small></span>
+        <span><i className="p-recent" />Just completed <small>7–30 days</small></span>
         <span><i className="p-done" />Complete</span>
-        <span><i className="p-quiet" />Quiet 30d+</span>
-        <span><i className="p-lot" />GitHub only</span>
+        <span><i className="p-lot" />For sale</span>
       </div>
     </div>
   );

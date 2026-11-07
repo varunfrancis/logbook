@@ -40,5 +40,5 @@ export const STATUS_LABEL: Record<string, string> = {
   running: 'Working', needs_input: 'Needs you', idle: 'Idle', ended: 'Closed',
 };
 export const PROJECT_LABEL: Record<string, string> = {
-  build: 'Building', needs: 'Needs you', done: 'Complete', quiet: 'Quiet', lot: 'GitHub only',
+  site: 'Crew on site', needs: 'Raised a hand', construction: 'Under construction', recent: 'Just completed', done: 'Complete', lot: 'For sale',
 };

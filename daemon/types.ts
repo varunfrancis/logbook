@@ -1,5 +1,6 @@
 export type SessionStatus = 'running' | 'needs_input' | 'idle' | 'ended';
-export type ProjectState = 'build' | 'needs' | 'done' | 'quiet' | 'lot';
+/** site: agents there now · needs: an agent there needs you · construction: worked on in the last 7 days · recent: quiet 7–30 days (just completed) · done: quiet 30+ days · lot: GitHub only */
+export type ProjectState = 'site' | 'needs' | 'construction' | 'recent' | 'done' | 'lot';
 export type ActionKind = 'edit' | 'run' | 'read' | 'web' | 'delegate' | 'think';
 
 export type SessionView = {

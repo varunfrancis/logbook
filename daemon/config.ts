@@ -14,7 +14,9 @@ export const WEB_DIST = path.join(REPO_ROOT, 'web', 'dist');
 
 /** A session with no registry entry is still treated as live for this long after its last hook event (registry write lag). */
 export const LIVE_GRACE_MS = 15_000;
-/** Projects untouched for longer than this render as "quiet". */
+/** Worked on within this window (and nobody on site now) = "under construction". */
+export const CONSTRUCTION_MS = 7 * 24 * 3600_000;
+/** Quiet for longer than this = "complete"; between the two = "just completed". */
 export const QUIET_AFTER_MS = 30 * 24 * 3600_000;
 /** Sessions shown in the dashboard's "Done" group. */
 export const RECENT_MS = 24 * 3600_000;

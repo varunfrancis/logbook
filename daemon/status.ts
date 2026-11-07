@@ -1,7 +1,7 @@
 import type { Row } from './db.ts';
 import type { LiveEntry } from './live.ts';
 import type { ProjectState, SessionStatus } from './types.ts';
-import { LIVE_GRACE_MS, QUIET_AFTER_MS } from './config.ts';
+import { CONSTRUCTION_MS, LIVE_GRACE_MS, QUIET_AFTER_MS } from './config.ts';
 
 /**
  * Status comes from three sources, strongest first:
@@ -28,8 +28,10 @@ export function floorsFor(tokens: number): number {
 
 export function projectState(p: { root: string | null; sessionsTotal: number; lastActivity: number | null }, statuses: SessionStatus[], now: number): ProjectState {
   if (statuses.includes('needs_input')) return 'needs';
-  if (statuses.some((s) => s === 'running' || s === 'idle')) return 'build';
+  if (statuses.some((s) => s === 'running' || s === 'idle')) return 'site';
   if (!p.root && p.sessionsTotal === 0) return 'lot';
-  if (!p.lastActivity || now - p.lastActivity > QUIET_AFTER_MS) return 'quiet';
+  const age = p.lastActivity ? now - p.lastActivity : Infinity;
+  if (age < CONSTRUCTION_MS) return 'construction';
+  if (age < QUIET_AFTER_MS) return 'recent';
   return 'done';
 }

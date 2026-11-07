@@ -14,7 +14,8 @@ THREE.ColorManagement.enabled = false;
 const LOT = 8, ROAD = 3, PITCH = LOT + ROAD, FH = 1.1, BASE = 0.24;
 const PALETTE = ['#f4b183', '#9fd9c6', '#b8a7e8', '#f6d36b', '#9cc7f0', '#f5a3b5', '#a8d8a0', '#f2c38b', '#c6b8f0', '#8fd3d9'];
 const VEST = ['#ff7a45', '#3f8efc', '#9b6bff', '#14b8a6', '#f472b6', '#f5b301', '#ef4444', '#22c55e'];
-const STATE_DOT: Record<string, string> = { build: '#ef9a1a', needs: '#e5484d', done: '#2f9e66', quiet: '#8a9099', lot: '#a8794f' };
+const STATE_DOT: Record<string, string> = { site: '#ef9a1a', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
+const LIFT = 1.6;
 
 type Mode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit';
 type Updater = (t: number, dt: number) => void;
@@ -130,7 +131,7 @@ export class CityScene {
       const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.tokens > 0 ? compact(p.tokens) : '', sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.title])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
-      const celebrate = !!prev && (prev.state === 'build' || prev.state === 'needs') && (p.state === 'done' || p.state === 'quiet');
+      const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
       if (prev) this.removeBuilding(p.id);
       this.addBuilding(p, sessions, key);
       if (celebrate) this.confetti(p);
@@ -275,7 +276,7 @@ export class CityScene {
   private tint(hex: string, amt: number) {
     return '#' + new THREE.Color(hex).lerp(new THREE.Color(amt > 0 ? '#ffffff' : '#1b2230'), Math.abs(amt)).getHexString();
   }
-  private desat(hex: string) { const c = new THREE.Color(hex); const hsl = { h: 0, s: 0, l: 0 }; c.getHSL(hsl); c.setHSL(hsl.h, hsl.s * 0.18, Math.min(0.8, hsl.l)); return '#' + c.getHexString(); }
+  private desat(hex: string) { const c = new THREE.Color(hex); const hsl = { h: 0, s: 0, l: 0 }; c.getHSL(hsl); c.setHSL(hsl.h, hsl.s * 0.45, Math.min(0.8, hsl.l)); return '#' + c.getHexString(); }
   private div(cls: string, html: string) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; return d; }
   private label(list: Label[], el: HTMLElement, obj: THREE.Object3D, dy: number, kind: Label['kind'], pid: string) {
     this.labelLayer.appendChild(el); const l = { el, obj, dy, kind, pid }; list.push(l); this.labels.push(l); return el;
@@ -379,10 +380,13 @@ export class CityScene {
     const g = new THREE.Group(); g.position.y = BASE; outer.add(g);
     const top = new THREE.Object3D(); g.add(top);
 
-    const building = p.state === 'build' || p.state === 'needs';
-    const quiet = p.state === 'quiet';
+    const live = p.state === 'site' || p.state === 'needs';
+    const building = live || p.state === 'construction';
+    const quiet = p.state === 'done';
+    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#ef9a1a', updaters);
     let color = PALETTE[h % PALETTE.length];
     if (quiet) color = this.desat(color);
+    const recent = p.state === 'recent';
     const w = 4.4 + ((h >> 4) % 3) * 0.4, d = 4.4 + ((h >> 6) % 3) * 0.4;
     const floors = Math.max(1, p.floors);
     let roofY = 0;
@@ -417,7 +421,8 @@ export class CityScene {
         this.bx(0.3, FH * 0.35, d, color, -w / 2 + 0.15, roofY, 0, g);
         this.scaffold(g, w, d, Math.min(3, Math.max(1, done)));
         if (sessions.length >= 2) this.crane(g, w, d, roofY + 6.5, updaters);
-        top.position.set(0, roofY + 3.3, 0);
+        if (!live) this.barrier(g, d);
+        top.position.set(0, roofY + (live ? 3.3 : 2.1), 0);
       } else {
         this.bx(w + 0.2, 0.16, d + 0.2, this.tint(color, -0.25), 0, roofY, 0, g);
         this.mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.66, 12), this.tint(color, 0.45), -w / 4, roofY + 0.5, -d / 4, g);
@@ -435,11 +440,7 @@ export class CityScene {
           }
           updaters.push((t) => stars.forEach((s, i) => { s.scale.setScalar(0.3 + (Math.sin(t * 2 + i * 1.3) + 1) / 2); s.rotation.y = t; }));
         }
-        if (quiet) {
-          const z = new THREE.Object3D(); z.position.set(w / 3, roofY + 0.5, 0); g.add(z);
-          const zl = this.label(labels, this.div('zzz', 'z<small>z</small><small class="s2">z</small>'), z, 0, 'fx', p.id);
-          updaters.push((t) => { zl.style.opacity = String(0.45 + 0.55 * ((Math.sin(t * 1.5) + 1) / 2)); });
-        }
+        if (recent) this.bunting(g, w, d, roofY + 0.16, updaters);
         top.position.set(0, roofY + (p.prState ? 2.3 : 1.3), 0);
       }
       const r = rand(h + 7);
@@ -463,13 +464,63 @@ export class CityScene {
 
     // billboard
     const pr = p.prState === 'merged' ? '<span class="pr merged">merged</span>' : p.prState === 'open' ? '<span class="pr open">PR open</span>' : '';
-    const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${p.tokens ? `<span class="tok">${compact(p.tokens)}</span>` : ''}${pr}`);
+    const crew = live ? `<span class="crew">${p.state === 'needs' ? 'hand raised' : `${sessions.length} on site`}</span>` : '';
+    const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.tokens ? `<span class="tok">${compact(p.tokens)}</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
     bb.onclick = () => this.opts.onSelect(p.id);
     bb.onpointerenter = () => { this.hovered = p.id; };
     this.label(labels, bb, top, 0, 'bb', p.id);
 
     this.buildings.set(p.id, { group: outer, key, updaters, labels, top, state: p.state });
+  }
+
+  /** Lifts a lot with crew on site onto a lit plinth, with a pulsing ring on the street below. */
+  private raise(outer: THREE.Group, accent: string, updaters: Updater[]) {
+    const plinth = this.bx(8.4, 1, 8.4, this.tint(accent, 0.55), 0, 0, 0, outer);
+    const rimMat = new THREE.MeshBasicMaterial({ color: accent });
+    const rim = new THREE.Group(); outer.add(rim);
+    for (const [w, d, x, z] of [[8.6, 0.12, 0, 4.24], [8.6, 0.12, 0, -4.24], [0.12, 8.6, 4.24, 0], [0.12, 8.6, -4.24, 0]] as const) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, d), rimMat); bar.position.set(x, -0.05, z); rim.add(bar);
+    }
+    const ringMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.2, 48), ringMat); ring.rotation.x = -Math.PI / 2; outer.add(ring);
+    outer.position.y = 0;
+    updaters.push((t, dt) => {
+      outer.position.y += (LIFT - outer.position.y) * Math.min(1, dt * 2.5);
+      const y = outer.position.y;
+      plinth.scale.y = Math.max(0.001, y); plinth.position.y = -y / 2;
+      ring.position.y = -y + 0.06;
+      const k = (t * 0.6) % 1;
+      ring.scale.setScalar(1 + k * 0.35); ringMat.opacity = 0.55 * (1 - k);
+    });
+  }
+
+  /** Striped roadworks barrier in front of a site with no crew right now. */
+  private barrier(parent: THREE.Object3D, d: number) {
+    const z = d / 2 + 2.3;
+    this.bx(0.1, 0.6, 0.1, '#e8e4dc', -1.2, 0, z, parent); this.bx(0.1, 0.6, 0.1, '#e8e4dc', 1.2, 0, z, parent);
+    for (let i = 0; i < 6; i++) this.bx(0.42, 0.22, 0.08, i % 2 ? '#ffffff' : '#ff7a1a', -1.05 + i * 0.42, 0.42, z, parent);
+    this.mesh(new THREE.ConeGeometry(0.16, 0.45, 10), '#ff7a1a', 2, 0.22, z - 0.2, parent);
+  }
+
+  /** Bunting along the roof edges of a just-completed building. */
+  private bunting(parent: THREE.Object3D, w: number, d: number, y: number, updaters: Updater[]) {
+    const cols = ['#ef4444', '#f5b301', '#3f8efc', '#2f9e66', '#f472b6'];
+    const flags: THREE.Mesh[] = [];
+    const top = y + 0.75;
+    this.bx(0.05, 0.8, 0.05, '#e9e6ef', -w / 2, y, d / 2, parent); this.bx(0.05, 0.8, 0.05, '#e9e6ef', w / 2, y, d / 2, parent); this.bx(0.05, 0.8, 0.05, '#e9e6ef', w / 2, y, -d / 2, parent);
+    const edge = (ax: number, az: number, bx2: number, bz: number) => {
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        const u = (i + 0.5) / n, sag = Math.sin(u * Math.PI) * 0.18;
+        const f = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 3), this.m(cols[flags.length % cols.length]));
+        f.rotation.x = Math.PI; f.position.set(ax + (bx2 - ax) * u, top - sag - 0.12, az + (bz - az) * u);
+        f.castShadow = true; parent.add(f); flags.push(f);
+      }
+    };
+    edge(-w / 2, d / 2, w / 2, d / 2);
+    edge(w / 2, d / 2, w / 2, -d / 2);
+    updaters.push((t) => flags.forEach((f, i) => { f.rotation.z = Math.sin(t * 3 + i) * 0.15; }));
   }
 
   private tower(parent: THREE.Object3D, w: number, d: number, floors: number, color: string, win: string) {
@@ -661,7 +712,7 @@ export class CityScene {
       let show = true;
       if (L.kind === 'tag') show = L.pid === this.selected || (zoomedIn && L.pid === this.hovered);
       if (L.kind === 'bb') {
-        const important = st === 'build' || st === 'needs' || L.pid === this.selected || L.pid === this.hovered;
+        const important = st === 'site' || st === 'needs' || L.pid === this.selected || L.pid === this.hovered;
         L.el.classList.toggle('mini', !important && !zoomedIn);
         L.el.classList.toggle('sel', L.pid === this.selected);
         show = st !== 'lot' || important || zoomedIn;
