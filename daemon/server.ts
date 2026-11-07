@@ -13,6 +13,7 @@ import { checkPullRequests, syncGithub } from './github.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
 import { nameNextProject, renameProject, setTown } from './naming.ts';
+import { groupDistricts } from './districts.ts';
 import type { StateView } from './types.ts';
 
 const db = openDb();
@@ -191,7 +192,7 @@ async function prLoop() {
   try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[logbook] PR check failed', e); }
 }
 async function nameLoop() {
-  try { if (await nameNextProject(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
+  try { if (await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
 }
 githubLoop();
 setInterval(githubLoop, 10 * 60_000);

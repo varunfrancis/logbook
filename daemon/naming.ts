@@ -34,7 +34,7 @@ function findClaude(): string | null {
 }
 
 /** Asks the small Claude model, through the user's own Claude Code login, for a 1–3 word plain name. */
-function askClaude(prompt: string): Promise<string | null> {
+export function askClaude(prompt: string): Promise<string | null> {
   const bin = findClaude();
   if (!bin) return Promise.resolve(null);
   const cwd = path.join(DATA_DIR, 'namer');

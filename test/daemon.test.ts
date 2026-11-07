@@ -178,3 +178,27 @@ test('a character keeps one job: the one they do most', async () => {
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('neighborhoods: similar projects touch, unrelated ones have a park street between them', async () => {
+  const { layoutTown, parseGrouping } = await import('../daemon/districts.ts');
+  const groups = [{ name: 'Money', ids: ['a', 'b', 'c', 'd', 'e'] }, { name: 'Learning', ids: ['f', 'g'] }, { name: 'Tools', ids: ['h'] }];
+  const { cells, districts } = layoutTown(groups);
+  const at = (id: string) => cells.get(id)!;
+  // consecutive items in a group are adjacent (snake fill)
+  for (const g of groups) for (let i = 1; i < g.ids.length; i++) {
+    const [x1, z1] = at(g.ids[i - 1]), [x2, z2] = at(g.ids[i]);
+    assert.equal(Math.abs(x1 - x2) + Math.abs(z1 - z2), 1, `${g.ids[i - 1]}→${g.ids[i]}`);
+  }
+  // no two cells collide; cells in different groups are never adjacent
+  const all = [...cells.values()].map((c) => c.join());
+  assert.equal(new Set(all).size, all.length);
+  const groupOf = new Map(groups.flatMap((g) => g.ids.map((id) => [id, g.name])));
+  for (const [a, ca] of cells) for (const [b, cb] of cells) {
+    if (groupOf.get(a) === groupOf.get(b)) continue;
+    assert.ok(Math.max(Math.abs(ca[0] - cb[0]), Math.abs(ca[1] - cb[1])) >= 2, `${a} and ${b} too close`);
+  }
+  assert.equal(districts.length, 3);
+  // grouping reply: every project lands once, unknowns go to Odds & Ends
+  const parsed = parseGrouping('Sure!\n[{"name":"Money","items":[1,2,2]},{"name":"Fun","items":[4]}]', 4)!;
+  assert.deepEqual(parsed, [{ name: 'Money', items: [1, 2] }, { name: 'Fun', items: [4] }, { name: 'Odds & Ends', items: [3] }]);
+});

@@ -158,6 +158,9 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .city-canvas canvas { display: block; cursor: grab; }
 .city-labels { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .city-labels > div { position: absolute; left: 0; top: 0; will-change: transform; }
+.district { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #3d5a3a; background: rgba(255,255,255,.72); border: 1px solid rgba(61,90,58,.25); padding: 3px 9px; border-radius: 999px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .district { color: #cfe3c8; background: rgba(20,30,40,.7); border-color: rgba(207,227,200,.2); } }
+:root[data-theme="dark"] .district { color: #cfe3c8; background: rgba(20,30,40,.7); border-color: rgba(207,227,200,.2); }
 .bb {
   pointer-events: auto; cursor: pointer; white-space: nowrap; background: #fff; color: #25303d; border-radius: 10px; padding: 4px 9px 5px;
   box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; display: flex; align-items: center; gap: 7px; font-size: 13px;

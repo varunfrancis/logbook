@@ -20,7 +20,7 @@ const LIFT = 1.6;
 
 type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
-type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat'; pid: string };
+type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'district'; pid: string };
 
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
@@ -71,6 +71,9 @@ export class CityScene {
   private disposeFns: (() => void)[] = [];
   private chatEls = new Map<string, HTMLElement>();
   private graveGroup: THREE.Group | null = null;
+  private parkGroup: THREE.Group | null = null;
+  private parkLabels: Label[] = [];
+  private parkKey = '';
   private graveLabels: Label[] = [];
   private graveKey = '';
   private elapsed = 0;
@@ -130,6 +133,8 @@ export class CityScene {
     if (data.graveyard?.length) b.minX -= 1; // room for the graveyard at the edge of town
     const gk = JSON.stringify(b) + this.dark;
     if (gk !== this.groundKey) { this.groundKey = gk; this.bounds = b; this.buildGround(); this.graveKey = ''; }
+    const pk = JSON.stringify([data.districts ?? [], visible.map((p) => p.lot), !!data.graveyard?.length]) + this.groundKey;
+    if (pk !== this.parkKey) { this.parkKey = pk; this.buildParks(data.districts ?? [], visible, !!data.graveyard?.length); }
     const grk = JSON.stringify((data.graveyard ?? []).map((e) => e.sessionId)) + this.groundKey;
     if (grk !== this.graveKey) { this.graveKey = grk; this.buildGraveyard(data.graveyard ?? []); }
     // buildings
@@ -153,8 +158,9 @@ export class CityScene {
   fit() {
     const { minX, maxX, minZ, maxZ } = this.bounds;
     this.target.set(((minX + maxX) / 2) * PITCH, 2, ((minZ + maxZ) / 2) * PITCH);
-    const span = Math.max(maxX - minX + 1, maxZ - minZ + 1) * PITCH;
-    this.viewSize = Math.max(30, span * 0.95);
+    // Isometric: the town's on-screen width follows (x − z), so a wide or tall town needs the sum of both sides.
+    const across = ((maxX - minX) + (maxZ - minZ)) / Math.SQRT2 + 1.6;
+    this.viewSize = Math.max(30, (across * PITCH) / 0.9);
     this.zoom = 1;
     this.placeCam();
     this.resize();
@@ -708,6 +714,34 @@ export class CityScene {
   }
 
   /** A fenced plot at the edge of town with a tombstone for each scrapped or unfinished shift. */
+  /** Trees on every empty lot (the parks between neighborhoods) and a street sign naming each neighborhood. */
+  private buildParks(districts: StateView['districts'], visible: ProjectView[], graves: boolean) {
+    if (this.parkGroup) this.freeObject(this.parkGroup);
+    for (const l of this.parkLabels) l.el.remove();
+    this.labels = this.labels.filter((l) => !this.parkLabels.includes(l));
+    this.parkLabels = [];
+    const g = new THREE.Group(); this.scene.add(g); this.parkGroup = g;
+    const { minX, maxX, minZ, maxZ } = this.bounds;
+    const used = new Set(visible.map((p) => `${p.lot[0]},${p.lot[1]}`));
+    if (graves) used.add(`${minX},${maxZ}`);
+    for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
+      if (used.has(`${x},${z}`)) continue;
+      const r = rand(hash(`${x},${z}`));
+      const n = 3 + Math.floor(r() * 3);
+      for (let i = 0; i < n; i++) this.tree(x * PITCH + (r() - 0.5) * (LOT - 2), z * PITCH + (r() - 0.5) * (LOT - 2), g, 0.75 + r() * 0.5);
+      if (r() < 0.5) { const bench = new THREE.Group(); bench.position.set(x * PITCH + (r() - 0.5) * 3, 0, z * PITCH + (r() - 0.5) * 3); bench.rotation.y = r() * Math.PI; g.add(bench); this.bx(1.2, 0.08, 0.4, '#a0703f', 0, 0.38, 0, bench); this.bx(0.08, 0.38, 0.36, '#5b4632', -0.5, 0, 0, bench); this.bx(0.08, 0.38, 0.36, '#5b4632', 0.5, 0, 0, bench); }
+    }
+    const shown = new Set(visible.map((p) => p.id));
+    for (const d of districts) {
+      // only label neighborhoods that have at least one visible building
+      if (!visible.some((p) => p.lot[0] >= d.x0 && p.lot[0] <= d.x1 && p.lot[1] >= d.z0 && p.lot[1] <= d.z1 && shown.has(p.id))) continue;
+      const anchor = new THREE.Object3D();
+      anchor.position.set(((d.x0 + d.x1) / 2) * PITCH, 0, (d.z1 + 0.5) * PITCH);
+      g.add(anchor);
+      this.label(this.parkLabels, this.div('district', esc(d.name)), anchor, 0, 'district', '');
+    }
+  }
+
   private buildGraveyard(graves: GraveEntry[]) {
     if (this.graveGroup) { this.freeObject(this.graveGroup); for (const l of this.graveLabels) l.el.remove(); this.labels = this.labels.filter((l) => !this.graveLabels.includes(l)); this.graveLabels = []; }
     this.graveGroup = null;
@@ -794,7 +828,8 @@ export class CityScene {
       const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
       if (L.kind === 'bb' && (st === 'site' || st === 'needs')) { raised.push({ L, x, y }); continue; }
       L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
-      L.el.style.zIndex = String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
+      L.el.style.transform = L.kind === 'district' ? `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)` : L.el.style.transform;
+      L.el.style.zIndex = L.kind === 'district' ? '1' : String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
     }
     // Active projects: lift their name tags above the skyline on a dotted leader, and nudge them apart so none overlap.
     raised.sort((a, b) => b.y - a.y);

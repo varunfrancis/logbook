@@ -73,6 +73,7 @@ export type ProjectView = {
   ghPushedAt: number | null;
   description: string | null;
   lot: [number, number];
+  district: string | null; // neighborhood of similar projects
   state: ProjectState;
   floors: number;
   tokens: number;
@@ -106,6 +107,7 @@ export type StateView = {
   generatedAt: number;
   town: Town;
   projects: ProjectView[];
+  districts: { name: string; x0: number; z0: number; x1: number; z1: number }[];
   sessions: SessionView[];
   graveyard: GraveEntry[];
   totals: {

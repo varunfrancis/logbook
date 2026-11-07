@@ -2,7 +2,8 @@ import path from 'node:path';
 import type { Db, Row } from './db.ts';
 import { kvGet } from './db.ts';
 import type { LiveEntry } from './live.ts';
-import { assignLots, ensureProjectForCwd, spiral } from './projects.ts';
+import { assignLots, ensureProjectForCwd } from './projects.ts';
+import { currentDistricts, layoutTown } from './districts.ts';
 import { floorsFor, projectState, sessionStatus } from './status.ts';
 import { githubMeta } from './github.ts';
 import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
@@ -235,7 +236,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
   assignLots(db);
   const today = startOfDay();
   const t = town(db);
-  const projects = db.prepare('SELECT * FROM projects').all() as Row[];
+  const projects = db.prepare('SELECT * FROM projects ORDER BY lot').all() as Row[];
   const aggRows = db.prepare(`
     SELECT project_id, COUNT(*) AS n,
       SUM(tok_in + tok_out + tok_cache_write + tok_sub) AS tokens,
@@ -264,6 +265,14 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
   for (const pr of prs) { const a = agg.get(pr.project_id); if (a) a.pr = pr; }
   const merged = new Set((db.prepare('SELECT DISTINCT project_id FROM sessions WHERE pr_merged_at > ?').all(now - 10 * 60_000) as Row[]).map((r) => r.project_id));
 
+  // Neighborhoods: similar projects side by side, a park street between unrelated ones. For-sale lots on the outskirts.
+  const inTown = projects.filter((p) => p.root || agg.has(p.id));
+  const { groups, ungrouped } = currentDistricts(db, inTown);
+  const forSale = projects.filter((p) => !p.root && !agg.has(p.id)).map((p) => p.id);
+  const plan = layoutTown(groups, [{ name: 'New in town', ids: ungrouped }, { name: 'For sale', ids: forSale }]);
+  const districtOf = new Map<string, string>();
+  for (const g of groups) for (const id of g.ids) districtOf.set(id, g.name);
+
   const projectViews: ProjectView[] = projects.map((p) => {
     const a = agg.get(p.id) ?? { tokens: 0, today: 0, total: 0, cost: 0, crew: [], lastEnded: 0, pr: null, lines: 0, commits: 0, stuck: false, failing: false };
     const state = projectState({ root: p.root, sessionsTotal: a.total, lastActivity: p.last_activity ?? null }, a.crew, now);
@@ -273,7 +282,8 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
       id: p.id, name: n.name, repo: n.repo, nameSource: n.source,
       root: p.root, ghFull: p.gh_full, ghUrl: p.gh_url, ghPrivate: p.gh_private == null ? null : !!p.gh_private, ghPushedAt: p.gh_pushed_at,
       description: p.gh_description,
-      lot: spiral(p.lot ?? 0),
+      lot: plan.cells.get(p.id) ?? [0, 0],
+      district: districtOf.get(p.id) ?? null,
       state,
       floors: state === 'lot' ? 0 : a.total ? floorsFor(a.tokens) : 2,
       tokens: a.tokens, bricks: Math.round(a.tokens / BRICK), tokensToday: a.today, costUsd: a.cost,
@@ -297,6 +307,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     town: t,
     projects: projectViews,
     sessions: sessions.sort((a, b) => (b.lastEventAt ?? 0) - (a.lastEventAt ?? 0)),
+    districts: plan.districts.filter((d) => d.name !== 'For sale'),
     graveyard: graveyard(db, names, now, live),
     totals: {
       live: sessions.filter((s) => s.status !== 'ended').length,
