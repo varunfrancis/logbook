@@ -6,15 +6,22 @@ import { execFileSync, spawn } from 'node:child_process';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 const HOME = os.homedir();
-const DATA = path.join(HOME, '.logbook');
+const DATA = process.env.LOGBOOK_DATA_DIR || path.join(HOME, '.logbook');
+const VERSION: string = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version;
+const INSTALL_URL = 'https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh';
+const FLAGS = new Set(process.argv.slice(3));
 const HOOK_DST = path.join(DATA, 'hook.sh');
 const SETTINGS = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(HOME, '.claude'), 'settings.json');
-const PLIST = path.join(HOME, 'Library', 'LaunchAgents', 'dev.logbook.daemon.plist');
-const LABEL = 'dev.logbook.daemon';
+// A second install with its own data folder (e.g. a test install) gets its own login item and never touches the main one.
+const CUSTOM = !!process.env.LOGBOOK_DATA_DIR && path.resolve(process.env.LOGBOOK_DATA_DIR) !== path.join(HOME, '.logbook');
+const LABEL = CUSTOM ? `dev.logbook.daemon.${Buffer.from(path.resolve(DATA)).toString('base64url').slice(-10)}` : 'dev.logbook.daemon';
+const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const PORT = Number(process.env.LOGBOOK_PORT || 7777);
 const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Notification', 'Stop', 'SubagentStop', 'SessionEnd'];
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
-const isOurs = (h: any) => typeof h?.command === 'string' && h.command.includes('.logbook/hook.sh');
+const isOurs = (h: any) => typeof h?.command === 'string' && (CUSTOM ? h.command.includes(HOOK_DST) : h.command.includes('.logbook/hook.sh'));
+// A non-default port or data folder (test installs) travels with the hook command and the login item.
+const ENV: Record<string, string> = { ...(process.env.LOGBOOK_PORT ? { LOGBOOK_PORT: String(PORT) } : {}), ...(process.env.LOGBOOK_DATA_DIR ? { LOGBOOK_DATA_DIR: DATA } : {}) };
 
 function readSettings(): any {
   try { return JSON.parse(fs.readFileSync(SETTINGS, 'utf8')); } catch (e: any) {
@@ -37,7 +44,8 @@ function installHooks() {
   for (const ev of EVENTS) {
     const groups: any[] = (s.hooks[ev] ??= []);
     if (groups.some((g) => (g.hooks ?? []).some(isOurs))) continue;
-    groups.push({ ...(TOOL_EVENTS.has(ev) ? { matcher: '*' } : {}), hooks: [{ type: 'command', command: HOOK_DST, timeout: 5 }] });
+    const command = (ENV.LOGBOOK_PORT ? `LOGBOOK_PORT=${ENV.LOGBOOK_PORT} ` : '') + HOOK_DST;
+    groups.push({ ...(TOOL_EVENTS.has(ev) ? { matcher: '*' } : {}), hooks: [{ type: 'command', command, timeout: 5 }] });
     added++;
   }
   if (added) writeSettings(s);
@@ -68,7 +76,7 @@ function installDaemon() {
   <key>Label</key><string>${LABEL}</string>
   <key>ProgramArguments</key><array><string>${node}</string><string>--no-warnings</string><string>${path.join(REPO, 'daemon', 'server.ts')}</string></array>
   <key>WorkingDirectory</key><string>${REPO}</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${path.dirname(node)}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${path.dirname(node)}:${path.join(HOME, '.local', 'bin')}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>${Object.entries(ENV).map(([k, v]) => `<key>${k}</key><string>${v}</string>`).join('')}</dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${path.join(DATA, 'daemon.log')}</string>
@@ -83,8 +91,23 @@ function installDaemon() {
   console.log(`Daemon installed as a login item (${LABEL}). Logs: ${path.join(DATA, 'daemon.log')}`);
 }
 
+/** Runs the daemon in the background without a login item (test installs, or `--no-login-item`). */
+function startDetached() {
+  fs.mkdirSync(DATA, { recursive: true });
+  const log = fs.openSync(path.join(DATA, 'daemon.log'), 'a');
+  spawn(process.execPath, ['--no-warnings', path.join(REPO, 'daemon', 'server.ts')], { cwd: REPO, detached: true, stdio: ['ignore', log, log], env: { ...process.env, ...ENV } }).unref();
+  console.log(`Logbook is running in the background (not at login). Logs: ${path.join(DATA, 'daemon.log')}`);
+}
+
+/** Stops a Logbook running in the background without a login item (only if it answers as Logbook). */
+async function stopDetached() {
+  try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(1000) }); const { pid } = await r.json(); if (pid) { process.kill(pid); console.log('Stopped Logbook.'); } } catch {}
+}
+
 function uninstallDaemon() {
   if (process.platform !== 'darwin' || !fs.existsSync(PLIST)) return;
+  // Only remove a login item that runs this copy of Logbook.
+  if (!fs.readFileSync(PLIST, 'utf8').includes(path.join(REPO, 'daemon', 'server.ts'))) return console.log(`Left the login item alone: it runs a different copy of Logbook (${PLIST}).`);
   try { execFileSync('launchctl', ['bootout', `gui/${process.getuid!()}/${LABEL}`], { stdio: 'ignore' }); } catch {}
   fs.rmSync(PLIST);
   console.log('Daemon login item removed.');
@@ -147,7 +170,7 @@ async function status() {
   try {
     const r = await fetch(`http://127.0.0.1:${PORT}/api/state`, { signal: AbortSignal.timeout(2000) });
     const s = await r.json();
-    console.log(`Daemon running on http://localhost:${PORT}`);
+    console.log(`Logbook ${VERSION} running on http://localhost:${PORT}`);
     console.log(`${s.totals.needs} need you · ${s.totals.running} working · ${s.totals.idle} idle · ${s.totals.doneToday} closed today`);
     for (const x of s.sessions.filter((x: any) => x.status !== 'ended')) {
       const p = s.projects.find((p: any) => p.id === x.projectId);
@@ -162,14 +185,26 @@ async function status() {
 const cmd = process.argv[2] ?? 'help';
 switch (cmd) {
   case 'install':
-    build(); installHooks(); installDaemon(); try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); }
-    console.log(`\nAll set. Opening your town at http://localhost:${PORT} …`);
-    await openWhenReady();
+    build(); installHooks(); FLAGS.has('--no-login-item') ? startDetached() : installDaemon();
+    if (!FLAGS.has('--no-vscode') && !CUSTOM) { try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); } }
+    if (FLAGS.has('--no-open')) console.log(`\nAll set. Your town is at http://localhost:${PORT}`);
+    else { console.log(`\nAll set. Opening your town at http://localhost:${PORT} …`); await openWhenReady(); }
     break;
+  case 'update': {
+    // A developer copy (a git checkout) updates with git; an installed copy re-runs the installer, which keeps your data.
+    if (fs.existsSync(path.join(REPO, '.git'))) { console.log(`This is a developer copy at ${REPO}. Update it with git pull, npm run build, then restart.`); break; }
+    execFileSync('/bin/bash', ['-c', `curl -fsSL ${INSTALL_URL} | bash`], { stdio: 'inherit', env: { ...process.env, LOGBOOK_NO_OPEN: '1' } });
+    break;
+  }
+  case 'version': console.log(VERSION); break;
   case 'uninstall':
-    uninstallHooks(); uninstallDaemon();
-    if (fs.existsSync(VSCODE_CLI)) { try { execFileSync(VSCODE_CLI, ['--uninstall-extension', 'logbook.logbook-jump'], { stdio: 'ignore' }); console.log('VS Code helper removed.'); } catch {} }
-    console.log(`Your data in ${DATA} was left in place. Delete it to remove everything.`);
+    uninstallHooks(); uninstallDaemon(); await stopDetached();
+    // The VS Code helper is shared by every copy, so a separate (custom data folder) install leaves it alone.
+    if (!CUSTOM && fs.existsSync(VSCODE_CLI)) { try { execFileSync(VSCODE_CLI, ['--uninstall-extension', 'logbook.logbook-jump'], { stdio: 'ignore' }); console.log('VS Code helper removed.'); } catch {} }
+    if (FLAGS.has('--everything')) {
+      for (const d of ['app', 'app.new', 'runtime', 'bin']) fs.rmSync(path.join(DATA, d), { recursive: true, force: true });
+      console.log(`Removed the Logbook app from ${DATA}. Your town's history (${path.join(DATA, 'logbook.db')}) is still there; delete ${DATA} to remove it too.`);
+    } else console.log(`Your data in ${DATA} was left in place. Delete it to remove everything.`);
     break;
   case 'hooks': installHooks(); break;
   case 'vscode': installVscode(); break;
@@ -182,10 +217,14 @@ switch (cmd) {
   default:
     console.log(`logbook: a logbook and city view of your Claude Code agents
 
-  logbook install     build UI, add Claude Code hooks, run the daemon at login (macOS)
+  logbook install     add Claude Code hooks, run Logbook at login, open your town (macOS)
+                      --no-login-item  run in the background now, not at login
+  logbook update      get the latest version (keeps your town)
   logbook start       run the daemon in the foreground
   logbook open        open http://localhost:${PORT}
   logbook status      list live agents in the terminal
   logbook vscode      install the VS Code helper so "Go to" opens the right terminal
-  logbook uninstall   remove hooks and the login item (keeps ~/.logbook)`);
+  logbook uninstall   remove hooks and the login item (keeps ~/.logbook)
+                      --everything     also remove the app and its private Node
+  logbook version     print the version`);
 }

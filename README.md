@@ -16,13 +16,32 @@ Every agent is a character with a stable look: one of 10 shapes, 12 colors and 6
 
 Effort is measured in **bricks** (1 brick ≈ 10,000 tokens). Costs are in the dashboard, the profiles and the receipt. Switch the header to **Technical** to see raw tokens, branches, paths and PR numbers.
 
-## Setup
+## Install
+
+Paste this into Claude Code (the Claude desktop app or the terminal):
+
+> Install Logbook for me: https://raw.githubusercontent.com/varunfrancis/logbook/main/INSTALL.md
+
+Claude explains what it will do, asks before running anything, and opens your town. Or run it yourself in Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
+```
+
+Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.logbook/runtime` if you don't have one (checked against nodejs.org's checksums), puts Logbook in `~/.logbook/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. Running it again updates Logbook and keeps your town. Afterwards: `~/.logbook/bin/logbook status | update | uninstall [--everything]`.
+
+There are no API keys. Friendly names and agent intros use the small Claude model through your own Claude Code login (the `claude` command, or the Claude desktop app's built-in copy), and GitHub features use your own `gh` login.
+
+### From source (developers)
 
 ```sh
 npm install
 node bin/logbook.ts install   # builds the UI, adds Claude Code hooks, runs Logbook at login, installs the VS Code helper
-open http://localhost:7777
 ```
+
+Releases: bump `version` in `package.json`, merge, then tag `vX.Y.Z` and push the tag. `.github/workflows/release.yml` publishes `logbook.tar.gz`, which `install.sh` downloads. The landing page in `site/` deploys to GitHub Pages from `main`.
+
+## First launch
 
 Install opens your town in the browser. The first launch is a short welcome tour, about two minutes and skippable at every step:
 
