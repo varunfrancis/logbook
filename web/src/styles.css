@@ -509,14 +509,11 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 /* town additions */
 .city-labels > .chat { max-width: 220px; white-space: normal; font-size: 12.5px; font-weight: 700; background: #fff; color: #25303d; padding: 6px 10px; border-radius: 12px; box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; }
 .city-labels > .chat::after { content: ""; position: absolute; left: calc(50% - 6px); bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
-.grave-sign small { opacity: .7; font-weight: 500; margin-left: 2px; }
 .grave-sign, .rip { pointer-events: auto; cursor: pointer; }
-.grave-sign:hover { background: #3f5a39; }
 .graves { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .graves li { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
 .graves li:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .graves .epitaph { font-weight: 600; }
-.grave-sign { font-family: var(--f-display); font-weight: 600; font-size: 13px; color: #fff; background: #4f6d48; padding: 3px 10px; border-radius: 6px; }
 .city-labels > .rip { display: flex; flex-direction: column; background: #fff; color: #25303d; border-radius: 8px; padding: 4px 8px; font-size: 11.5px; max-width: 180px; box-shadow: 0 3px 10px #0003; }
 .replay-clock { position: absolute; z-index: 6; left: max(16px, env(safe-area-inset-left, 0px)); top: 16px; background: #141b25d9; color: #fff; border-radius: 16px; padding: 12px 16px; display: grid; grid-template-columns: auto auto; gap: 4px 14px; align-items: center; }
 .replay-clock b { font-family: var(--f-mono); font-size: 34px; font-weight: 500; grid-row: span 2; }
@@ -621,9 +618,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .pill.s-away { background: var(--surface-2); color: var(--ink-2); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .verdict-line.g-good, :root:not([data-theme="light"]) .score.g-good .score-value { color: #6fd39c; } :root:not([data-theme="light"]) .verdict-line.g-ok { color: #f5c542; } :root:not([data-theme="light"]) .verdict-line.g-bad, :root:not([data-theme="light"]) .score.g-bad .score-value { color: #ff8a8e; } }
 :root[data-theme="dark"] .verdict-line.g-good, :root[data-theme="dark"] .score.g-good .score-value { color: #6fd39c; } :root[data-theme="dark"] .verdict-line.g-ok { color: #f5c542; } :root[data-theme="dark"] .verdict-line.g-bad, :root[data-theme="dark"] .score.g-bad .score-value { color: #ff8a8e; }
-.cafe-sign { font-family: var(--f-display); font-weight: 600; font-size: 13px; color: #fff; background: #8a5a36; padding: 3px 10px; border-radius: 6px; pointer-events: auto; cursor: pointer; white-space: nowrap; }
-.cafe-sign small { opacity: .8; font-weight: 500; margin-left: 2px; }
-.cafe-sign:hover { background: #74482a; }
+/* café / graveyard: the same white billboard as the buildings (.bb), with their own dot and chip colour */
+.cafe-sign .d { background: #8a5a36; } .cafe-sign .crew { background: #8a5a3622; color: #74482a; }
+.grave-sign .d { background: #4f6d48; } .grave-sign .crew { background: #4f6d4822; color: #3f5a39; }
 
 /* ---------- Welcome tour: Pip the foreman, the roll call, the signs, starting a first job ---------- */
 .app.touring .legend, .app.touring .city-actions { display: none; }
