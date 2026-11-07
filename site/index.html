@@ -121,10 +121,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 :root[data-theme="dark"] .theme .sun-i { display: none; } :root[data-theme="dark"] .theme .moon-i { display: block; }
 
 /* hero */
-.hero { position: relative; text-align: center; padding-top: 52px; overflow: hidden; background: var(--stage-sky); }
+.hero { position: relative; text-align: center; padding-top: 88px; overflow: hidden; background: var(--stage-sky); }
 .hero h1 { font-size: clamp(42px, 7.4vw, 76px); line-height: 1.02; color: var(--headline); max-width: 20ch; margin: 0 auto; text-transform: lowercase; }
-.hero .sub { font-size: clamp(18px, 2.2vw, 21px); color: var(--ink-2); max-width: 36ch; margin: 20px auto 0; }
-.start { margin: 30px auto 0; display: flex; flex-direction: column; align-items: center; gap: 14px; position: relative; z-index: 2; }
+.hero .sub { font-size: clamp(18px, 2.2vw, 21px); color: var(--ink-2); max-width: 36ch; margin: 22px auto 0; }
+.start { margin: 40px auto 0; display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; z-index: 2; }
 .start .how { font-size: 15px; color: var(--ink-2); max-width: 44ch; }
 .start .how b { color: var(--ink); }
 .ways { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 14px; color: var(--ink-3); }
@@ -134,7 +134,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .not-mac { display: none; background: var(--say-bg); border: 2px solid var(--say-line); border-radius: 16px; padding: 12px 16px; font-size: 15px; max-width: 46ch; }
 .is-other .not-mac { display: block; }
 
-.stage { position: relative; height: 380px; margin-top: 26px; }
+.stage { position: relative; height: 380px; margin-top: 48px; }
 .stars { position: absolute; inset: 0 0 120px; opacity: var(--stars); pointer-events: none; transition: opacity .4s; }
 .stars i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; }
 .moon { position: absolute; right: calc(50% - 420px); top: 10px; width: 64px; height: 64px; border-radius: 50%; background: #ffe7a6; box-shadow: 0 0 40px #ffe7a666, inset -14px -6px 0 #f2cf72; opacity: var(--moon); transition: opacity .4s; }
@@ -168,7 +168,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 
 /* the town, drawn: a close-up of four buildings inside a browser window that matches the visitor's browser */
-.real { background: var(--hill-b); color: var(--band-ink); padding-block: 10px 110px; text-align: center; position: relative; }
+.real { background: var(--hill-b); color: var(--band-ink); padding-block: 40px 140px; text-align: center; position: relative; }
 .real h2 { font-size: clamp(34px, 5vw, 50px); text-transform: lowercase; }
 .real .lead { font-size: 19px; opacity: .95; margin: 10px auto 0; max-width: 44ch; }
 .browser { margin: 40px auto 0; max-width: 1000px; border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 8px 0 rgba(0,0,0,.18), 0 30px 60px rgba(0,0,0,.2); text-align: left; }
@@ -199,15 +199,15 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 :root[data-theme="dark"] .browser .shot.day { display: none; } :root[data-theme="dark"] .browser .shot.night { display: block; }
 
 /* how to get it */
-.get { background: var(--band); color: var(--band-ink); position: relative; padding-block: 76px 96px; }
+.get { background: var(--band); color: var(--band-ink); position: relative; padding-block: 110px 130px; }
 .get h2 { font-size: clamp(34px, 5vw, 50px); text-align: center; text-transform: lowercase; }
 .get .lead { text-align: center; font-size: 19px; opacity: .95; margin-top: 10px; }
-.tabs { display: flex; justify-content: center; gap: 8px; margin-top: 34px; flex-wrap: wrap; }
+.tabs { display: flex; justify-content: center; gap: 8px; margin-top: 40px; flex-wrap: wrap; }
 .tab { border: 0; border-radius: 14px; padding: 12px 18px; font: 800 15px var(--f-body); cursor: pointer; background: #ffffff26; color: var(--band-ink); }
 .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 4px 0 var(--band-edge); }
 .tab:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .tab small { font-weight: 700; opacity: .75; margin-left: 4px; }
-.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 28px; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
 .steps[hidden] { display: none; }
 .step { background: var(--surface); color: var(--ink); border-radius: 24px; padding: 26px; box-shadow: 0 6px 0 var(--band-edge); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .step .num { width: 46px; height: 46px; border-radius: 50%; background: var(--band-soft); color: var(--cta-edge); display: grid; place-items: center; font: 700 24px var(--f-display); }
@@ -234,8 +234,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .wave-top path { fill: var(--band); }
 
 /* feature rows */
-.features { padding-block: 40px 20px; }
-.feature { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; padding: 64px 0; border-bottom: 2px solid var(--line); }
+.features { padding-block: 70px 40px; }
+.feature { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; padding: 90px 0; border-bottom: 2px solid var(--line); }
 .feature:last-child { border-bottom: 0; }
 .feature.flip .art { order: 2; }
 .feature h2 { font-size: clamp(32px, 4.4vw, 44px); line-height: 1.08; text-transform: lowercase; }
@@ -252,7 +252,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .panel .opt.on { border-color: var(--cta); background: var(--band-soft); }
 
 /* numbers band */
-.numbers { background: var(--sky-band); color: var(--num-ink); position: relative; padding-block: 70px; overflow: hidden; }
+.numbers { background: var(--sky-band); color: var(--num-ink); position: relative; padding-block: 90px; overflow: hidden; }
 .numbers .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; position: relative; }
 .numbers b { display: block; font: 700 clamp(48px, 7vw, 72px)/1 var(--f-display); }
 .numbers span { font-size: 18px; opacity: .95; }
@@ -261,17 +261,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .cloud::before { width: 55%; height: 140%; left: 14%; bottom: 20%; } .cloud::after { width: 40%; height: 110%; right: 14%; bottom: 25%; }
 
 /* promise cards */
-.promise { padding-block: 90px 40px; text-align: center; }
+.promise { padding-block: 120px 60px; text-align: center; }
 .promise h2 { font-size: clamp(34px, 5vw, 50px); text-transform: lowercase; }
 .promise .lead { color: var(--ink-2); font-size: 19px; margin: 12px auto 0; max-width: 46ch; }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 70px; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-top: 90px; }
 .card { border: 2px solid var(--line); border-radius: 24px; padding: 70px 24px 28px; position: relative; text-align: left; background: var(--surface); }
 .card .badge { position: absolute; top: -52px; left: 50%; transform: translateX(-50%); width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; border: 4px solid var(--bg); }
 .card h3 { font-size: 24px; text-align: center; }
 .card p { color: var(--ink-2); font-size: 16px; margin-top: 10px; }
 
 /* questions */
-.faq { padding-block: 80px; }
+.faq { padding-block: 100px 120px; }
 .faq h2 { font-size: clamp(34px, 5vw, 48px); text-align: center; text-transform: lowercase; margin-bottom: 34px; }
 .faq details { border: 2px solid var(--line); border-radius: 18px; margin: 0 auto 14px; max-width: 760px; background: var(--surface); }
 .faq summary { list-style: none; cursor: pointer; padding: 20px 56px 20px 22px; font: 700 20px var(--f-display); position: relative; }
@@ -282,7 +282,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .faq details p { padding: 0 22px 22px; color: var(--ink-2); font-size: 17px; }
 
 /* final */
-.final { background: var(--band); color: var(--band-ink); text-align: center; padding-block: 90px 0; position: relative; overflow: hidden; }
+.final { background: var(--band); color: var(--band-ink); text-align: center; padding-block: 120px 0; position: relative; overflow: hidden; }
 .final h2 { font-size: clamp(40px, 6.5vw, 66px); text-transform: lowercase; line-height: 1.03; }
 .final p { font-size: 20px; margin-top: 14px; opacity: .95; }
 .final .btn { margin-top: 30px; }
@@ -291,6 +291,7 @@ footer { background: var(--band-deep); color: var(--band-ink); padding-block: 30
 footer .inner { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; text-transform: uppercase; letter-spacing: .08em; opacity: .9; }
 footer a { color: inherit; text-decoration: none; }
 footer a:hover { text-decoration: underline; }
+footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight: 700; opacity: .7; text-transform: none; letter-spacing: 0; }
 
 .toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 30px); opacity: 0; visibility: hidden; background: var(--ink); color: var(--bg); padding: 14px 22px; border-radius: 16px; font-weight: 800; z-index: 45; transition: transform .35s cubic-bezier(.2, 1.5, .4, 1), opacity .2s, visibility .2s; box-shadow: 0 10px 30px #0003; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
@@ -357,20 +358,19 @@ footer a:hover { text-decoration: underline; }
 </nav>
 
 <header class="hero gutter" id="top">
-  <h1>your claude agents, at work in a town</h1>
-  <p class="sub">Every Claude Code chat becomes a character. See who's busy, who needs you, and what's done.</p>
+  <h1>watch your agents build</h1>
+  <p class="sub">Every Claude Code chat becomes a little character in your own town.</p>
 
   <div class="start" id="start">
     <p class="not-mac">Swarmville is made for Mac. Open this page on your Mac to set it up.</p>
     <a class="btn big" id="open-claude" href="#">
-      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" fill="currentColor"/></svg>
       Set up with Claude
     </a>
-    <p class="how">Opens the <b>Claude app</b> with the message already typed. Press <span class="key">Enter</span>, then click <b>Allow</b>. That's it.</p>
-    <div class="ways"><span>Use Claude somewhere else?</span>
+    <p class="how">Then press <span class="key">Enter</span> and click <b>Allow</b>.</p>
+    <div class="ways"><span>Or use</span>
       <a class="way" id="open-vscode" href="#">VS Code</a>
       <button class="way" type="button" data-tab="terminal">Terminal</button>
-      <button class="way" type="button" id="copy-hero">Copy the message</button>
+      <button class="way" type="button" id="copy-hero">Copy</button>
     </div>
   </div>
 
@@ -405,7 +405,7 @@ footer a:hover { text-decoration: underline; }
 <section class="real gutter" id="town" aria-labelledby="town-title">
   <div class="inner">
     <h2 id="town-title">this is your town</h2>
-    <p class="lead">It opens in your browser. Every building is one of your projects, and every little character is a Claude Code chat working for you. Here is what a busy afternoon looks like.</p>
+    <p class="lead">Each building is a project. Each character is a Claude chat.</p>
     <div class="browser chrome pop" id="browser" >
       <div class="top" aria-hidden="true">
         <span class="lights"><i></i><i></i><i></i></span>
@@ -423,7 +423,7 @@ footer a:hover { text-decoration: underline; }
   <svg class="wave-top" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 360 0, 1080 0, 1440 40 Z"/></svg>
   <div class="inner">
     <h2 id="get-title">get it in one minute</h2>
-    <p class="lead">No sign-up and no settings. Claude does the setting up for you.</p>
+    <p class="lead">No sign-up. Claude sets it up for you.</p>
     <div class="tabs" role="tablist" aria-label="Where do you use Claude?">
       <button class="tab" role="tab" id="tab-app" aria-selected="true" aria-controls="steps-app" data-tab="app">Claude app <small>easiest</small></button>
       <button class="tab" role="tab" id="tab-vscode" aria-selected="false" aria-controls="steps-vscode" data-tab="vscode">VS Code</button>
@@ -431,26 +431,26 @@ footer a:hover { text-decoration: underline; }
     </div>
 
     <div class="steps" id="steps-app" role="tabpanel" aria-labelledby="tab-app">
-      <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>The Claude app opens a new Claude Code chat with our message already typed in.</p><a class="btn" data-open="app" href="#">Set up with Claude</a></div>
-      <div class="step pop"><span class="num">2</span><h3>Press Enter</h3><p>Claude reads the instructions and tells you, in plain words, what it's about to do.</p>
+      <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>Claude opens with our message typed in.</p><a class="btn" data-open="app" href="#">Set up with Claude</a></div>
+      <div class="step pop"><span class="num">2</span><h3>Press Enter</h3><p>Claude explains what it will do.</p>
         <div class="mini-chat" aria-hidden="true"><span class="me">Install Swarmville for me: https://raw.github…</span><span class="typing"><i></i><i></i><i></i></span></div></div>
-      <div class="step pop"><span class="num">3</span><h3>Click Allow</h3><p>Claude always asks before it installs anything. About a minute later your town opens in your browser.</p>
+      <div class="step pop"><span class="num">3</span><h3>Click Allow</h3><p>Your town opens about a minute later.</p>
         <div class="allow" aria-hidden="true"><span>Allow Claude to install Swarmville?</span><div class="row"><span class="no">Deny</span><span class="yes">Allow</span></div></div></div>
     </div>
 
     <div class="steps" id="steps-vscode" role="tabpanel" aria-labelledby="tab-vscode" hidden>
-      <div class="step"><span class="num">1</span><h3>Click the button</h3><p>VS Code opens Claude Code with our message already typed in. You'll need the Claude Code extension.</p><a class="btn" data-open="vscode" href="#">Open in VS Code</a></div>
-      <div class="step"><span class="num">2</span><h3>Press Enter</h3><p>Claude reads the instructions and explains what it will do.</p></div>
-      <div class="step"><span class="num">3</span><h3>Click Allow</h3><p>When Claude asks, say yes. Your town opens in your browser, and Swarmville can open your helpers right inside VS Code.</p></div>
+      <div class="step"><span class="num">1</span><h3>Click the button</h3><p>Needs the Claude Code extension.</p><a class="btn" data-open="vscode" href="#">Open in VS Code</a></div>
+      <div class="step"><span class="num">2</span><h3>Press Enter</h3><p>Claude explains what it will do.</p></div>
+      <div class="step"><span class="num">3</span><h3>Click Allow</h3><p>Your town opens about a minute later.</p></div>
     </div>
 
     <div class="steps" id="steps-terminal" role="tabpanel" aria-labelledby="tab-terminal" hidden>
       <div class="step"><span class="num">1</span><h3>Copy this</h3><div class="cmd" id="term-line">curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash</div><button class="btn" type="button" id="copy-term">Copy</button></div>
       <div class="step"><span class="num">2</span><h3>Open Terminal</h3><p>Press <span class="key">⌘</span> <span class="key">Space</span>, type <b>Terminal</b>, and press <span class="key">Enter</span>.</p></div>
-      <div class="step"><span class="num">3</span><h3>Paste and press Enter</h3><p>It takes about a minute and opens your town in your browser when it's done.</p></div>
+      <div class="step"><span class="num">3</span><h3>Paste and press Enter</h3><p>Your town opens in about a minute.</p></div>
     </div>
 
-    <p class="new-to-claude">New to Claude Code? <a href="https://claude.ai/download">Get the Claude app first</a>, then come back here.</p>
+    <p class="new-to-claude">New to Claude Code? <a href="https://claude.ai/download">Get the Claude app first</a>.</p>
   </div>
 </section>
 
@@ -461,7 +461,7 @@ footer a:hover { text-decoration: underline; }
         <div style="position:relative;display:grid;justify-items:center;gap:8px"><span class="bubble red pulse" style="font-size:16px">I need your OK!</span><span class="wobble" data-char="juno-needs" data-size="150"></span></div>
       </div>
       <div><span class="tag" style="color:var(--red)">Never miss a question</span><h2>know when claude needs you</h2>
-        <p>When Claude stops to ask you something, its character raises a hand and your Mac gives you a gentle ping. No more coming back an hour later to find it waiting.</p></div>
+        <p>A raised hand and a gentle ping the moment Claude needs you.</p></div>
     </section>
     <section class="feature flip">
       <div class="art sun pop" aria-hidden="true"><span class="ground"></span>
@@ -475,7 +475,7 @@ footer a:hover { text-decoration: underline; }
         </svg>
       </div>
       <div><span class="tag" style="color:var(--sun-dark)">Celebrate the wins</span><h2>see what got done</h2>
-        <p>Finished work gets fireworks. Half-finished work gets a clear label. At the end of the day you get a little summary of everything your helpers did.</p></div>
+        <p>Fireworks when work ships. A clear label when it doesn't.</p></div>
     </section>
     <section class="feature">
       <div class="art pink pop" aria-hidden="true"><span class="ground"></span>
@@ -486,14 +486,14 @@ footer a:hover { text-decoration: underline; }
         </div>
       </div>
       <div><span class="tag" style="color:#e5609f">A crew, not a log file</span><h2>meet your crew</h2>
-        <p>Every helper gets a name, a face and even a voice. They introduce themselves and tell you what they're working on, in plain words.</p></div>
+        <p>Every helper has a name, a face and a voice.</p></div>
     </section>
     <section class="feature flip">
       <div class="art green pop" aria-hidden="true"><span class="ground"></span>
         <div class="panel"><b style="font-family:var(--f-display);font-size:19px">What should we do next?</b><span class="opt">Brainstorm with me</span><span class="opt on">Plan with me ✓</span><span class="btn small" style="justify-self:end">Start planning</span></div>
       </div>
       <div><span class="tag" style="color:var(--teal)">Start without typing commands</span><h2>give the next job in one click</h2>
-        <p>Pick a project, say what you'd like in your own words, and Swarmville opens Claude for you. It starts with a plan, so nothing changes until you say yes.</p></div>
+        <p>Say what you want. Claude plans it first, then builds when you say yes.</p></div>
     </section>
   </div>
 </main>
@@ -511,11 +511,10 @@ footer a:hover { text-decoration: underline; }
 <section class="promise gutter" aria-labelledby="promise-title">
   <div class="inner">
     <h2 id="promise-title">your work stays yours</h2>
-    <p class="lead">Swarmville lives on your Mac and only looks at your own Claude Code history. Here's what that means.</p>
-    <div class="cards">
-      <div class="card pop"><span class="badge" style="background:var(--sky)"><span data-char="moss" data-size="84" class="bob"></span></span><h3 style="color:var(--sky)">Stays on your Mac</h3><p>Nothing is uploaded anywhere. There's no account and no company server watching your work.</p></div>
-      <div class="card pop"><span class="badge" style="background:var(--orange)"><span data-char="pip" data-size="88" class="bob d1"></span></span><h3 style="color:var(--orange)">Uses your own Claude</h3><p>The friendly names and introductions come from your own Claude, using a tiny bit of your plan. No extra bills.</p></div>
-      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--purple)">Open for anyone to check</h3><p>The code is public, so anyone can see exactly what Swarmville does. It's free to use and share.</p></div>
+        <div class="cards">
+      <div class="card pop"><span class="badge" style="background:var(--sky)"><span data-char="moss" data-size="84" class="bob"></span></span><h3 style="color:var(--sky)">Stays on your Mac</h3><p>Nothing is uploaded. No account.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--orange)"><span data-char="pip" data-size="88" class="bob d1"></span></span><h3 style="color:var(--orange)">Uses your own Claude</h3><p>Friendly names use a tiny bit of your own plan.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--purple)">Open for anyone to check</h3><p>The code is public and free to use.</p></div>
     </div>
   </div>
 </section>
@@ -523,13 +522,10 @@ footer a:hover { text-decoration: underline; }
 <section class="faq gutter" aria-labelledby="faq-title">
   <div class="inner">
     <h2 id="faq-title">questions?</h2>
-    <details><summary>Do I need to be technical?</summary><p>No. Click the button, press Enter, click Allow. Claude does the installing and explains each step before it does it.</p></details>
-    <details><summary>What do I need?</summary><p>A Mac and Claude Code: in the Claude app, in VS Code, or in Terminal. New to it? Get the Claude app at claude.ai/download first.</p></details>
-    <details><summary>The button didn't open anything</summary><p>That usually means the Claude app isn't installed on this Mac. Install it from claude.ai/download, or use the VS Code or Terminal option, or copy the message and paste it into Claude Code yourself.</p></details>
-    <details><summary>Does it cost anything?</summary><p>Swarmville is free. It uses a tiny amount of your own Claude plan to give your projects friendly names, the same as asking Claude a short question.</p></details>
-    <details><summary>Is my work private?</summary><p>Yes. Everything stays on your Mac. Swarmville reads your Claude Code history on your computer, and nothing is sent anywhere. Pictures you choose to share never include your file names or what you asked.</p></details>
-    <details><summary>How do I update or remove it?</summary><p>Just ask Claude: "update Swarmville" or "uninstall Swarmville". Your town's history is kept unless you ask to delete it.</p></details>
-    <details><summary>Does it work on Windows?</summary><p>Not yet. Swarmville is Mac-only for now.</p></details>
+    <details><summary>Do I need to be technical?</summary><p>No. Click, press Enter, click Allow. Claude does the rest.</p></details>
+    <details><summary>The button didn't open anything</summary><p>You probably need the Claude app: <a href="https://claude.ai/download">get it here</a>. Or use VS Code, Terminal, or Copy.</p></details>
+    <details><summary>Does it cost anything?</summary><p>No. Swarmville is free. Friendly names use a tiny bit of your own Claude plan.</p></details>
+    <details><summary>Is my work private?</summary><p>Yes. Everything stays on your Mac. Nothing is sent anywhere.</p></details>
   </div>
 </section>
 
@@ -543,7 +539,7 @@ footer a:hover { text-decoration: underline; }
     </div>
   </div>
 </section>
-<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">The code</a><span>Made for Mac</span></div></footer>
+<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">The code</a><span>Mac only</span></div><p class="tm">Not affiliated with Anthropic. Claude is a trademark of Anthropic, PBC.</p></footer>
 
 <div class="opening" id="opening" role="dialog" aria-labelledby="opening-title" aria-live="polite">
   <span data-char="pip" data-size="56"></span>
