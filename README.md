@@ -8,7 +8,7 @@ Everything your Claude Code agents are doing, told as a little town. (Formerly L
 - **Crew**: who raised a hand (and what they need), who's building, who's on a coffee break, and who clocked out today, stamped from git as *Shipped / Sent for review / Saved, not sent / Left unfinished / Scrapped / Just a chat*. Warnings when an agent is stuck on the same problem or two agents are changing the same file.
 - **Today** (on the Crew tab): how many things shipped today, per project, with the full list one click away in a drawer; then what still needs a decision from you (reviews waiting to merge, work left unfinished or scrapped, with *Resume* and *Let it go*). A background job whose review merged counts as shipped.
 - **Agent profiles**: what you asked for, how it went, what the agent said vs. what actually happened, and the shift in numbers.
-- **Share**: daily receipt, graveyard, monthly Wrapped, a 20-second time-lapse video of the day, and a skyline image for your GitHub README. Repo names, branches, files and prompts never appear in anything you share.
+- **Share your team**: two cards built to post. *My team* is an org chart, you on top and your AI crew underneath ("1 human. 108 AI employees."). *Payroll* is a payslip: what each agent's work would cost at API prices, against what your plan actually cost. Repo names, branches, files and prompts never appear in anything you share.
 
 Everything runs on your machine. Swarmville talks to GitHub with your own `gh` login, and asks the small Claude model (through your own Claude Code login) for one plain-English name per project.
 
@@ -64,7 +64,6 @@ New agents walk in from the street with a "Hi, I'm …" bubble whenever they sta
 **Agents say hi in the terminal** (Settings, off by default): when a Claude Code session starts, the hook tells Claude its name and look in your town, so its first reply opens with "Hi, I'm Juno. You'll see me at Support Bot in Maple Harbor." The hook waits at most a second for this and only on session start.
 
 - `node bin/swarmville.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in, and opens new jobs you start from Swarmville. New VS Code windows pick it up; restart VS Code once for windows already open. Without it, Swarmville uses Terminal.
-- Settings → *Skyline for your GitHub profile*: point it at a local clone of your profile README repo. **README skyline** in the Town view then saves `swarmville-skyline.png` there (or updates `logbook-skyline.png` if the repo already has one from before the rename), commits and pushes.
 - `node bin/swarmville.ts uninstall` removes the hooks, the login item, the Swarmville app and the VS Code helper. Your data in `~/.swarmville` stays.
 
 ## How it knows what's happening

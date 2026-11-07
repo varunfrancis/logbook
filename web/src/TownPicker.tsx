@@ -44,13 +44,11 @@ function Seg<T extends string>({ label, value, set, options }: { label: string; 
 }
 
 export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWelcome }: { state: StateView; onClose: () => void; onSaved: () => void; renameTown: () => void; prefs: Prefs; replayWelcome: () => void }) {
-  const [repo, setRepo] = useState(state.settings.skylineRepo ?? '');
   const [intros, setIntros] = useState(state.settings.terminalIntros);
-  const [saving, setSaving] = useState(false);
   const sound = useSound();
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={async (e) => { e.preventDefault(); if (saving) return; setSaving(true); try { await post('/api/settings', { skylineRepo: repo || null }); onSaved(); } finally { setSaving(false); } }}>
+      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSaved(); }}>
         <h2 id="settings-title">Settings</h2>
         <div className="setting"><div><b>Language</b><div className="muted">Plain talks in bricks and buildings; Technical shows tokens and tool calls.</div></div>
           <Seg label="Language" value={prefs.voice} set={prefs.setVoice} options={[['plain', 'Plain'], ['technical', 'Technical']]} /></div>
@@ -59,18 +57,13 @@ export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWel
         <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Swarmville knows about but hasn't seen any work on yet.</div></div>
           <label className="toggle"><input type="checkbox" id="show-lots" checked={prefs.showLots} onChange={(e) => prefs.setShowLots(e.target.checked)} /> Show</label></div>
         <div className="setting"><div><b>Town name</b><div className="muted">{state.town.name}</div></div><button type="button" className="ghost" onClick={renameTown}>Rename</button></div>
-        <div className="setting col">
-          <label htmlFor="skyline-repo"><b>Skyline for your GitHub profile</b></label>
-          <div className="muted">A local clone of your profile README repo (the one named after your username). "Update README skyline" saves the picture there, commits it and pushes.</div>
-          <input id="skyline-repo" className="field" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="/Users/you/Work/your-username" />
-        </div>
         <div className="setting"><div><b>Background music</b><div className="muted">A slow, calm loop that plays on every tab. It starts after your first click.</div></div><label className="toggle"><input type="checkbox" checked={sound.music} onChange={(e) => setMusic(e.target.checked)} /> {sound.music ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Crew voices</b><div className="muted">Agents say their introductions out loud on the welcome tour, each in their own voice. Uses your computer's built-in voices.</div></div><label className="toggle"><input type="checkbox" checked={sound.voices} onChange={(e) => setVoices(e.target.checked)} /> {sound.voices ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Heads-up chime</b><div className="muted">A soft ding on the Town when two agents start changing the same file.</div></div><label className="toggle"><input type="checkbox" checked={sound.chime} onChange={(e) => setChime(e.target.checked)} /> {sound.chime ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Agents say hi in the terminal</b><div className="muted">New Claude Code sessions open with their name and where to find them in {state.town.name}, so the terminal and the town match.</div></div><label className="toggle"><input type="checkbox" id="terminal-intros" checked={intros} onChange={(e) => { setIntros(e.target.checked); post('/api/settings', { terminalIntros: e.target.checked }); }} /> {intros ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Welcome tour</b><div className="muted">Meet the crew again and see how the town works. About two minutes.</div></div><button type="button" className="ghost" onClick={replayWelcome}>Replay the welcome</button></div>
         <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `~/.swarmville/bin/swarmville vscode` (or `node bin/swarmville.ts vscode` in a developer copy) once, then restart VS Code.'}</div></div></div>
-        <div className="row end"><button type="button" className="ghost" onClick={onClose}>Close</button><button className="btn dark" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button></div>
+        <div className="row end"><button className="btn dark" type="submit">Done</button></div>
       </form>
     </div>
   );

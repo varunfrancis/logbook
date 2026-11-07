@@ -1238,8 +1238,6 @@ export class CityScene {
     });
   }
 
-  /** PNG of the current frame (used for the README skyline). */
-  snapshot(): string { this.renderer.render(this.scene, this.cam); return this.renderer.domElement.toDataURL('image/png'); }
   get canvas() { return this.renderer.domElement; }
 
   private confetti(p: ProjectView) {

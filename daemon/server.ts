@@ -9,7 +9,7 @@ import { purgeOwnRuns, scanProgress, scanTranscripts, transcriptsLeft } from './
 import { backfillEntrypoints } from './routines.ts';
 import { consolidateProjects } from './projects.ts';
 import { readLive, type LiveEntry } from './live.ts';
-import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, wrappedView } from './state.ts';
+import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, teamView } from './state.ts';
 import { handleHook } from './hooks.ts';
 import { stopProcess, systemDeps } from './stop.ts';
 import { checkPullRequests, syncGithub } from './github.ts';
@@ -277,7 +277,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/crews/dismiss') { const body = await readJson(req); dismissFlag(db, String(body.projectId ?? '')); refresh(); return json(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/today/letgo') { const body = await readJson(req); const id = String(body.id ?? ''); if (!id) return json(res, 400, { ok: false, message: 'Which job?' }); letGo(db, id, body.undo === true); refresh(); return json(res, 200, { ok: true }); }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
-    if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
+    if (p === '/api/team') return json(res, 200, teamView(db, state, Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30))));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/ask/')) {
       // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), or deny.
@@ -300,7 +300,6 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/settings' && req.method === 'POST') {
       const body = await readJson(req);
       if (typeof body.town === 'string') setTown(db, body.town);
-      if ('skylineRepo' in body) kvSet(db, 'settings.skylineRepo', body.skylineRepo ? String(body.skylineRepo) : null);
       if ('terminalIntros' in body) kvSet(db, 'settings.terminalIntros', !!body.terminalIntros);
       if (body.welcome && typeof body.welcome === 'object') {
         const cur: Welcome = { ...NEW_WELCOME, ...kvGet<Partial<Welcome>>(db, 'welcome', {}) };
@@ -316,28 +315,6 @@ const server = http.createServer(async (req, res) => {
       }
       refresh();
       return json(res, 200, { ok: true });
-    }
-    if (p === '/api/skyline' && req.method === 'POST') {
-      const body = await readJson(req);
-      const png = Buffer.from(String(body.png ?? '').replace(/^data:image\/png;base64,/, ''), 'base64');
-      if (png.length < 100) return json(res, 400, { error: 'No image received' });
-      const file = path.join(DATA_DIR, 'skyline.png');
-      fs.writeFileSync(file, png);
-      const repo = kvGet<string | null>(db, 'settings.skylineRepo', null);
-      if (body.push && repo) {
-        try {
-          // A profile repo set up before the rename to Swarmville keeps its file name, so the README image doesn't go stale.
-          const name = fs.existsSync(path.join(repo, 'logbook-skyline.png')) ? 'logbook-skyline.png' : 'swarmville-skyline.png';
-          fs.copyFileSync(file, path.join(repo, name));
-          execFileSync('git', ['-C', repo, 'add', name], { timeout: 10000 });
-          try { execFileSync('git', ['-C', repo, 'commit', '-m', 'Update Swarmville skyline'], { timeout: 10000 }); } catch {}
-          execFileSync('git', ['-C', repo, 'push'], { timeout: 30000 });
-          return json(res, 200, { ok: true, file, pushed: true, markdown: `![My agent town](${name})` });
-        } catch (e: any) {
-          return json(res, 200, { ok: false, file, pushed: false, error: `Saved locally, but pushing to ${repo} failed: ${String(e?.message ?? e).slice(0, 200)}` });
-        }
-      }
-      return json(res, 200, { ok: true, file, pushed: false });
     }
     if (p === '/api/health') return json(res, 200, { ok: true, pid: process.pid });
     // Static web build

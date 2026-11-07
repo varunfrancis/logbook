@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { AgentDetail, DayView, ProjectDetail, StateView, WrappedView } from '../../daemon/types.ts';
+import type { AgentDetail, DayView, ProjectDetail, StateView, TeamView } from '../../daemon/types.ts';
 
 export type Conn = 'connecting' | 'live' | 'offline';
 
@@ -44,7 +44,7 @@ export const useAgent = (sessionId: string | null, version?: number) => {
   return d && d.session.id === sessionId ? d : null;
 };
 export const useDay = (date: string, version?: number) => useFetch<DayView>(`/api/day?date=${date}`, tick(version));
-export const useWrapped = (month: string | null) => useFetch<WrappedView>(month ? `/api/wrapped?month=${month}` : null);
+export const useTeam = (days: number) => useFetch<TeamView>(`/api/team?days=${days}`);
 
 export async function post(url: string, body: unknown = {}) {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

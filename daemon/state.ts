@@ -12,7 +12,7 @@ import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { crewsToday, letGoIds, notesView } from './crews.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
-import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, Welcome, WrappedView } from './types.ts';
+import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, TeamView, Welcome } from './types.ts';
 
 const BRICK = 10_000; // tokens per brick
 const shorten = (s: string, n = 72) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
@@ -364,7 +364,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     github: githubMeta(db),
     hooks: { lastEventAt: kvGet<number | null>(db, 'hooks.lastEventAt', null) },
     settings: {
-      skylineRepo: kvGet<string | null>(db, 'settings.skylineRepo', null), vscodeConnected,
+      vscodeConnected,
       terminalIntros: kvGet<boolean>(db, 'settings.terminalIntros', false),
       welcome: { ...NEW_WELCOME, ...kvGet<Partial<Welcome>>(db, 'welcome', {}) },
     },
@@ -501,41 +501,34 @@ export function dayView(db: Db, state: StateView, live: Map<string, LiveEntry>, 
   };
 }
 
-export function wrappedView(db: Db, state: StateView, month: string): WrappedView {
-  const [y, m] = month.split('-').map(Number);
-  const start = new Date(y, m - 1, 1).getTime(), end = new Date(y, m, 1).getTime();
-  const rows = db.prepare('SELECT * FROM sessions WHERE project_id IS NOT NULL AND started_at >= ? AND started_at < ?').all(start, end) as Row[];
-  const byAgent = new Map<string, { rows: Row[]; shipped: number; scrapped: number; tokens: number }>();
+export function teamView(db: Db, state: StateView, days: number, now = Date.now()): TeamView {
+  const from = now - days * 86_400_000;
+  const rows = db.prepare('SELECT * FROM sessions WHERE project_id IS NOT NULL AND last_event_at >= ? AND started_at < ?').all(from, now) as Row[];
+  const work = new Map<string, number>();
+  for (const g of db.prepare("SELECT session_id, start, end FROM segments WHERE kind = 'work' AND end > ? AND start < ?").all(from, now) as Row[])
+    work.set(g.session_id, (work.get(g.session_id) ?? 0) + Math.min(now, g.end) - Math.max(from, g.start));
+  const names = new Map(state.projects.map((p) => [p.id, p.name]));
+  const byAgent = new Map<string, { rows: Row[]; delivered: number; workMs: number; costUsd: number; byProject: Map<string, number> }>();
   for (const r of rows) {
     const k = r.agent_key || agentKey(r);
-    const e = byAgent.get(k) ?? { rows: [], shipped: 0, scrapped: 0, tokens: 0 };
-    e.rows.push(r); e.tokens += tokensOf(r);
-    if (r.stamp === 'shipped') e.shipped++;
-    if (r.stamp === 'scrapped' || r.stamp === 'unfinished') e.scrapped++;
+    const e = byAgent.get(k) ?? { rows: [] as Row[], delivered: 0, workMs: 0, costUsd: 0, byProject: new Map<string, number>() };
+    const ms = work.get(r.id) ?? 0;
+    e.rows.push(r); e.workMs += ms; e.costUsd += costOf(db, r).usd;
+    if (r.stamp === 'shipped' || r.stamp === 'review') e.delivered++;
+    e.byProject.set(r.project_id, (e.byProject.get(r.project_id) ?? 0) + ms + 1);
     byAgent.set(k, e);
   }
-  const best = [...byAgent.values()].sort((a, b) => b.shipped - a.shipped || b.tokens - a.tokens)[0];
-  const work = db.prepare('SELECT start, end, kind FROM segments WHERE start >= ? AND start < ?').all(start, end) as Row[];
-  const hours = new Array(24).fill(0);
-  for (const g of work) if (g.kind === 'work') hours[new Date(g.start).getHours()] += g.end - g.start;
-  const busiest = hours.some((h) => h > 0) ? hours.indexOf(Math.max(...hours)) : null;
-  const pk = peakOf([...sessionIntervals(db, start, end).values()].flat());
-  const newBuildings = (db.prepare('SELECT COUNT(*) n FROM (SELECT project_id, MIN(started_at) first FROM sessions WHERE project_id IS NOT NULL GROUP BY project_id) WHERE first >= ? AND first < ?').get(start, end) as Row).n;
-  const names = new Map(state.projects.map((p) => [p.id, p.name]));
+  const members = [...byAgent.values()].map((e) => {
+    const projectId = [...e.byProject.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    return { agent: agentOf(e.rows[e.rows.length - 1]), projectId, project: projectId ? names.get(projectId) ?? null : null, shifts: e.rows.length, delivered: e.delivered, workMs: e.workMs, costUsd: e.costUsd };
+  }).sort((a, b) => b.delivered - a.delivered || b.workMs - a.workMs);
+  const sum = (f: (m: (typeof members)[number]) => number) => members.reduce((n, m) => n + f(m), 0);
   return {
-    month,
-    label: new Date(start).toLocaleString('en', { month: 'long', year: 'numeric' }),
-    mvp: best ? { agent: agentOf(best.rows[0]), shipped: best.shipped, scrapped: best.scrapped, bricks: Math.round(best.tokens / BRICK), project: names.get(best.rows[0].project_id) ?? null } : null,
-    peak: pk.peak, peakAt: pk.at,
-    stats: {
-      shifts: rows.length,
-      shipped: rows.filter((r) => r.stamp === 'shipped').length,
-      graveyard: rows.filter((r) => r.stamp === 'scrapped' || r.stamp === 'unfinished').length,
-      waitedMs: work.filter((g) => g.kind === 'wait').reduce((n, g) => n + (g.end - g.start), 0),
-      busiestHour: busiest,
-      bricks: Math.round(rows.reduce((n, r) => n + tokensOf(r), 0) / BRICK),
-      newBuildings,
-      costUsd: rows.reduce((n, r) => n + costOf(db, r).usd, 0),
+    from, to: now, days, members,
+    totals: {
+      members: members.length, shifts: sum((m) => m.shifts), delivered: sum((m) => m.delivered), workMs: sum((m) => m.workMs), costUsd: sum((m) => m.costUsd),
+      projects: new Set(rows.map((r) => r.project_id)).size,
+      peak: peakOf([...sessionIntervals(db, from, now).values()].flat()).peak,
     },
   };
 }
