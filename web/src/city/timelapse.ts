@@ -88,7 +88,7 @@ export function recordTimelapse(scene: CityScene, base: StateView, day: DayView,
         ctx.fillStyle = '#fff'; ctx.fillText(txt, W - 14 - w, 49 + i * 46);
       });
       ctx.font = `600 24px ${fontStack}`; ctx.fillStyle = '#ffffff'; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8;
-      ctx.fillText('logbook', W - 120, H - 26); ctx.shadowBlur = 0;
+      ctx.fillText('swarmville', W - 24 - ctx.measureText('swarmville').width, H - 26); ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(0, H - 5, W, 5); ctx.fillStyle = '#17c3c3'; ctx.fillRect(0, H - 5, W * p, 5);
       if (p < 1) requestAnimationFrame(step); else setTimeout(() => rec.stop(), 300);
     };

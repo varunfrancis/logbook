@@ -102,5 +102,8 @@ export function AgentAvatar({ agent, mood, size, live, talking }: { agent: { sha
   return <Avatar shape={agent.shape} color={agent.color} accessory={agent.accessory} job={agent.job} mood={mood} size={size} title={agent.title} live={live} talking={talking} />;
 }
 
-/** Pip, the town's foreman: the guide on the welcome tour. Never works a shift, so nobody else looks like this. */
-export const FOREMAN = { name: 'Pip', shape: 'pebble', color: '#ffb547', accessory: 'none', job: 'foreman', title: 'Pip the foreman' };
+/**
+ * Pip, the town's foreman: the guide on the welcome tour and Swarmville's logo (header, favicon, Dock, site).
+ * Never works a shift, so nobody else looks like this: daemon/identity.ts never gives an agent a blue capsule.
+ */
+export const FOREMAN = { name: 'Pip', shape: 'capsule', color: '#3f8efc', accessory: 'none', job: 'foreman', title: 'Pip the foreman' };

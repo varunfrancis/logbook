@@ -256,7 +256,8 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 
 /* ===================== v2: town, crew, day, profiles, sharing ===================== */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.brand { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.05; }
+.brand { flex-direction: row; align-items: center; gap: 8px; }
+.brand-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
 .brand b { font-family: var(--f-display); font-weight: 600; font-size: 21px; }
 .brand small { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: .2px; }
 button.sum { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; }

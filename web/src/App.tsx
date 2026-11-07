@@ -17,6 +17,8 @@ import { setMusic, useSound } from './audio.ts';
 import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
 import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
 import { SavedToast } from './SavedToast.tsx';
+import { AgentAvatar, FOREMAN } from './crew/Avatar.tsx';
+import { PipFavicon, townMood } from './crew/PipFavicon.tsx';
 
 type View = 'town' | 'crew' | 'day';
 const readView = (): View => (location.hash === '#crew' ? 'crew' : location.hash === '#day' ? 'day' : 'town');
@@ -60,7 +62,7 @@ export function App() {
   useEffect(() => { store.set('logbook.bubbleMode', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
-    document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Logbook'}`;
+    document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Swarmville'}`;
   }, [state?.totals.needs, state?.town.name]);
   useEffect(() => {
     const f = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSel(null); setModal(null); } };
@@ -94,7 +96,8 @@ export function App() {
     <VoiceContext.Provider value={voice}>
       <div className={`app view-${view}${welcome.active && welcome.step !== 'setup' && welcome.step !== 'name' ? ' touring' : ''}`}>
         <header className="bar">
-          <div className="brand"><b>{state?.town.name ?? 'Logbook'}</b><small>a Logbook town</small></div>
+          <div className="brand"><AgentAvatar agent={FOREMAN} mood="hello" size={30} /><div className="brand-text"><b>{state?.town.name ?? 'Swarmville'}</b><small>a Swarmville town</small></div></div>
+          <PipFavicon mood={state ? townMood(state.sessions) : 'hello'} />
           <nav className="tabs" aria-label="View">
             <button className={view === 'town' ? 'on' : ''} onClick={() => go('town')}>Town</button>
             <button className={view === 'crew' ? 'on' : ''} onClick={() => go('crew')}>Crew</button>
@@ -117,12 +120,12 @@ export function App() {
               title={sound.music ? 'Background music is on. Click to turn it off' : 'Background music is off. Click to turn it on'}>{sound.music ? '♪ Music on' : '♪ Music off'}</button>
             <button className="ghost small" onClick={theme.cycle} aria-label="Toggle day and night">{theme.dark ? 'Day' : 'Night'}</button>
             <button className="ghost small" onClick={() => setModal('settings')} aria-label="Settings">Settings</button>
-            {state && conn === 'offline' ? <span className="conn-off" title="Logbook isn’t running. Start it with `npm start`.">Offline</span> : null}
+            {state && conn === 'offline' ? <span className="conn-off" title="Swarmville isn’t running. Start it with `npm start`.">Offline</span> : null}
           </div>
         </header>
         <main className="main">
           {!state ? (
-            <div className="loading">{conn === 'offline' ? 'Can’t reach Logbook on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
+            <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
             <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
           ) : view === 'crew' ? (

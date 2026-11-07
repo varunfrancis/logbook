@@ -29,7 +29,7 @@ export function ShareSheet({ state, onClose, initial = 'waited', extra }: { stat
   const save = async () => {
     try {
       const url = await render();
-      const a = document.createElement('a'); a.href = url; a.download = `logbook-${kind}-${isoDate()}.png`; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `swarmville-${kind}-${isoDate()}.png`; a.click();
       setMsg('Saved to your Downloads.');
     } catch (e: any) { setMsg(`Couldn't make the image: ${e?.message ?? e}`); }
   };
@@ -45,7 +45,7 @@ export function ShareSheet({ state, onClose, initial = 'waited', extra }: { stat
     : kind === 'receipt' ? `Today's receipt from ${state.town.name}, where my AI agents build things.`
     : kind === 'graveyard' ? `My agent graveyard. They tried their best.`
     : `My ${state.town.name} Wrapped.`;
-  const post = async () => { await save(); window.open(`https://x.com/intent/post?text=${encodeURIComponent(text + ' (made with Logbook)')}`, '_blank'); setMsg('Image saved. Attach it to the post that just opened.'); };
+  const post = async () => { await save(); window.open(`https://x.com/intent/post?text=${encodeURIComponent(text + ' (made with Swarmville)')}`, '_blank'); setMsg('Image saved. Attach it to the post that just opened.'); };
 
   const ready = kind === 'wrapped' ? !!w : !!day;
   return (

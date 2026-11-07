@@ -173,10 +173,10 @@ export function terminalIntro(db: Db, p: any, live: Map<string, LiveEntry>, town
   const look = `${/^[aeiou]/i.test(desc) ? 'an' : 'a'} ${desc}`;
   const hi = `Hi, I'm ${a.name}${a.name.endsWith('.') ? '' : '.'}`;
   const text = [
-    `Logbook note: the user follows this session in Logbook, a local dashboard that shows each Claude Code session as a little character in their town, ${townName}.`,
+    `Swarmville note: the user follows this session in Swarmville, a local dashboard that shows each Claude Code session as a little character in their town, ${townName}.`,
     `There you are ${a.name}, ${look}, working at the ${site} building.`,
     `At the very start of your first reply, introduce yourself in one short friendly line, for example: "${hi} You'll see me at ${site} in ${townName}." Then carry on with the task as normal.`,
-    'Do not mention Logbook again unless the user asks.',
+    'Do not mention Swarmville again unless the user asks.',
   ].join(' ');
   return { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: text } };
 }
