@@ -8,10 +8,10 @@ import { useSyncExternalStore } from 'react';
  * Music pauses while the browser tab is hidden and picks up again when you come back.
  */
 
-type Prefs = { music: boolean; chime: boolean };
+type Prefs = { music: boolean; chime: boolean; voices: boolean };
 const KEY = 'logbook.sound';
 const read = (): Prefs => {
-  try { return { music: true, chime: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { music: true, chime: true }; }
+  try { return { music: true, chime: true, voices: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { music: true, chime: true, voices: true }; }
 };
 let prefs = read();
 const subs = new Set<() => void>();
@@ -19,6 +19,9 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } c
 
 export function setMusic(on: boolean) { prefs = { ...prefs, music: on }; save(); sync(); }
 export function setChime(on: boolean) { prefs = { ...prefs, chime: on }; save(); }
+/** Agents speak their introductions out loud (welcome tour). */
+export function setVoices(on: boolean) { prefs = { ...prefs, voices: on }; save(); }
+export const voicesOn = () => prefs.voices;
 export function useSound() {
   return useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => prefs);
 }
@@ -118,6 +121,13 @@ function schedule() {
   }
 }
 
+let ducked = false;
+/** Turns the music down while someone is speaking, and back up after. */
+export function duckMusic(on: boolean) {
+  ducked = on;
+  if (ctx && timer) { musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setTargetAtTime(on ? MUSIC_LEVEL * 0.25 : MUSIC_LEVEL, ctx.currentTime, on ? 0.15 : 0.9); }
+}
+
 /** Starts or stops the loop to match the setting, page visibility and whether sound is allowed yet. */
 function sync() {
   const want = prefs.music && unlocked && document.visibilityState === 'visible';
@@ -129,7 +139,7 @@ function sync() {
       schedule(); timer = setInterval(schedule, 250);
     }
     musicBus.gain.cancelScheduledValues(c.currentTime);
-    musicBus.gain.setTargetAtTime(MUSIC_LEVEL, c.currentTime, 0.8);
+    musicBus.gain.setTargetAtTime(ducked ? MUSIC_LEVEL * 0.25 : MUSIC_LEVEL, c.currentTime, 0.8);
   } else if (ctx && timer) {
     musicBus.gain.cancelScheduledValues(ctx.currentTime);
     musicBus.gain.setTargetAtTime(0, ctx.currentTime, 0.25);

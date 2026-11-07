@@ -3,6 +3,8 @@ import type { SessionView, StateView, WelcomeStep } from '../../../daemon/types.
 import type { Intro } from '../../../daemon/intros.ts';
 import { AgentAvatar, FOREMAN, type Mood } from '../crew/Avatar.tsx';
 import { post } from '../useLogbook.ts';
+import { setVoices, useSound } from '../audio.ts';
+import { canSpeak, hush, speak, type Speaker } from '../crew/voice.ts';
 import { TownPicker } from '../TownPicker.tsx';
 import { StartWork, type Started } from './StartWork.tsx';
 import { WELCOME_MOVES } from './moves.ts';
@@ -38,30 +40,70 @@ export function useWelcome(state: StateView | null) {
 }
 export type WelcomeApi = ReturnType<typeof useWelcome>;
 
-function useTypewriter(text: string, cps = 48) {
+/**
+ * Text that types itself out. With a speaker, the line is also said out loud in that character's voice and the typing
+ * follows the words as they're spoken; if the browser can't speak (muted, no voices, page not clicked yet) it just types.
+ */
+function useTypewriter(text: string, speaker: Speaker | null, cps = 48) {
   const [n, setN] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
+  const stop = useRef<() => void>(() => {});
   useEffect(() => {
-    if (reduced()) { setN(text.length); return; }
     setN(0);
-    // by elapsed time, so a busy frame (the 3D town is drawing) skips ahead instead of slowing the speech down
-    const t0 = performance.now();
-    const id = setInterval(() => { const k = Math.min(text.length, Math.floor(((performance.now() - t0) * cps) / 1000)); setN(k); if (k >= text.length) clearInterval(id); }, 30);
-    return () => clearInterval(id);
-  }, [text, cps]);
-  return { shown: text.slice(0, n), done: n >= text.length, finish: () => setN(text.length) };
+    let mode: 'wait' | 'type' | 'speech' | 'done' = speaker ? 'wait' : 'type';
+    let t0 = performance.now(), said = 0, speechCps = 15;
+    const tick = () => {
+      const now = performance.now();
+      let k = 0;
+      if (mode === 'done' || (mode === 'type' && reduced())) k = text.length;
+      // by elapsed time, so a busy frame (the 3D town is drawing) skips ahead instead of slowing the text down
+      else if (mode === 'type') k = Math.floor(((now - t0) * cps) / 1000);
+      else if (mode === 'speech') {
+        const est = Math.floor(((now - t0) * speechCps) / 1000);
+        k = said ? Math.max(said, Math.min(est, said + 10)) : est; // stay on the word being said
+      }
+      setN(Math.min(text.length, k));
+    };
+    const id = setInterval(tick, 30);
+    const sp = speaker ? speak(text, speaker, {
+      onStart: (c) => { mode = 'speech'; t0 = performance.now(); speechCps = c; setSpeaking(true); },
+      onWord: (end) => { said = Math.max(said, end); },
+      onEnd: () => { mode = 'done'; setSpeaking(false); },
+      onFail: () => { setSpeaking(false); if (mode !== 'done') { mode = 'type'; t0 = performance.now(); } },
+    }) : null;
+    stop.current = () => { sp?.cancel(); mode = 'done'; setSpeaking(false); setN(text.length); };
+    return () => { clearInterval(id); sp?.cancel(); };
+  }, [text, speaker?.key]);
+  return { shown: text.slice(0, n), done: n >= text.length && !speaking, finish: () => stop.current() };
 }
 
-/** Spoken text: types itself out, readable all at once by screen readers, click to finish. */
-function Said({ text, onDone }: { text: string; onDone?: (done: boolean) => void }) {
-  const t = useTypewriter(text);
+/** Spoken text: types itself out (and says it out loud), readable all at once by screen readers, click to finish. */
+function Said({ text, speaker = null, onDone }: { text: string; speaker?: Speaker | null; onDone?: (done: boolean) => void }) {
+  const t = useTypewriter(text, speaker);
   useEffect(() => { onDone?.(t.done); }, [t.done]);
   return (
-    <p className="said" onClick={t.finish}>
+    <p className="said" onClick={t.finish} title={t.done ? undefined : 'Click to skip ahead'}>
       <span className="sr">{text}</span>
       <span aria-hidden="true">{t.shown}<span className="said-rest">{text.slice(t.shown.length)}</span></span>
     </p>
   );
 }
+
+/** Turn the crew's voices on or off. */
+function VoiceToggle() {
+  const sound = useSound();
+  if (!canSpeak()) return null;
+  return (
+    <button type="button" className="voice-toggle" aria-pressed={sound.voices} onClick={() => { if (sound.voices) hush(); setVoices(!sound.voices); }}
+      title={sound.voices ? 'Voices on. Click to mute.' : 'Voices off. Click to hear the crew.'} aria-label={sound.voices ? 'Mute voices' : 'Turn voices on'}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+        {sound.voices ? <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+          : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}</svg>
+    </button>
+  );
+}
+
+const PIP_VOICE: Speaker = { key: 'foreman', shape: 'pebble' };
 
 /** Pip, the foreman, in the corner of the town with something to say. */
 function Pip({ text, children, wide, extra }: { text: string; children?: React.ReactNode; wide?: boolean; extra?: React.ReactNode }) {
@@ -69,7 +111,8 @@ function Pip({ text, children, wide, extra }: { text: string; children?: React.R
   return (
     <div className={`wel-pip${wide ? ' wide' : ''}`} role="dialog" aria-label="Pip, the foreman">
       <div className="wel-bubble">
-        <Said key={text} text={text} onDone={setDone} />
+        <VoiceToggle />
+        <Said key={text} text={text} speaker={PIP_VOICE} onDone={setDone} />
         {extra}
         {children ? <div className="wel-actions">{children}</div> : null}
       </div>
@@ -157,12 +200,13 @@ function RollCall({ state, setTourFocus, onDone, onSkip }: { state: StateView; s
   const [list, setList] = useState<Intro[] | null>(null);
   const [i, setI] = useState(0);
   const [talking, setTalking] = useState(true);
-  const frozen = useRef(new Map<number, string>()); // a line never changes once someone has started reading it
+  const frozen = useRef(new Map<string, string>()); // a line never changes once someone has started hearing it
   useEffect(() => {
     let n = 0, stop = false;
     const load = () => fetch('/api/intros').then((r) => r.json()).then((d: Intro[]) => {
       if (stop) return;
-      setList(d);
+      // keep the first order (who's on site changes while you're reading); later loads only fill in livelier lines
+      setList((prev) => (prev ? prev.map((x) => ({ ...x, line: d.find((y) => y.key === x.key)?.line ?? x.line })) : d));
       // the small model writes livelier lines in the background; pick them up for cards not shown yet
       if (d.some((x) => !x.line) && ++n < 8) setTimeout(load, 2000);
     }).catch(() => setList([]));
@@ -173,13 +217,14 @@ function RollCall({ state, setTourFocus, onDone, onSkip }: { state: StateView; s
   const cur = list?.[i];
   useEffect(() => { if (cur) setTourFocus(cur.projectId); }, [cur?.key]);
   if (!list || !cur) return <div className="wel-card rollcall loading" aria-busy="true"><p className="muted">Gathering the crew…</p></div>;
-  if (!frozen.current.has(i)) frozen.current.set(i, cur.line ?? cur.template);
-  const text = frozen.current.get(i)!;
+  if (!frozen.current.has(cur.key)) frozen.current.set(cur.key, cur.line ?? cur.template);
+  const text = frozen.current.get(cur.key)!;
   const last = i === list.length - 1;
   const next = () => (last ? onDone() : (setI(i + 1), setTalking(true)));
   const live = state.sessions.find((s) => s.id === cur.sessionId && s.status !== 'ended');
   return (
     <div className="wel-card rollcall" role="dialog" aria-labelledby="rc-name" onKeyDown={(e) => { if (e.key === 'ArrowRight') next(); }}>
+      <VoiceToggle />
       <div className="wel-head">
         <div className="av-enter" key={cur.key}><AgentAvatar agent={cur.agent} mood="hello" size={104} live talking={talking} /></div>
         <div>
@@ -187,7 +232,7 @@ function RollCall({ state, setTourFocus, onDone, onSkip }: { state: StateView; s
           <p className="muted">{JOB_WORD[cur.agent.job] ?? cur.agent.jobTitle}{cur.projectName ? ` · ${cur.projectName}` : ''}{live ? ' · on site now' : ''}</p>
         </div>
       </div>
-      <div className="wel-speech"><Said key={cur.key} text={text} onDone={(d) => setTalking(!d)} /></div>
+      <div className="wel-speech"><Said key={cur.key} text={text} speaker={{ key: cur.agent.key, shape: cur.agent.shape }} onDone={(d) => setTalking(!d)} /></div>
       <div className="wel-foot">
         <button type="button" className="linkish" onClick={onDone}>Skip intros</button>
         <div className="dots" aria-label={`${i + 1} of ${list.length}`}>{list.map((x, j) => <i key={x.key} className={j === i ? 'on' : ''} />)}</div>
