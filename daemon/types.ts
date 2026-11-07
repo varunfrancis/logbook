@@ -119,8 +119,16 @@ export type StateView = {
   };
   github: GithubMeta;
   hooks: { lastEventAt: number | null };
-  settings: { skylineRepo: string | null; vscodeConnected: boolean };
+  settings: { skylineRepo: string | null; vscodeConnected: boolean; terminalIntros: boolean; welcome: Welcome };
+  setup: Setup;
 };
+
+/** First run: reading past work, then giving buildings names, then ready. */
+export type Setup = { phase: 'reading' | 'naming' | 'ready'; read: number; total: number; projects: number; shifts: number; crew: number };
+
+export type WelcomeStep = 'setup' | 'name' | 'reveal' | 'rollcall' | 'signs' | 'tabs' | 'turn' | 'handoff' | 'arrival';
+/** How far someone got through the welcome tour, plus the one-time tips they've seen. */
+export type Welcome = { step: WelcomeStep | null; done: boolean; doneAt: number | null; skipped: { at: number; step: WelcomeStep } | null; tips: string[] };
 
 export type Moment = { sessionId: string; ts: number; kind: string; text: string };
 

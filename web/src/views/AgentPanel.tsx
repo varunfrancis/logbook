@@ -5,6 +5,7 @@ import { clock, mins, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '.
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
 import { GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useLogbook.ts';
+import { WorkWith } from '../welcome/WorkWith.tsx';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
   m_prompt: { sym: '→', cls: 'mo-you', title: 'You asked' },
@@ -82,6 +83,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         <div className="row actions"><GoTo s={s} />{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
+      <WorkWith key={s.id} state={state} s={s} />
       {d && d.profile.recent.length > 1 ? (
         <section className="profile-block">
           <h3>Recent jobs</h3>

@@ -1,7 +1,8 @@
 import { ACCESSORY_COLOR, mix, SHAPES } from './shapes.ts';
 
-export type Mood = 'working' | 'needs' | 'break' | 'stuck' | 'shipped' | 'out';
-export type AvatarProps = { shape: string; color: string; accessory?: string; job?: string; mood?: Mood; size?: number; title?: string };
+export type Mood = 'working' | 'needs' | 'break' | 'stuck' | 'shipped' | 'out' | 'hello';
+/** live: breathes, blinks and fidgets with their tool · talking: bounces and moves their mouth (use with mood "hello"). */
+export type AvatarProps = { shape: string; color: string; accessory?: string; job?: string; mood?: Mood; size?: number; title?: string; live?: boolean; talking?: boolean };
 
 /** Maps a session to the face it should make. */
 export function moodFor(s: { status: string; stuck?: unknown; stamp?: string | null; away?: boolean }): Mood {
@@ -13,19 +14,19 @@ export function moodFor(s: { status: string; stuck?: unknown; stamp?: string | n
 }
 
 /** One crew member, drawn from the same shape, color and accessories as their 3D character in the town. */
-export function Avatar({ shape, color, accessory = 'none', job = 'none', mood = 'working', size = 48, title }: AvatarProps) {
+export function Avatar({ shape, color, accessory = 'none', job = 'none', mood = 'working', size = 48, title, live = false, talking = false }: AvatarProps) {
   const sh = SHAPES[shape] ?? SHAPES.bean;
   const f = sh.face, top = sh.top, neck = sh.neck, h = sh.half;
   const shade = mix(color, 0.35, 0);
   const acc = ACCESSORY_COLOR[accessory] ?? '#e5484d', accDark = mix(acc, 0.3, 0);
-  const hatJob = job === 'builder' || job === 'painter';
+  const hatJob = job === 'builder' || job === 'painter' || job === 'foreman';
   const ink = '#1d232c';
   const propX = 50 + h + 4, propY = f + 6;
   const big = size >= 40; // small sizes drop fine detail so the silhouette stays readable
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" role="img" aria-label={title ?? `${shape} crew member`} style={{ display: 'block', overflow: 'visible', flex: 'none' }}>
-      {big ? <ellipse cx="60" cy="112" rx="34" ry="5" fill="#25303d" opacity=".12" /> : null}
-      <g transform="translate(10,10)">
+    <svg className={`av${live ? ' av-live' : ''}${talking ? ' av-talk' : ''}`} width={size} height={size} viewBox="0 0 120 120" role="img" aria-label={title ?? `${shape} crew member`} style={{ display: 'block', overflow: 'visible', flex: 'none' }}>
+      {big ? <ellipse className="av-shadow" cx="60" cy="112" rx="34" ry="5" fill="#25303d" opacity=".12" /> : null}
+      <g transform="translate(10,10)"><g className="av-body">
         {mood === 'needs' || mood === 'out' ? (
           <path d={`M${50 + h - 4} ${f + 4} C${50 + h + 6} ${f - 6} ${50 + h + 10} ${f - 26} ${50 + h + 4} ${f - 30} C${50 + h - 2} ${f - 32} ${50 + h - 6} ${f - 20} ${50 + h - 10} ${f - 6} Z`} fill={color} stroke={shade} strokeWidth="2" />
         ) : null}
@@ -61,6 +62,12 @@ export function Avatar({ shape, color, accessory = 'none', job = 'none', mood = 
           {big ? <path d={`M43 ${f + 10} Q50 ${f + 21} 57 ${f + 10} Z`} fill={ink} /> : null}
           {big ? <><circle cx={29} cy={f + 9} r="4.5" fill="#ff7aa8" opacity=".55" /><circle cx={71} cy={f + 9} r="4.5" fill="#ff7aa8" opacity=".55" /></> : null}
         </> : null}
+        {mood === 'hello' ? <>
+          <ellipse className="av-eye" cx={39} cy={f - 1} rx="4.6" ry="6" fill={ink} /><ellipse className="av-eye" cx={61} cy={f - 1} rx="4.6" ry="6" fill={ink} />
+          <circle cx={40.5} cy={f - 3} r="1.7" fill="#fff" /><circle cx={62.5} cy={f - 3} r="1.7" fill="#fff" />
+          {big ? <path className="av-mouth" d={`M42 ${f + 10} Q50 ${f + 23} 58 ${f + 10} Z`} fill={ink} /> : <path d={`M45 ${f + 11} Q50 ${f + 16} 55 ${f + 11}`} stroke={ink} strokeWidth="2.6" fill="none" strokeLinecap="round" />}
+          {big ? <><circle cx={28} cy={f + 9} r="5" fill="#ff7aa8" opacity=".5" /><circle cx={72} cy={f + 9} r="5" fill="#ff7aa8" opacity=".5" /></> : null}
+        </> : null}
         {mood === 'out' ? <>
           <path d={`M34 ${f} Q39 ${f + 4} 44 ${f} M56 ${f} Q61 ${f + 4} 66 ${f}`} stroke={ink} strokeWidth="2.6" strokeLinecap="round" fill="none" />
           {big ? <path d={`M46 ${f + 13} Q50 ${f + 17} 54 ${f + 13}`} stroke={ink} strokeWidth="2.2" strokeLinecap="round" fill="none" /> : null}
@@ -71,16 +78,18 @@ export function Avatar({ shape, color, accessory = 'none', job = 'none', mood = 
         {accessory === 'beanie' && !hatJob ? <><path d={`M${50 - h * 0.75} ${top + 10} Q50 ${top - 22} ${50 + h * 0.75} ${top + 10} Z`} fill={acc} /><rect x={50 - h * 0.78} y={top + 6} width={h * 1.56} height="7" rx="3.5" fill={accDark} /><circle cx="50" cy={top - 10} r="5" fill={accDark} /></> : null}
 
         {job === 'builder' ? <><path d={`M${50 - h * 0.72} ${top + 10} Q50 ${top - 20} ${50 + h * 0.72} ${top + 10} Z`} fill="#ffc928" /><rect x={50 - h * 0.9} y={top + 7} width={h * 1.8} height="5" rx="2.5" fill="#f0b400" /></> : null}
+        {job === 'foreman' ? <><path d={`M${50 - h * 0.78} ${top + 11} Q50 ${top - 24} ${50 + h * 0.78} ${top + 11} Z`} fill="#ffc928" /><path d={`M50 ${top - 12} L50 ${top + 9}`} stroke="#f0b400" strokeWidth="5" strokeLinecap="round" /><rect x={50 - h} y={top + 7} width={h * 2} height="6" rx="3" fill="#f0b400" /></> : null}
         {job === 'painter' ? <><ellipse cx="46" cy={top + 2} rx="22" ry="8" fill="#25303d" transform={`rotate(-12 46 ${top + 2})`} /><circle cx="48" cy={top - 6} r="2.5" fill="#25303d" /></> : null}
-        {big && mood !== 'needs' ? <>
+        {big && mood !== 'needs' ? <g className="av-prop">
           {job === 'plumber' ? <g transform={`translate(${propX},${propY}) rotate(30)`}><rect x="-2.5" y="0" width="5" height="22" rx="2" fill="#8a94a3" /><path d="M-7 -6 a7 7 0 1 0 14 0 l-3 0 l0 4 l-8 0 l0 -4 z" fill="#8a94a3" /></g> : null}
           {job === 'painter' ? <g transform={`translate(${propX},${propY}) rotate(25)`}><rect x="-2" y="2" width="4" height="22" rx="2" fill="#a16207" /><path d="M-4 2 Q0 -12 4 2 Z" fill="#e5484d" /></g> : null}
           {job === 'inspector' ? <g transform={`translate(${propX},${propY})`}><circle r="8" fill="#cfe8ff" stroke="#25303d" strokeWidth="3" /><rect x="4" y="5" width="4" height="14" rx="2" fill="#25303d" transform="rotate(-40 6 12)" /></g> : null}
           {job === 'builder' ? <g transform={`translate(${propX},${propY}) rotate(20)`}><rect x="-2" y="0" width="4" height="22" rx="2" fill="#a16207" /><rect x="-8" y="-5" width="16" height="8" rx="2" fill="#6b7480" /></g> : null}
-        </> : null}
+          {job === 'foreman' ? <g transform={`translate(${propX - 2},${propY - 4}) rotate(12)`}><rect x="-9" y="0" width="18" height="24" rx="2.5" fill="#a16207" /><rect x="-7" y="3" width="14" height="19" rx="1.5" fill="#fff" /><rect x="-4" y="-2" width="8" height="5" rx="1.5" fill="#6b7480" /><path d="M-4 9 h8 M-4 13 h8 M-4 17 h5" stroke="#8b94a1" strokeWidth="1.6" strokeLinecap="round" /></g> : null}
+        </g> : null}
         {job === 'librarian' && big ? <g transform={`translate(36,${neck - 12})`}><rect width="28" height="18" rx="2" fill="#3f8efc" /><rect x="13" width="2" height="18" fill="#2d4fd6" /></g> : null}
         {job === 'scout' && big ? <g transform={`translate(50,${neck})`}><circle cx="-6" r="5.5" fill="#25303d" /><circle cx="6" r="5.5" fill="#25303d" /><circle cx="-6" r="2.4" fill="#9cd3ff" /><circle cx="6" r="2.4" fill="#9cd3ff" /></g> : null}
-      </g>
+      </g></g>
       {big && mood === 'break' ? <g transform="translate(86,78)"><rect width="14" height="16" rx="3" fill="#fff" stroke="#25303d" strokeWidth="2" /><path d="M14 4 q6 0 6 5 q0 5 -6 5" stroke="#25303d" strokeWidth="2" fill="none" /></g> : null}
       {big && mood === 'stuck' ? <g transform="translate(60,4)"><path d="M-20 8 a8 8 0 0 1 6 -12 a10 10 0 0 1 18 -2 a8 8 0 0 1 12 8 a6 6 0 0 1 -2 12 h-30 a6 6 0 0 1 -4 -6 z" fill="#8a94a3" /><path d="M-12 20 l-2 6 M-2 20 l-2 6 M8 20 l-2 6" stroke="#5a8fd6" strokeWidth="2.4" strokeLinecap="round" /></g> : null}
       {big && mood === 'shipped' ? <g fill="#ffc928"><path d="M14 22 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2 l6 -2 z" /><path d="M102 30 l1.6 4.4 l4.4 1.6 l-4.4 1.6 l-1.6 4.4 l-1.6 -4.4 l-4.4 -1.6 l4.4 -1.6 z" /></g> : null}
@@ -89,6 +98,9 @@ export function Avatar({ shape, color, accessory = 'none', job = 'none', mood = 
   );
 }
 
-export function AgentAvatar({ agent, mood, size }: { agent: { shape: string; color: string; accessory: string; job: string; title: string }; mood?: Mood; size?: number }) {
-  return <Avatar shape={agent.shape} color={agent.color} accessory={agent.accessory} job={agent.job} mood={mood} size={size} title={agent.title} />;
+export function AgentAvatar({ agent, mood, size, live, talking }: { agent: { shape: string; color: string; accessory: string; job: string; title: string }; mood?: Mood; size?: number; live?: boolean; talking?: boolean }) {
+  return <Avatar shape={agent.shape} color={agent.color} accessory={agent.accessory} job={agent.job} mood={mood} size={size} title={agent.title} live={live} talking={talking} />;
 }
+
+/** Pip, the town's foreman: the guide on the welcome tour. Never works a shift, so nobody else looks like this. */
+export const FOREMAN = { name: 'Pip', shape: 'pebble', color: '#ffb547', accessory: 'none', job: 'foreman', title: 'Pip the foreman' };

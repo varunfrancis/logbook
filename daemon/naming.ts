@@ -87,6 +87,53 @@ export async function nameNextProject(db: Db): Promise<boolean> {
   }
 }
 
+/**
+ * Names many projects in one small-model call, so a first run shows "Support Bot" right away
+ * instead of folder names trickling in one every 20 seconds.
+ */
+export async function nameProjectsBatch(db: Db, limit = 40): Promise<number> {
+  if (running) return 0;
+  const rows = db.prepare(`SELECT * FROM projects WHERE display_name IS NULL AND root IS NOT NULL AND (naming_tried_at IS NULL OR naming_tried_at < ?)
+    ORDER BY COALESCE(last_activity, gh_pushed_at, 0) DESC LIMIT ?`).all(Date.now() - 24 * 3600_000, limit) as Row[];
+  if (rows.length < 2) return 0;
+  running = true;
+  try {
+    const list = rows.map((p, i) => {
+      const repo = p.gh_full?.split('/')[1] ?? p.name;
+      const about = [p.gh_description, pkgDescription(p.root), readSnippet(p.root).replace(/\s+/g, ' ').slice(0, 280)].filter(Boolean).join(' | ');
+      return `${i + 1}. ${repo}${about ? ` | ${about}` : ''}`;
+    }).join('\n');
+    const prompt = [
+      'You name software projects for non-technical people.',
+      'For each numbered project below, give a 1-3 word plain-English name for what it does, in Title Case, no quotes or punctuation.',
+      'Prefer what it does for people over technology. Examples: Support Bot, Sales Training, Expense Tracker, Meeting Notes, Exam Prep App.',
+      'Give different projects different names. Reply with ONLY one line per project, in the form "<number>: <Name>".',
+      '',
+      list,
+    ].join('\n');
+    const names = parseNumbered(await askClaude(prompt), rows.length);
+    const now = Date.now();
+    const upd = db.prepare('UPDATE projects SET naming_tried_at = ?, display_name = COALESCE(?, display_name), display_source = CASE WHEN ? IS NOT NULL THEN ? ELSE display_source END WHERE id = ? AND (display_source IS NULL OR display_source != ?)');
+    let n = 0;
+    rows.forEach((p, i) => { const name = names[i] ?? null; if (name) n++; upd.run(now, name, name, 'ai', p.id, 'user'); });
+    return n;
+  } finally {
+    running = false;
+  }
+}
+
+/** "1: Support Bot" lines → names by position; anything unusable is null. */
+export function parseNumbered(raw: string | null, count: number): (string | null)[] {
+  const out: (string | null)[] = Array(count).fill(null);
+  for (const l of (raw ?? '').split('\n')) {
+    const m = l.trim().match(/^(\d+)\s*[:.)-]\s*(.+)$/);
+    if (!m) continue;
+    const i = Number(m[1]) - 1;
+    if (i >= 0 && i < count && !out[i]) out[i] = cleanName(m[2]);
+  }
+  return out;
+}
+
 /** One plain sentence on what a project does, for agent profiles and project cards. One project per call. */
 export async function summarizeNextProject(db: Db): Promise<boolean> {
   if (running) return false;

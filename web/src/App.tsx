@@ -12,6 +12,8 @@ import { ShareSheet } from './share/ShareSheet.tsx';
 import { bricks, money, VoiceContext, type Voice } from './copy.ts';
 import { compact } from './format.ts';
 import { setMusic, useSound } from './audio.ts';
+import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
+import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
 
 type View = 'town' | 'crew' | 'day';
 const readView = (): View => (location.hash === '#crew' ? 'crew' : location.hash === '#day' ? 'day' : 'town');
@@ -41,6 +43,8 @@ export function App() {
   const [bubble, setBubble] = useState<'project' | 'task'>(store.get('logbook.bubble') === 'task' ? 'task' : 'project');
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const theme = useTheme();
+  const welcome = useWelcome(state);
+  const [tourFocus, setTourFocus] = useState<string | null>(null);
   const sound = useSound();
   // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
   const [only, setOnly] = useState<'needs' | 'building' | 'break' | 'shipped' | null>(null);
@@ -81,7 +85,7 @@ export function App() {
 
   return (
     <VoiceContext.Provider value={voice}>
-      <div className={`app view-${view}`}>
+      <div className={`app view-${view}${welcome.active && welcome.step !== 'setup' && welcome.step !== 'name' ? ' touring' : ''}`}>
         <header className="bar">
           <div className="brand"><b>{state?.town.name ?? 'Logbook'}</b><small>a Logbook town</small></div>
           <nav className="tabs" aria-label="View">
@@ -96,6 +100,7 @@ export function App() {
               {chip('break', t.idle, 'on a coffee break')}
               {chip('shipped', t.shippedToday, 'shipped today')}
               {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} /> : null}
+              <TourPill api={welcome} />
               <span className="sum hide-sm"><b>{voice === 'plain' ? t.bricksToday.toLocaleString() : compact(t.tokensToday)}</b> {voice === 'plain' ? 'bricks laid' : 'tokens'}</span>
             </div>
           ) : <div className="summary" />}
@@ -112,7 +117,7 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Logbook on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
           ) : view === 'crew' ? (
             <CrewView state={crewState!} open={open} />
           ) : (
@@ -121,9 +126,11 @@ export function App() {
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
+          {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
+          {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /></> : null}
         </main>
-        {state && (firstLaunch || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
-        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} /> : null}
+        {state && ((firstLaunch && !welcome.active) || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
+        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}
         {state && modal === 'share' ? <ShareSheet state={state} onClose={() => setModal(null)} /> : null}
         {t && voice === 'plain' && view !== 'town' ? <div className="sr">{bricks(t.bricksToday)}</div> : null}
       </div>

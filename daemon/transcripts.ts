@@ -348,15 +348,21 @@ export function listTranscripts(dir = PROJECTS_DIR): { file: string; mtime: numb
 const seenMtime = new Map<string, number>();
 
 /** One scan pass: ingests only files whose mtime moved. Main transcripts before subagents so parents exist. */
-export function scanTranscripts(db: Db): number {
+/** Files read so far vs. found, for the first-run "Setting up your town" screen. */
+export const scanProgress = { read: 0, total: 0 };
+
+export function scanTranscripts(db: Db, deadline = Infinity): number {
   const files = listTranscripts().filter((f) => seenMtime.get(f.file) !== f.mtime);
   files.sort((a, b) => Number(a.file.includes('/subagents/')) - Number(b.file.includes('/subagents/')) || a.mtime - b.mtime);
+  if (!scanProgress.total) scanProgress.total = files.length;
   let changed = 0;
   db.exec('BEGIN');
   try {
     for (const f of files) {
+      if (Date.now() > deadline) break; // the rest is picked up on the next call
       if (ingestFile(db, f.file)) changed++;
       seenMtime.set(f.file, f.mtime);
+      scanProgress.read++;
     }
     db.exec('COMMIT');
   } catch (e) {
@@ -365,3 +371,6 @@ export function scanTranscripts(db: Db): number {
   }
   return changed;
 }
+
+/** Transcripts not read yet (changed since last read). */
+export const transcriptsLeft = () => listTranscripts().filter((f) => seenMtime.get(f.file) !== f.mtime).length;

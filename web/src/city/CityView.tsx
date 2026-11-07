@@ -6,7 +6,9 @@ import { isoDate, post, useDay } from '../useLogbook.ts';
 import { PROJECT, useVoice } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 
-export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare }: {
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null }: {
+  /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
+  tourFocus?: string | null;
   state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
   focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: 'project' | 'task'; dark: boolean; onShare: () => void;
 }) {
@@ -31,6 +33,12 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   useEffect(() => { scene.current?.setTheme(dark); if (!busy) scene.current?.setState(state, showLots); }, [dark]);
   useEffect(() => { if (!busy) scene.current?.setState(state, showLots); }, [state, showLots, busy]);
   useEffect(() => { scene.current?.setSelected(selected); }, [selected]);
+  useEffect(() => {
+    if (!tourFocus) return;
+    // after the first render so the building exists
+    const t = setTimeout(() => { scene.current?.setSelected(tourFocus); scene.current?.focus(tourFocus, 'left'); }, 60);
+    return () => { clearTimeout(t); scene.current?.setSelected(selected); };
+  }, [tourFocus]);
   useEffect(() => { scene.current?.setFocus(focus.sessions, focus.projects, focus.sessionProjects); }, [focus]);
 
   const stop = () => { abort.current?.abort(); };

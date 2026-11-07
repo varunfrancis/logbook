@@ -123,7 +123,17 @@ function installVscode() {
   execFileSync('zip', ['-qr', vsix, '.'], { cwd: stage });
   execFileSync(cli, ['--install-extension', vsix, '--force'], { stdio: 'inherit' });
   fs.rmSync(stage, { recursive: true, force: true });
-  console.log('VS Code helper installed. Reload open VS Code windows (Command Palette → "Developer: Reload Window") so they pick it up.');
+  console.log('VS Code helper installed. New VS Code windows pick it up on their own; windows already open start using it after VS Code restarts.');
+}
+
+/** Waits for the daemon to answer (it starts answering before it has read your history), then opens the browser. */
+async function openWhenReady() {
+  if (process.platform !== 'darwin') return console.log(`Open http://localhost:${PORT} in your browser.`);
+  for (let i = 0; i < 40; i++) {
+    try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(500) }); if (r.ok) break; } catch {}
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  try { execFileSync('open', [`http://localhost:${PORT}`]); } catch { console.log(`Open http://localhost:${PORT} in your browser.`); }
 }
 
 function build() {
@@ -153,7 +163,8 @@ const cmd = process.argv[2] ?? 'help';
 switch (cmd) {
   case 'install':
     build(); installHooks(); installDaemon(); try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); }
-    console.log(`\nOpen http://localhost:${PORT}  (new Claude sessions report in real time; existing ones are picked up from their transcripts)`);
+    console.log(`\nAll set. Opening your town at http://localhost:${PORT} …`);
+    await openWhenReady();
     break;
   case 'uninstall':
     uninstallHooks(); uninstallDaemon();

@@ -1,9 +1,9 @@
 {
   "name": "logbook-jump",
   "displayName": "Logbook Jump",
-  "description": "Lets Logbook bring an agent's terminal forward when you click \"Go to\", and reopen past jobs.",
+  "description": "Lets Logbook bring an agent's terminal forward when you click \"Go to\", reopen past jobs, and start new ones.",
   "publisher": "logbook",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],

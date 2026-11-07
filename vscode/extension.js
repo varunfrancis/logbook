@@ -63,7 +63,7 @@ function maybeResume(j) {
     res.on('end', () => {
       let c; try { c = JSON.parse(body); } catch { return; }
       if (!c.ok) return;
-      const t = vscode.window.createTerminal({ name: 'Claude (resumed)', cwd: c.cwd });
+      const t = vscode.window.createTerminal({ name: c.name || 'Claude (resumed)', cwd: c.cwd });
       t.show(false);
       t.sendText(c.command, true);
     });

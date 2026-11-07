@@ -84,6 +84,10 @@ export class CityScene {
   /** What each agent's always-on bubble says: the project they're on, or their current task in 2–3 words. */
   private bubble: 'project' | 'task' = 'project';
   private projectNames = new Map<string, string>();
+  // New agents walk in from the street and say hi: when each session was first seen arriving (ms), and every session seen so far.
+  private arrivals = new Map<string, number>();
+  private seenSids = new Set<string>();
+  private states = 0;
   private hl: { sessions: Set<string> | null; projects: Set<string> | null } = { sessions: null, projects: null };
   private graveGroup: THREE.Group | null = null;
   private parkGroup: THREE.Group | null = null;
@@ -183,6 +187,11 @@ export class CityScene {
   setState(data: StateView, showLots: boolean) {
     this.last = { data, showLots };
     this.projectNames = new Map(data.projects.map((p) => [p.id, p.name]));
+    const firstLook = this.states++ === 0; // everyone already here on page load just stands in place
+    for (const s of data.sessions) if (!this.seenSids.has(s.id)) {
+      this.seenSids.add(s.id);
+      if (!firstLook && s.status !== 'ended' && s.startedAt && Date.now() - s.startedAt < 120_000) this.arrivals.set(s.id, Date.now());
+    }
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
     const breaks = new Map<string, number>();
@@ -269,22 +278,23 @@ export class CityScene {
     this.zoom = Math.max(0.35, Math.min(4, this.zoom * f)); this.resize();
   }
 
-  focus(id: string) {
+  /** side: where the UI covers the view (a panel on the right by default; the welcome cards sit on the left). */
+  focus(id: string, side: 'right' | 'left' = 'right') {
     const b = this.buildings.get(id);
     if (!b) return;
-    this.flyToObject(b.group);
+    this.flyToObject(b.group, side);
   }
   /** Fly over to the café. */
   focusCafe() { if (this.cafe) this.flyToObject(this.cafe.group, false); }
 
-  private flyToObject(o: THREE.Object3D, besidePanel = true) {
+  private flyToObject(o: THREE.Object3D, besidePanel: boolean | 'right' | 'left' = true) {
     o.getWorldPosition(this.v);
     const zoom = Math.max(this.zoom, 1.8);
     // Center the building in the part of the town the side panel doesn't cover.
     const W = this.container.clientWidth || 1, H = this.container.clientHeight || 1, a = W / H;
     const panel = besidePanel && W > 720 ? Math.min(380, W - 24) + 12 : 0;
     const vh = Math.max(this.viewSize / Math.max(a, 1) * 0.9, this.viewSize / a * 0.9, 24) / zoom;
-    const shift = (panel / 2) * (vh / H);
+    const shift = (panel / 2) * (vh / H) * (besidePanel === 'left' ? -1.15 : 1);
     const { right, fwd } = this.axes();
     void fwd;
     this.flyTo({ x: this.v.x + right.x * shift, z: this.v.z + right.z * shift, az: this.az, zoom });
@@ -805,6 +815,7 @@ export class CityScene {
     g.userData.sid = s.id;
     parent.add(g);
     this.crewFigures.push({ g, base: g.scale.x, h: crew.height, pid });
+    const arrivedAt = this.arrivals.get(s.id) ?? null, home = g.position.clone(), facing = g.rotation.y;
     // helpers: a half-size copy of the agent tagging along
     let helper: ReturnType<typeof buildCrew> | null = null;
     if (s.helperActive) {
@@ -818,7 +829,14 @@ export class CityScene {
     this.label(labels, tag, anchor, 0.42, 'tag', pid);
     this.doingEls.set(s.id, tag);
     if (s.away) { const z = this.div('zzz', 'z<small>z</small><small>z</small>'); z.dataset.sid = s.id; this.label(labels, z, anchor, 0.1, 'fx', pid); }
-    if (s.chatter) {
+    const hello = arrivedAt !== null && Date.now() - arrivedAt < 90_000;
+    if (hello) {
+      const hi = this.div('hello', `<b>Hi, I’m ${esc(a.name)}!</b><span>New on site</span>`);
+      hi.dataset.sid = s.id;
+      this.label(labels, hi, anchor, 1.25, 'fx', pid);
+      setTimeout(() => hi.remove(), 90_000 - (Date.now() - arrivedAt!));
+    }
+    if (s.chatter && !hello) {
       const chat = this.div('chat', esc(chatText(s.chatter)));
       chat.dataset.seed = String(hash(s.id) % 997); chat.dataset.sid = s.id;
       this.label(labels, chat, anchor, 0.95, 'chat', pid);
@@ -833,6 +851,14 @@ export class CityScene {
         g.position.lerpVectors(pa, pb, u);
         const dx = pb.x - pa.x, dz = pb.z - pa.z;
         g.rotation.y = Math.atan2(dir > 0 ? dx : -dx, dir > 0 ? dz : -dz);
+      }
+      if (arrivedAt !== null) {
+        // walking in from the street toward the camera-facing side of the building, with a little bounce
+        const u = Math.min(1, (Date.now() - arrivedAt) / 2600), e = 1 - (1 - u) ** 2;
+        if (u < 1) {
+          g.position.set(home.x + 6 * (1 - e), home.y * e + Math.abs(Math.sin(u * 22)) * 0.25, home.z + 8 * (1 - e));
+          g.rotation.y = Math.atan2(-6, -8);
+        } else if (g.userData.walkedIn !== true) { g.userData.walkedIn = true; g.position.copy(home); g.rotation.y = facing; }
       }
       crew.update(t);
       if (helper) {

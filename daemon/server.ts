@@ -5,16 +5,18 @@ import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
 import { DATA_DIR, PORT, WEB_DIST } from './config.ts';
 import { kvGet, kvSet, openDb, type Row } from './db.ts';
-import { scanTranscripts } from './transcripts.ts';
+import { scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, wrappedView } from './state.ts';
 import { handleHook } from './hooks.ts';
 import { checkPullRequests, syncGithub } from './github.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
-import { nameNextProject, renameProject, setTown, summarizeNextProject } from './naming.ts';
+import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
+import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
-import type { StateView } from './types.ts';
+import type { Setup, StateView, Welcome } from './types.ts';
+import { NEW_WELCOME } from './state.ts';
 
 const db = openDb();
 let live = new Map<string, LiveEntry>();
@@ -23,11 +25,12 @@ let stateJson = '';
 let stateHash = '';
 const clients = new Set<http.ServerResponse>();
 const vscodeClients = new Set<http.ServerResponse>();
+const setup: Setup = { phase: 'reading', read: 0, total: 0, projects: 0, shifts: 0, crew: 0 };
 
 function refresh() {
   live = readLive();
   adoptLive(db, live);
-  state = buildState(db, live, Date.now(), vscodeClients.size > 0);
+  state = buildState(db, live, Date.now(), vscodeClients.size > 0, { ...setup, read: scanProgress.read, total: scanProgress.total });
   const { generatedAt, ...rest } = state;
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
@@ -94,15 +97,37 @@ function jump(sessionId: string): { ok: boolean; via: string; message: string } 
 }
 
 /*
- * Resume a past shift: reopen that Claude conversation (claude --resume <id>) in a terminal in its folder.
+ * Opening a Claude conversation in a terminal in a project folder: resuming a past shift (claude --resume <id>),
+ * or starting a new one from the welcome tour or an agent's "Work with me" buttons.
  * With the VS Code helper: focus (or open) the project's VS Code window, then that window claims the request and opens a terminal.
  * Without it, or if no window claims it within a few seconds: a new Terminal.app window.
  */
-type PendingResume = { id: string; cwd: string; root: string; at: number; claimed: boolean };
+type PendingResume = { id: string; cwd: string; root: string; at: number; claimed: boolean; command: string; name: string };
 const pendingResumes = new Map<string, PendingResume>();
 const VSCODE_BIN = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
 function shq(s: string) { return `'${s.replace(/'/g, `'\\''`)}'`; }
-function resume(sessionId: string): { ok: boolean; via: string; message: string } {
+type Opened = { ok: boolean; via: string; message: string; command?: string };
+
+function openInTerminal(id: string, cwd: string, root: string, command: string, name: string): 'vscode' | 'terminal' {
+  const viaTerminal = () => {
+    const script = `tell application "Terminal"\n activate\n do script ${JSON.stringify(`cd ${shq(cwd)} && ${command}`)}\nend tell`;
+    execFile('osascript', ['-e', script], () => {});
+  };
+  if (vscodeClients.size && fs.existsSync(VSCODE_BIN)) {
+    const r: PendingResume = { id, cwd, root, at: Date.now(), claimed: false, command, name };
+    pendingResumes.set(id, r);
+    execFile(VSCODE_BIN, ['-r', root], () => {});
+    const payload = JSON.stringify({ sessionId: id, cwd, root });
+    for (const c of vscodeClients) c.write(`event: resume\ndata: ${payload}\n\n`);
+    // A freshly opened window needs a moment to load the helper; it asks for pending requests when it connects.
+    setTimeout(() => { if (!r.claimed) { pendingResumes.delete(id); viaTerminal(); } }, 12_000);
+    return 'vscode';
+  }
+  viaTerminal();
+  return 'terminal';
+}
+
+function resume(sessionId: string): Opened {
   if (live.has(sessionId)) return jump(sessionId);
   const s = db.prepare('SELECT s.id, s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
   if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
@@ -110,23 +135,29 @@ function resume(sessionId: string): { ok: boolean; via: string; message: string 
   const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
   if (!cwd) return { ok: false, via: 'none', message: 'Its folder no longer exists on this machine.' };
   const moved = cwd !== s.cwd ? ' Its worktree is gone, so it opens in the main project folder.' : '';
-  const cmd = `claude --resume ${sessionId}`;
-  const viaTerminal = () => {
-    const script = `tell application "Terminal"\n activate\n do script ${JSON.stringify(`cd ${shq(cwd)} && ${cmd}`)}\nend tell`;
-    execFile('osascript', ['-e', script], () => {});
+  const via = openInTerminal(sessionId, cwd, root ?? cwd, `claude --resume ${sessionId}`, 'Claude (resumed)');
+  return { ok: true, via, message: via === 'vscode' ? `Reopening it in VS Code.${moved}` : `Reopening it in Terminal.${moved}` };
+}
+
+/** Starts a new Claude Code session in a project with an opening prompt. Plan mode means nothing changes until you approve. */
+function launch(projectId: string, prompt: string, plan: boolean): Opened {
+  const p = db.prepare('SELECT root FROM projects WHERE id = ?').get(projectId) as Row | undefined;
+  if (!p?.root || !fs.existsSync(p.root)) return { ok: false, via: 'none', message: 'That project isn’t on this computer.' };
+  const text = prompt.replace(/\s+/g, ' ').trim().slice(0, 2000);
+  if (!text) return { ok: false, via: 'none', message: 'Say what you’d like to work on first.' };
+  const command = `claude${plan ? ' --permission-mode plan' : ''} ${shq(text)}`;
+  const via = openInTerminal(`launch-${crypto.randomUUID()}`, p.root, p.root, command, plan ? 'Claude (planning)' : 'Claude');
+  return {
+    ok: true, via, command: `cd ${shq(p.root)} && ${command}`,
+    message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening a new Terminal window. If your Mac asks whether Logbook may control Terminal, click OK.',
   };
-  if (vscodeClients.size && fs.existsSync(VSCODE_BIN)) {
-    const r: PendingResume = { id: sessionId, cwd, root: root ?? cwd, at: Date.now(), claimed: false };
-    pendingResumes.set(sessionId, r);
-    execFile(VSCODE_BIN, ['-r', r.root], () => {});
-    const payload = JSON.stringify({ sessionId, cwd, root: r.root });
-    for (const c of vscodeClients) c.write(`event: resume\ndata: ${payload}\n\n`);
-    // A freshly opened window needs a moment to load the helper; it asks for pending resumes when it connects.
-    setTimeout(() => { if (!r.claimed) { pendingResumes.delete(sessionId); viaTerminal(); } }, 12_000);
-    return { ok: true, via: 'vscode', message: `Reopening it in VS Code.${moved}` };
-  }
-  viaTerminal();
-  return { ok: true, via: 'terminal', message: `Reopening it in Terminal.${moved}` };
+}
+
+/** Only Logbook's own pages (and local tools like the VS Code helper) may change things: other websites can't poke the local server. */
+function sameSite(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin; // browsers always send it on a POST; local tools don't
+  if (!origin) return true;
+  try { const u = new URL(origin); return u.hostname === 'localhost' || u.hostname === '127.0.0.1'; } catch { return false; }
 }
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -137,10 +168,17 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'POST' && p === '/hook') {
       const body = await readBody(req, 8 * 1024 * 1024);
+      if (url.searchParams.get('reply')) {
+        // Session start: the hook waits briefly for an optional "introduce yourself" note for Claude.
+        let out: object | null = null;
+        try { const payload = JSON.parse(body); handleHook(db, payload); out = terminalIntro(db, payload, live, state.town.name); soon(); } catch {}
+        return out ? json(res, 200, out) : void res.writeHead(204).end();
+      }
       res.writeHead(204).end();
       try { handleHook(db, JSON.parse(body)); soon(); } catch {}
       return;
     }
+    if (req.method === 'POST' && p.startsWith('/api/') && !sameSite(req)) return json(res, 403, { error: 'Not allowed' });
     if (p === '/api/state') return json(res, 200, stateJson);
     if (p === '/api/stream') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
@@ -166,6 +204,15 @@ const server = http.createServer(async (req, res) => {
       const d = agentDetail(db, state, live, decodeURIComponent(p.slice('/api/agent/'.length)));
       return d ? json(res, 200, d) : json(res, 404, { error: 'No agent with that id' });
     }
+    if (p === '/api/intros') {
+      // Today's lines are written in the background; the page shows the instant version until they're ready.
+      writeIntros(db, live, state.town.owner).catch(() => {});
+      return json(res, 200, intros(db, live, state.town.owner));
+    }
+    if (req.method === 'POST' && p === '/api/launch') {
+      const body = await readJson(req);
+      return json(res, 200, launch(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan));
+    }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
     if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, jump(decodeURIComponent(p.slice('/api/jump/'.length))));
@@ -173,7 +220,7 @@ const server = http.createServer(async (req, res) => {
       const r = pendingResumes.get(decodeURIComponent(p.slice('/api/resume/claim/'.length)));
       if (!r || r.claimed || Date.now() - r.at > 60_000) return json(res, 200, { ok: false });
       r.claimed = true; pendingResumes.delete(r.id);
-      return json(res, 200, { ok: true, cwd: r.cwd, command: `claude --resume ${r.id}` });
+      return json(res, 200, { ok: true, cwd: r.cwd, command: r.command, name: r.name });
     }
     if (p === '/api/resume/pending') return json(res, 200, [...pendingResumes.values()].filter((r) => !r.claimed && Date.now() - r.at < 60_000));
     if (req.method === 'POST' && p.startsWith('/api/resume/')) return json(res, 200, resume(decodeURIComponent(p.slice('/api/resume/'.length))));
@@ -181,6 +228,19 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       if (typeof body.town === 'string') setTown(db, body.town);
       if ('skylineRepo' in body) kvSet(db, 'settings.skylineRepo', body.skylineRepo ? String(body.skylineRepo) : null);
+      if ('terminalIntros' in body) kvSet(db, 'settings.terminalIntros', !!body.terminalIntros);
+      if (body.welcome && typeof body.welcome === 'object') {
+        const cur: Welcome = { ...NEW_WELCOME, ...kvGet<Partial<Welcome>>(db, 'welcome', {}) };
+        const w = body.welcome;
+        const next: Welcome = {
+          step: 'step' in w ? w.step ?? null : cur.step,
+          done: 'done' in w ? !!w.done : cur.done,
+          doneAt: w.done && !cur.done ? Date.now() : 'done' in w && !w.done ? null : cur.doneAt,
+          skipped: 'skipped' in w ? (w.skipped ? { at: Date.now(), step: w.skipped } : null) : cur.skipped,
+          tips: Array.isArray(w.tips) ? [...new Set([...cur.tips, ...w.tips.map(String)])] : cur.tips,
+        };
+        kvSet(db, 'welcome', next);
+      }
       refresh();
       return json(res, 200, { ok: true });
     }
@@ -220,13 +280,42 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/*
+ * Boot: start answering right away and read past work in short slices, so a first run can show
+ * "Setting up your town" with real counts instead of a page that won't load.
+ */
+refreshHookScript();
 console.log('[logbook] indexing transcripts…');
 const t0 = Date.now();
-tick();
-console.log(`[logbook] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
-
+scanTranscripts(db, Date.now() + 300);
+refresh();
 server.listen(PORT, '127.0.0.1', () => console.log(`[logbook] http://localhost:${PORT}`));
-setInterval(tick, 2000);
+function bootStep() {
+  try { scanTranscripts(db, Date.now() + 400); } catch (e) { console.error('[logbook] reading transcripts failed', e); }
+  if (transcriptsLeft() > 0) { refresh(); setTimeout(bootStep, 15); return; }
+  tick(); // first full pass: characters, outcomes
+  console.log(`[logbook] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
+  setInterval(tick, 2000);
+  firstNames().finally(() => { setup.phase = 'ready'; refresh(); startLoops(); });
+}
+setTimeout(bootStep, 15);
+
+/** Name every building in one go before the town is revealed (capped, so a slow model never holds up the welcome). */
+async function firstNames() {
+  if (process.env.LOGBOOK_NO_NAMING) return;
+  setup.phase = 'naming'; refresh();
+  const cap = new Promise((r) => setTimeout(r, 30_000));
+  await Promise.race([(async () => { while (await nameProjectsBatch(db) > 0) refresh(); })().catch(() => {}), cap]);
+  writeIntros(db, live, state.town.owner).catch(() => {}); // ready for the roll call by the time the town has a name
+}
+
+/** Keeps ~/.logbook/hook.sh in step with this version, so hook changes don't need a reinstall. */
+function refreshHookScript() {
+  try {
+    const dst = path.join(DATA_DIR, 'hook.sh'), src = path.join(import.meta.dirname, '..', 'hook', 'logbook-hook.sh');
+    if (fs.existsSync(dst) && fs.readFileSync(dst, 'utf8') !== fs.readFileSync(src, 'utf8')) { fs.copyFileSync(src, dst); fs.chmodSync(dst, 0o755); }
+  } catch {}
+}
 
 async function githubLoop() {
   try { const m = await syncGithub(db); console.log('[logbook] github', m.accounts.map((a) => `${a.login}:${a.ok ? a.repos : a.error}`).join(' ')); soon(); }
@@ -236,12 +325,14 @@ async function prLoop() {
   try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[logbook] PR check failed', e); }
 }
 async function nameLoop() {
-  try { if (await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
+  try { if (await nameProjectsBatch(db) > 0 || await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
 }
 githubLoop();
 setInterval(githubLoop, 10 * 60_000);
-setTimeout(prLoop, 5000);
-setInterval(prLoop, 2 * 60_000);
-if (!process.env.LOGBOOK_NO_NAMING) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); }
+function startLoops() {
+  setTimeout(prLoop, 5000);
+  setInterval(prLoop, 2 * 60_000);
+  if (!process.env.LOGBOOK_NO_NAMING) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); }
+}
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { server.close(); db.close(); process.exit(0); });

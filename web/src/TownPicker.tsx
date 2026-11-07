@@ -43,8 +43,9 @@ function Seg<T extends string>({ label, value, set, options }: { label: string; 
   );
 }
 
-export function Settings({ state, onClose, renameTown, prefs }: { state: StateView; onClose: () => void; renameTown: () => void; prefs: Prefs }) {
+export function Settings({ state, onClose, renameTown, prefs, replayWelcome }: { state: StateView; onClose: () => void; renameTown: () => void; prefs: Prefs; replayWelcome: () => void }) {
   const [repo, setRepo] = useState(state.settings.skylineRepo ?? '');
+  const [intros, setIntros] = useState(state.settings.terminalIntros);
   const [saved, setSaved] = useState(false);
   const sound = useSound();
   return (
@@ -65,7 +66,9 @@ export function Settings({ state, onClose, renameTown, prefs }: { state: StateVi
         </div>
         <div className="setting"><div><b>Background music</b><div className="muted">A slow, calm loop that plays on every tab. It starts after your first click.</div></div><label className="toggle"><input type="checkbox" checked={sound.music} onChange={(e) => setMusic(e.target.checked)} /> {sound.music ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Heads-up chime</b><div className="muted">A soft ding on the Town when two agents start changing the same file.</div></div><label className="toggle"><input type="checkbox" checked={sound.chime} onChange={(e) => setChime(e.target.checked)} /> {sound.chime ? 'On' : 'Off'}</label></div>
-        <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `node bin/logbook.ts vscode` once, then reload VS Code.'}</div></div></div>
+        <div className="setting"><div><b>Agents say hi in the terminal</b><div className="muted">New Claude Code sessions open with their name and where to find them in {state.town.name}, so the terminal and the town match.</div></div><label className="toggle"><input type="checkbox" id="terminal-intros" checked={intros} onChange={(e) => { setIntros(e.target.checked); post('/api/settings', { terminalIntros: e.target.checked }); }} /> {intros ? 'On' : 'Off'}</label></div>
+        <div className="setting"><div><b>Welcome tour</b><div className="muted">Meet the crew again and see how the town works. About two minutes.</div></div><button type="button" className="ghost" onClick={replayWelcome}>Replay the welcome</button></div>
+        <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `node bin/logbook.ts vscode` once, then restart VS Code.'}</div></div></div>
         <div className="row end">{saved ? <span className="muted">Saved</span> : null}<button type="button" className="ghost" onClick={onClose}>Close</button><button className="btn dark" type="submit">Save</button></div>
       </form>
     </div>

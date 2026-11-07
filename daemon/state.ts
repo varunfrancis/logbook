@@ -10,7 +10,7 @@ import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isRe
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
-import type { Agent, AgentDetail, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, StateView, WrappedView } from './types.ts';
+import type { Agent, AgentDetail, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, Welcome, WrappedView } from './types.ts';
 
 const BRICK = 10_000; // tokens per brick
 const shorten = (s: string, n = 72) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
@@ -188,7 +188,7 @@ export function refreshAgents(db: Db, since: number, live: Map<string, LiveEntry
   settleJobs(db);
 }
 
-function projectNames(p: Row): { name: string; repo: string; source: ProjectView['nameSource'] } {
+export function projectNames(p: Row): { name: string; repo: string; source: ProjectView['nameSource'] } {
   const repo = p.root ? path.basename(p.root) : p.gh_full?.split('/')[1] ?? p.name;
   if (p.display_name) return { name: p.display_name, repo, source: p.display_source === 'user' ? 'user' : 'ai' };
   return { name: p.name === 'Scratch' ? 'Scratch' : fallbackName(repo), repo, source: 'auto' };
@@ -232,7 +232,10 @@ function graveyard(db: Db, names: Map<string, string>, now: number, live: Map<st
 
 type Agg = { tokens: number; today: number; total: number; cost: number; crew: { status: SessionView['status']; away: boolean }[]; lastEnded: number; pr: Row | null; lines: number; commits: number; stuck: boolean; failing: boolean };
 
-export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(), vscodeConnected = false): StateView {
+export const NEW_WELCOME: Welcome = { step: null, done: false, doneAt: null, skipped: null, tips: [] };
+const READY: Setup = { phase: 'ready', read: 0, total: 0, projects: 0, shifts: 0, crew: 0 };
+
+export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(), vscodeConnected = false, setup: Setup = READY): StateView {
   assignLots(db);
   const today = startOfDay();
   const t = town(db);
@@ -323,7 +326,17 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     },
     github: githubMeta(db),
     hooks: { lastEventAt: kvGet<number | null>(db, 'hooks.lastEventAt', null) },
-    settings: { skylineRepo: kvGet<string | null>(db, 'settings.skylineRepo', null), vscodeConnected },
+    settings: {
+      skylineRepo: kvGet<string | null>(db, 'settings.skylineRepo', null), vscodeConnected,
+      terminalIntros: kvGet<boolean>(db, 'settings.terminalIntros', false),
+      welcome: { ...NEW_WELCOME, ...kvGet<Partial<Welcome>>(db, 'welcome', {}) },
+    },
+    setup: {
+      ...setup,
+      projects: inTown.filter((p) => agg.has(p.id)).length,
+      shifts: (db.prepare('SELECT COUNT(*) n FROM sessions WHERE project_id IS NOT NULL').get() as Row).n,
+      crew: (db.prepare("SELECT COUNT(DISTINCT agent_key) n FROM sessions WHERE agent_key IS NOT NULL AND agent_key NOT LIKE '%#resident~%'").get() as Row).n,
+    },
   };
 }
 
@@ -381,7 +394,7 @@ export function agentDetail(db: Db, state: StateView, live: Map<string, LiveEntr
   };
 }
 
-function profileFor(db: Db, key: string, live: Map<string, LiveEntry>, owner: string): AgentDetail['profile'] {
+export function profileFor(db: Db, key: string, live: Map<string, LiveEntry>, owner: string): AgentDetail['profile'] {
   const days = 30, since = Date.now() - days * 24 * 3600_000;
   const rows = db.prepare('SELECT * FROM sessions WHERE agent_key = ? AND COALESCE(last_event_at, started_at) >= ? ORDER BY COALESCE(last_event_at, started_at) DESC').all(key, since) as Row[];
   const ids = rows.map((r) => r.id), ph = ids.map(() => '?').join(',');

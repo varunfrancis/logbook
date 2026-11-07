@@ -230,3 +230,59 @@ test('agent scorecard: deliver, work on their own, value for money', async () =>
   const fresh = scorecard({ ...base, shifts: 1, finished: 0, delivered: 0, workMs: 5 * 60_000, interruptions: 0 });
   assert.equal(fresh.verdict.grade, 'none');
 });
+
+test('batch naming reads "n: Name" lines by position and drops unusable ones', async () => {
+  const { parseNumbered } = await import('../daemon/naming.ts');
+  assert.deepEqual(parseNumbered('1: Support Bot\n2. Sales Training\nsome chatter\n3) "Money Diary"\n9: Extra', 4), ['Support Bot', 'Sales Training', 'Money Diary', null]);
+  assert.deepEqual(parseNumbered(null, 2), [null, null]);
+  assert.deepEqual(parseNumbered('1: This name is far too long to be a building name at all', 1), [null]);
+});
+
+test('intros: an instant template from real facts; model lines must sound like the character', async () => {
+  const { templateIntro, cleanIntro } = await import('../daemon/intros.ts');
+  const t = templateIntro({ name: 'Juno', job: 'plumber', project: 'Sales Training', summary: 'Practice quizzes for new sales reps.', task: null, live: true,
+    profile: { shifts: 9, finished: 9, delivered: 7, shipped: 7, interruptions: 2 } });
+  assert.equal(t, "Hi, I'm Juno. I fix things that break. Right now I'm on Sales Training, practice quizzes for new sales reps. 7 of my last 9 jobs shipped.");
+  const first = templateIntro({ name: 'Bea', job: 'scout', project: null, summary: null, task: null, live: true, profile: { shifts: 1, finished: 0, delivered: 0, shipped: 0, interruptions: 0 } });
+  assert.match(first, /^Hi, I'm Bea\. I look into things before anyone builds\. This is my first shift/);
+  assert.equal(cleanIntro('"Hi, I\'m Juno. I fix what breaks."', 'Juno'), "Hi, I'm Juno. I fix what breaks.");
+  assert.equal(cleanIntro('Hello there, I fix things.', 'Juno'), null); // doesn't say who they are
+  assert.equal(cleanIntro(`Hi, I'm Juno. ${'very '.repeat(80)}long`, 'Juno'), null);
+});
+
+test('terminal intros: off by default; when on, a starting session is told who it is in the town', async () => {
+  const { terminalIntro } = await import('../daemon/intros.ts');
+  const { kvSet } = await import('../daemon/db.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const p = { session_id: 'intro-1', cwd: dir, hook_event_name: 'SessionStart', source: 'startup' };
+  handleHook(db, p);
+  assert.equal(terminalIntro(db, p, new Map(), 'Maple Harbor'), null);
+  kvSet(db, 'settings.terminalIntros', true);
+  const out = terminalIntro(db, p, new Map(), 'Maple Harbor') as any;
+  assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
+  assert.match(out.hookSpecificOutput.additionalContext, /introduce yourself/);
+  assert.match(out.hookSpecificOutput.additionalContext, /Maple Harbor/);
+  // the name Claude is given is the one the town shows
+  const s = buildState(db, new Map()).sessions.find((x) => x.id === 'intro-1')!;
+  assert.match(out.hookSpecificOutput.additionalContext, new RegExp(`you are ${s.agent.name},`));
+  assert.equal(terminalIntro(db, { ...p, hook_event_name: 'Stop' }, new Map(), 'Maple Harbor'), null);
+  assert.equal(terminalIntro(db, { ...p, source: 'compact' }, new Map(), 'Maple Harbor'), null);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('welcome state starts fresh and setup counts come from what was read', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  handleHook(db, { session_id: 'w1', cwd: dir, hook_event_name: 'SessionStart' });
+  const st = buildState(db, new Map(), Date.now(), false, { phase: 'reading', read: 3, total: 10, projects: 0, shifts: 0, crew: 0 });
+  assert.deepEqual(st.settings.welcome, { step: null, done: false, doneAt: null, skipped: null, tips: [] });
+  assert.equal(st.settings.terminalIntros, false);
+  assert.equal(st.setup.phase, 'reading');
+  assert.equal(st.setup.read, 3);
+  assert.equal(st.setup.shifts, 1);
+  assert.equal(st.setup.projects, 1);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

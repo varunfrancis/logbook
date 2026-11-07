@@ -60,6 +60,7 @@ export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: 
   const fresh = keys.filter((k) => !registry.has(k) && !isHelperKey(k));
   if (!fresh.length) return;
   const recent = new Set((db.prepare('SELECT name FROM agents WHERE created_at > ?').all(Date.now() - 45 * 24 * 3600_000) as { name: string }[]).map((r) => r.name));
+  recent.add('Pip'); // the foreman's name: no new agent gets it
   const ins = db.prepare('INSERT OR IGNORE INTO agents(key, name, shape, color, accessory, created_at) VALUES(?, ?, ?, ?, ?, ?)');
   for (const key of fresh) {
     const base = hashIdentity(key);
