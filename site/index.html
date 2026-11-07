@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Logbook</title>
+<title>Swarmville</title>
+<link rel="icon" type="image/svg+xml" href="brand/pip-favicon.svg">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="See what Claude is working on for you, as friendly characters in your own little town. Free, private, and set up in one minute on your Mac.">
 <meta name="color-scheme" content="light dark">
@@ -21,13 +22,14 @@
  * Two looks from one set of tokens: day (bright, Duolingo-like) and night (the app's night town: navy sky, stars, lit windows, teal glow).
  */
 :root {
-  --bg: #ffffff; --surface: #ffffff; --surface-2: #f7f7f7; --line: #e5e5e5;
-  --ink: #3c3c3c; --ink-2: #6f6f6f; --ink-3: #a5a5a5;
-  --headline: #5ac33a;
-  --cta: #5ac33a; --cta-edge: #3f9a22; --cta-ink: #ffffff;
-  --btn2: #ffffff; --btn2-edge: #e5e5e5; --btn2-ink: #1f8fd0;
-  --band: #5ac33a; --band-edge: #3f9a22; --band-ink: #ffffff; --band-deep: #3f9a22; --band-soft: #e9f8e1;
-  --sky-band: #47b8f5; --cloud: #ffffff2e;
+  /* Swarmville brand: Pip blue for actions and bands, hard-hat yellow for highlights, warm paper, slate ink */
+  --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --line: #e6e1d6;
+  --ink: #25303d; --ink-2: #5c6878; --ink-3: #8b94a1;
+  --headline: #3f8efc;
+  --cta: #3f8efc; --cta-edge: #295ca4; --cta-ink: #ffffff;
+  --btn2: #ffffff; --btn2-edge: #e6e1d6; --btn2-ink: #295ca4;
+  --band: #3f8efc; --band-edge: #295ca4; --band-ink: #ffffff; --band-deep: #295ca4; --band-soft: #e3efff;
+  --sky-band: #ffc928; --num-ink: #3c2a00; --cloud: #ffffff55;
   --hill-a: #5ac33a; --hill-b: #4fb12f; --stage-sky: transparent;
   --window: #ffffff99; --window-glow: none;
   --art-sky: #e5f5fe; --art-sky-g: #cdeefe; --art-sun: #fff6dc; --art-sun-g: #ffe9a8;
@@ -46,10 +48,10 @@
   --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
   --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
   --headline: #ffd772;
-  --cta: #ef9a1a; --cta-edge: #b86f05; --cta-ink: #1b1306;
-  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #7fe3e3;
-  --band: #1b3a2c; --band-edge: #10261c; --band-ink: #eafff2; --band-deep: #0f2219; --band-soft: #22473a;
-  --sky-band: #1f3042; --cloud: #ffffff10;
+  --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
+  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
+  --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
+  --sky-band: #1f3042; --num-ink: #ffffff; --cloud: #ffffff10;
   --hill-a: #263a2a; --hill-b: #1f3122; --stage-sky: radial-gradient(ellipse at 50% 100%, #1f3042 0%, #141b25 70%);
   --window: #ffd772; --window-glow: 0 0 10px #ffd77299;
   --art-sky: #1a2a3c; --art-sky-g: #213650; --art-sun: #2a2416; --art-sun-g: #3a3018;
@@ -64,10 +66,10 @@
   --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
   --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
   --headline: #ffd772;
-  --cta: #ef9a1a; --cta-edge: #b86f05; --cta-ink: #1b1306;
-  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #7fe3e3;
-  --band: #1b3a2c; --band-edge: #10261c; --band-ink: #eafff2; --band-deep: #0f2219; --band-soft: #22473a;
-  --sky-band: #1f3042; --cloud: #ffffff10;
+  --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
+  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
+  --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
+  --sky-band: #1f3042; --num-ink: #ffffff; --cloud: #ffffff10;
   --hill-a: #263a2a; --hill-b: #1f3122; --stage-sky: radial-gradient(ellipse at 50% 100%, #1f3042 0%, #141b25 70%);
   --window: #ffd772; --window-glow: 0 0 10px #ffd77299;
   --art-sky: #1a2a3c; --art-sky-g: #213650; --art-sun: #2a2416; --art-sun-g: #3a3018;
@@ -98,7 +100,7 @@ a { color: var(--btn2-ink); }
 .btn:active { transform: translateY(5px); box-shadow: 0 0 0 var(--d); }
 .btn:focus-visible { outline: 3px solid var(--sky); outline-offset: 4px; }
 .btn.second { --c: var(--btn2); --d: var(--btn2-edge); --t: var(--btn2-ink); border: 2px solid var(--btn2-edge); }
-.btn.on-band { --c: #ffffff; --d: #d6d6d6; --t: #1f8fd0; }
+.btn.on-band { --c: #ffffff; --d: #c9d9f2; --t: #295ca4; }
 .btn.big { min-height: 64px; padding: 0 34px; font-size: 17px; border-radius: 18px; box-shadow: 0 6px 0 var(--d); }
 .btn.big:active { transform: translateY(6px); }
 .btn.small { min-height: 42px; padding: 0 18px; font-size: 13px; border-radius: 13px; box-shadow: 0 4px 0 var(--d); }
@@ -120,7 +122,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* hero */
 .hero { position: relative; text-align: center; padding-top: 52px; overflow: hidden; background: var(--stage-sky); }
-.hero h1 { font-size: clamp(42px, 7.4vw, 76px); line-height: 1.02; color: var(--headline); max-width: 15ch; margin: 0 auto; text-transform: lowercase; }
+.hero h1 { font-size: clamp(42px, 7.4vw, 76px); line-height: 1.02; color: var(--headline); max-width: 20ch; margin: 0 auto; text-transform: lowercase; }
 .hero .sub { font-size: clamp(18px, 2.2vw, 21px); color: var(--ink-2); max-width: 36ch; margin: 20px auto 0; }
 .start { margin: 30px auto 0; display: flex; flex-direction: column; align-items: center; gap: 14px; position: relative; z-index: 2; }
 .start .how { font-size: 15px; color: var(--ink-2); max-width: 44ch; }
@@ -209,8 +211,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .steps[hidden] { display: none; }
 .step { background: var(--surface); color: var(--ink); border-radius: 24px; padding: 26px; box-shadow: 0 6px 0 var(--band-edge); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .step .num { width: 46px; height: 46px; border-radius: 50%; background: var(--band-soft); color: var(--cta-edge); display: grid; place-items: center; font: 700 24px var(--f-display); }
-:root[data-theme="dark"] .step .num { color: #9ff3c4; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step .num { color: #9ff3c4; } }
+:root[data-theme="dark"] .step .num { color: #9cc4ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step .num { color: #9cc4ff; } }
 .step h3 { font-size: 23px; }
 .step p { color: var(--ink-2); font-size: 16px; }
 .say { background: var(--say-bg); border: 2px solid var(--say-line); border-radius: 16px; padding: 12px 14px; font: 800 15px/1.45 var(--f-body); color: var(--ink); overflow-wrap: anywhere; }
@@ -250,7 +252,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .panel .opt.on { border-color: var(--cta); background: var(--band-soft); }
 
 /* numbers band */
-.numbers { background: var(--sky-band); color: #fff; position: relative; padding-block: 70px; overflow: hidden; }
+.numbers { background: var(--sky-band); color: var(--num-ink); position: relative; padding-block: 70px; overflow: hidden; }
 .numbers .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; position: relative; }
 .numbers b { display: block; font: 700 clamp(48px, 7vw, 72px)/1 var(--f-display); }
 .numbers span { font-size: 18px; opacity: .95; }
@@ -341,9 +343,9 @@ footer a:hover { text-decoration: underline; }
 </head>
 <body>
 
-<nav class="nav gutter" aria-label="Logbook">
+<nav class="nav gutter" aria-label="Swarmville">
   <div class="inner">
-    <a class="logo" href="#top" aria-label="Logbook home"><span data-char="pip-head"></span>logbook</a>
+    <a class="logo" href="#top" aria-label="Swarmville home"><img src="brand/pip.svg" width="40" height="40" alt="">swarmville</a>
     <div class="nav-right">
       <button class="theme" id="theme" type="button" aria-label="Switch between day and night">
         <svg class="sun-i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="#ffc93c"/><g stroke="#ffc93c" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>
@@ -355,11 +357,11 @@ footer a:hover { text-decoration: underline; }
 </nav>
 
 <header class="hero gutter" id="top">
-  <h1>see what claude is busy with</h1>
-  <p class="sub">Logbook turns every Claude Code chat into a friendly character in your own little town, so you can see who's working, who needs you, and what's done.</p>
+  <h1>your claude agents, at work in a town</h1>
+  <p class="sub">Every Claude Code chat becomes a character. See who's busy, who needs you, and what's done.</p>
 
   <div class="start" id="start">
-    <p class="not-mac">Logbook is made for Mac. Open this page on your Mac to set it up.</p>
+    <p class="not-mac">Swarmville is made for Mac. Open this page on your Mac to set it up.</p>
     <a class="btn big" id="open-claude" href="#">
       <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" fill="currentColor"/></svg>
       Set up with Claude
@@ -411,7 +413,7 @@ footer a:hover { text-decoration: underline; }
         <span class="url safari-url"></span>
         <span class="bar"><span class="arrows">‹ ›</span><span class="url"></span></span>
       </div>
-      <img class="shot day" src="town-day.jpg" width="1800" height="1069" alt="Logbook's town view: Support Bot with two helpers building the shopping cart and checking the checkout, Recipe Box where a helper raised a hand because Claude needs your OK, Plant Care where a helper is stuck under a rain cloud, and a café where two helpers are on a coffee break." loading="lazy">
+      <img class="shot day" src="town-day.jpg" width="1800" height="1069" alt="Swarmville's town view: Support Bot with two helpers building the shopping cart and checking the checkout, Recipe Box where a helper raised a hand because Claude needs your OK, Plant Care where a helper is stuck under a rain cloud, and a café where two helpers are on a coffee break." loading="lazy">
       <img class="shot night" src="town-night.jpg" width="1800" height="1069" alt="The same town at night, with lit windows and glowing light over the projects being worked on." loading="lazy">
     </div>
   </div>
@@ -431,15 +433,15 @@ footer a:hover { text-decoration: underline; }
     <div class="steps" id="steps-app" role="tabpanel" aria-labelledby="tab-app">
       <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>The Claude app opens a new Claude Code chat with our message already typed in.</p><a class="btn" data-open="app" href="#">Set up with Claude</a></div>
       <div class="step pop"><span class="num">2</span><h3>Press Enter</h3><p>Claude reads the instructions and tells you, in plain words, what it's about to do.</p>
-        <div class="mini-chat" aria-hidden="true"><span class="me">Install Logbook for me: https://raw.github…</span><span class="typing"><i></i><i></i><i></i></span></div></div>
+        <div class="mini-chat" aria-hidden="true"><span class="me">Install Swarmville for me: https://raw.github…</span><span class="typing"><i></i><i></i><i></i></span></div></div>
       <div class="step pop"><span class="num">3</span><h3>Click Allow</h3><p>Claude always asks before it installs anything. About a minute later your town opens in your browser.</p>
-        <div class="allow" aria-hidden="true"><span>Allow Claude to install Logbook?</span><div class="row"><span class="no">Deny</span><span class="yes">Allow</span></div></div></div>
+        <div class="allow" aria-hidden="true"><span>Allow Claude to install Swarmville?</span><div class="row"><span class="no">Deny</span><span class="yes">Allow</span></div></div></div>
     </div>
 
     <div class="steps" id="steps-vscode" role="tabpanel" aria-labelledby="tab-vscode" hidden>
       <div class="step"><span class="num">1</span><h3>Click the button</h3><p>VS Code opens Claude Code with our message already typed in. You'll need the Claude Code extension.</p><a class="btn" data-open="vscode" href="#">Open in VS Code</a></div>
       <div class="step"><span class="num">2</span><h3>Press Enter</h3><p>Claude reads the instructions and explains what it will do.</p></div>
-      <div class="step"><span class="num">3</span><h3>Click Allow</h3><p>When Claude asks, say yes. Your town opens in your browser, and Logbook can open your helpers right inside VS Code.</p></div>
+      <div class="step"><span class="num">3</span><h3>Click Allow</h3><p>When Claude asks, say yes. Your town opens in your browser, and Swarmville can open your helpers right inside VS Code.</p></div>
     </div>
 
     <div class="steps" id="steps-terminal" role="tabpanel" aria-labelledby="tab-terminal" hidden>
@@ -491,12 +493,12 @@ footer a:hover { text-decoration: underline; }
         <div class="panel"><b style="font-family:var(--f-display);font-size:19px">What should we do next?</b><span class="opt">Brainstorm with me</span><span class="opt on">Plan with me ✓</span><span class="btn small" style="justify-self:end">Start planning</span></div>
       </div>
       <div><span class="tag" style="color:var(--teal)">Start without typing commands</span><h2>give the next job in one click</h2>
-        <p>Pick a project, say what you'd like in your own words, and Logbook opens Claude for you. It starts with a plan, so nothing changes until you say yes.</p></div>
+        <p>Pick a project, say what you'd like in your own words, and Swarmville opens Claude for you. It starts with a plan, so nothing changes until you say yes.</p></div>
     </section>
   </div>
 </main>
 
-<section class="numbers gutter" aria-label="Logbook in numbers">
+<section class="numbers gutter" aria-label="Swarmville in numbers">
   <span class="cloud drift" style="width:180px;height:50px;top:30px" aria-hidden="true"></span>
   <span class="cloud drift" style="width:120px;height:36px;top:120px;animation-delay:-20s" aria-hidden="true"></span>
   <div class="inner grid">
@@ -509,11 +511,11 @@ footer a:hover { text-decoration: underline; }
 <section class="promise gutter" aria-labelledby="promise-title">
   <div class="inner">
     <h2 id="promise-title">your work stays yours</h2>
-    <p class="lead">Logbook lives on your Mac and only looks at your own Claude Code history. Here's what that means.</p>
+    <p class="lead">Swarmville lives on your Mac and only looks at your own Claude Code history. Here's what that means.</p>
     <div class="cards">
       <div class="card pop"><span class="badge" style="background:var(--sky)"><span data-char="moss" data-size="84" class="bob"></span></span><h3 style="color:var(--sky)">Stays on your Mac</h3><p>Nothing is uploaded anywhere. There's no account and no company server watching your work.</p></div>
       <div class="card pop"><span class="badge" style="background:var(--orange)"><span data-char="pip" data-size="88" class="bob d1"></span></span><h3 style="color:var(--orange)">Uses your own Claude</h3><p>The friendly names and introductions come from your own Claude, using a tiny bit of your plan. No extra bills.</p></div>
-      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--purple)">Open for anyone to check</h3><p>The code is public, so anyone can see exactly what Logbook does. It's free to use and share.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--purple)">Open for anyone to check</h3><p>The code is public, so anyone can see exactly what Swarmville does. It's free to use and share.</p></div>
     </div>
   </div>
 </section>
@@ -524,10 +526,10 @@ footer a:hover { text-decoration: underline; }
     <details><summary>Do I need to be technical?</summary><p>No. Click the button, press Enter, click Allow. Claude does the installing and explains each step before it does it.</p></details>
     <details><summary>What do I need?</summary><p>A Mac and Claude Code: in the Claude app, in VS Code, or in Terminal. New to it? Get the Claude app at claude.ai/download first.</p></details>
     <details><summary>The button didn't open anything</summary><p>That usually means the Claude app isn't installed on this Mac. Install it from claude.ai/download, or use the VS Code or Terminal option, or copy the message and paste it into Claude Code yourself.</p></details>
-    <details><summary>Does it cost anything?</summary><p>Logbook is free. It uses a tiny amount of your own Claude plan to give your projects friendly names, the same as asking Claude a short question.</p></details>
-    <details><summary>Is my work private?</summary><p>Yes. Everything stays on your Mac. Logbook reads your Claude Code history on your computer, and nothing is sent anywhere. Pictures you choose to share never include your file names or what you asked.</p></details>
-    <details><summary>How do I update or remove it?</summary><p>Just ask Claude: "update Logbook" or "uninstall Logbook". Your town's history is kept unless you ask to delete it.</p></details>
-    <details><summary>Does it work on Windows?</summary><p>Not yet. Logbook is Mac-only for now.</p></details>
+    <details><summary>Does it cost anything?</summary><p>Swarmville is free. It uses a tiny amount of your own Claude plan to give your projects friendly names, the same as asking Claude a short question.</p></details>
+    <details><summary>Is my work private?</summary><p>Yes. Everything stays on your Mac. Swarmville reads your Claude Code history on your computer, and nothing is sent anywhere. Pictures you choose to share never include your file names or what you asked.</p></details>
+    <details><summary>How do I update or remove it?</summary><p>Just ask Claude: "update Swarmville" or "uninstall Swarmville". Your town's history is kept unless you ask to delete it.</p></details>
+    <details><summary>Does it work on Windows?</summary><p>Not yet. Swarmville is Mac-only for now.</p></details>
   </div>
 </section>
 
@@ -541,7 +543,7 @@ footer a:hover { text-decoration: underline; }
     </div>
   </div>
 </section>
-<footer class="gutter"><div class="inner"><span>Logbook</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">The code</a><span>Made for Mac</span></div></footer>
+<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">The code</a><span>Made for Mac</span></div></footer>
 
 <div class="opening" id="opening" role="dialog" aria-labelledby="opening-title" aria-live="polite">
   <span data-char="pip" data-size="56"></span>
@@ -556,7 +558,7 @@ footer a:hover { text-decoration: underline; }
 
 <script>
 document.documentElement.classList.add('js');
-const MESSAGE = 'Install Logbook for me: https://raw.githubusercontent.com/varunfrancis/logbook/main/INSTALL.md';
+const MESSAGE = 'Install Swarmville for me: https://raw.githubusercontent.com/varunfrancis/logbook/main/INSTALL.md';
 // Links that open Claude Code with the message typed in (it never sends by itself: you press Enter).
 const LINKS = {
   app: 'claude://code/new?q=' + encodeURIComponent(MESSAGE),
@@ -572,13 +574,14 @@ const SH = {
   cube: { d: 'M24 16 H76 Q90 16 90 30 V80 Q90 94 76 94 H24 Q10 94 10 80 V30 Q10 16 24 16 Z', f: 48, n: 84, h: 40, t: 16 },
 };
 const CREW = {
-  pip: { shape: 'pebble', color: '#ffb547', hat: true }, juno: { shape: 'drop', color: '#3f8efc', acc: 'scarf' },
+  pip: { shape: 'capsule', color: '#3f8efc', hat: true, clip: true }, // the Swarmville logo (brand/pip.svg)
+  juno: { shape: 'drop', color: '#ff8a3d', acc: 'scarf' },
   moss: { shape: 'acorn', color: '#2fb36b', acc: 'glasses' }, rue: { shape: 'capsule', color: '#f472b6', acc: 'headphones' },
   bolt: { shape: 'cube', color: '#9b6bff', acc: 'bow' },
 };
 const ink = '#1d232c';
 const shade = (hex, t) => { const n = parseInt(hex.slice(1), 16); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v * (1 - t)).toString(16).padStart(2, '0')).join(''); };
-function character({ shape, color, acc, hat }, size, mood = 'hello', headOnly = false) {
+function character({ shape, color, acc, hat, clip }, size, mood = 'hello', headOnly = false) {
   const s = SH[shape], f = s.f, h = s.h;
   let face = `<ellipse class="eye" cx="39" cy="${f - 1}" rx="4.8" ry="6.2" fill="${ink}"/><ellipse class="eye" cx="61" cy="${f - 1}" rx="4.8" ry="6.2" fill="${ink}"/><circle cx="40.6" cy="${f - 3}" r="1.8" fill="#fff"/><circle cx="62.6" cy="${f - 3}" r="1.8" fill="#fff"/>`;
   face += mood === 'needs' ? `<circle cx="50" cy="${f + 15}" r="4" fill="${ink}"/>` : `<path d="M42 ${f + 10} Q50 ${f + 23} 58 ${f + 10} Z" fill="${ink}"/>`;
@@ -589,6 +592,7 @@ function character({ shape, color, acc, hat }, size, mood = 'hello', headOnly = 
   if (acc === 'glasses') x = `<g stroke="#25303d" stroke-width="2.4" fill="#fff" fill-opacity=".2"><circle cx="39" cy="${f}" r="9"/><circle cx="61" cy="${f}" r="9"/><path d="M48 ${f} L52 ${f}" fill="none"/></g>`;
   if (acc === 'headphones') x = `<path d="M${50 - h + 2} ${f} Q50 ${s.t - 26} ${50 + h - 2} ${f}" stroke="#25303d" stroke-width="4.5" fill="none" stroke-linecap="round"/><rect x="${50 - h - 4}" y="${f - 8}" width="10" height="16" rx="4" fill="#ff7a45"/><rect x="${50 + h - 6}" y="${f - 8}" width="10" height="16" rx="4" fill="#ff7a45"/>`;
   if (hat) x += `<path d="M${50 - h * .78} ${s.t + 11} Q50 ${s.t - 24} ${50 + h * .78} ${s.t + 11} Z" fill="#ffc928"/><path d="M50 ${s.t - 12} L50 ${s.t + 9}" stroke="#f0b400" stroke-width="5" stroke-linecap="round"/><rect x="${50 - h}" y="${s.t + 7}" width="${h * 2}" height="6" rx="3" fill="#f0b400"/>`;
+  if (clip && !headOnly) x += `<g transform="translate(${50 + h + 2},${f + 2}) rotate(12)"><rect x="-9" y="0" width="18" height="24" rx="2.5" fill="#a16207"/><rect x="-7" y="3" width="14" height="19" rx="1.5" fill="#fff"/><rect x="-4" y="-2" width="8" height="5" rx="1.5" fill="#6b7480"/><path d="M-4 9 h8 M-4 13 h8 M-4 17 h5" stroke="#8b94a1" stroke-width="1.6" stroke-linecap="round"/></g>`;
   const hand = mood === 'needs' ? `<path d="M${50 + h - 4} ${f + 4} C${50 + h + 6} ${f - 6} ${50 + h + 10} ${f - 26} ${50 + h + 4} ${f - 30} C${50 + h - 2} ${f - 32} ${50 + h - 6} ${f - 20} ${50 + h - 10} ${f - 6} Z" fill="${color}" stroke="${shade(color, .3)}" stroke-width="2"/>` : '';
   return `<svg width="${size}" height="${size}" viewBox="${headOnly ? '6 0 108 108' : '0 0 120 120'}" style="display:block;overflow:visible">` +
     (headOnly ? '' : `<ellipse cx="60" cy="112" rx="30" ry="5" fill="#000" opacity=".12"/>`) +
