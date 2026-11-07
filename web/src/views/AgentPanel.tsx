@@ -38,14 +38,13 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
   return (
     <aside className="panel agent" aria-label={`${a.title} profile`}>
       <header className="agent-head">
-        <AgentAvatar agent={a} mood={moodFor(s)} size={96} />
+        <AgentAvatar agent={a} mood={moodFor(s)} size={72} />
         <div className="agent-id">
           <h2>{a.title}</h2>
-          <div className="chips-sm">
+          <div className="agent-meta">
             <span className={`pill s-${s.away ? 'away' : s.status}`}>{s.away ? 'Away' : STATUS[voice][s.status]}</span>
-            <span>{a.role === 'resident' ? `Resident of ${project?.name}` : a.role === 'helper' ? `Helping on ${project?.name}` : `Own workbench on ${project?.name}`}</span>
+            <span>{a.role === 'resident' ? 'Resident' : a.role === 'helper' ? 'Helper' : 'Own workbench'}{d?.career.since ? ` · since ${new Date(d.career.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}{d ? ` · ${d.profile.shifts} shift${d.profile.shifts === 1 ? '' : 's'}` : ''}</span>
           </div>
-          {d ? <div className="sub">{d.profile.shifts} shift{d.profile.shifts === 1 ? '' : 's'} in the last {d.profile.days} days{d.career.since ? ` · on the crew since ${new Date(d.career.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}</div> : null}
         </div>
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>
       </header>
@@ -76,10 +75,10 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
 
       <section className="profile-block">
         <h3>{live ? 'Working on now' : `Last worked on · ${ago(s.endedAt, now)}`}</h3>
-        <p className="one-liner latest">{latest}</p>
-        {s.status === 'running' ? <p className="sub">Right now: {plainAction(s.action, voice) ?? 'thinking'}</p> : null}
-        {!live && s.stamp ? <div className="stamp-row"><Stamp stamp={s.stamp} /><span className="sub">{STAMP_NOTE[s.stamp]}</span></div> : null}
-        <div className="row"><GoTo s={s} primary />{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
+        <p className="one-liner latest" title={latest}>{latest}</p>
+        {live ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
+          : s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
+        <div className="row actions"><GoTo s={s} />{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
       {d && d.profile.recent.length > 1 ? (
@@ -98,11 +97,11 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
       ) : null}
 
       {d ? (
-        <dl className="stats small-stats">
-          <div><dt>Hours worked</dt><dd>{(d.profile.workMs / 3600_000).toFixed(1)}</dd></div>
-          <div><dt>Checks passing</dt><dd>{d.profile.checksOk + d.profile.checksFail ? `${Math.round((d.profile.checksOk / (d.profile.checksOk + d.profile.checksFail)) * 100)}%` : '—'}</dd></div>
-          <div><dt>Saves</dt><dd>{d.profile.saves}</dd></div>
-          <div><dt>Scrapped</dt><dd className={d.profile.scrapped ? 'hot' : ''}>{d.profile.scrapped}</dd></div>
+        <dl className="mini-stats" aria-label="Last 30 days">
+          <div><dd>{(d.profile.workMs / 3600_000).toFixed(1)}</dd><dt>hours</dt></div>
+          <div><dd>{d.profile.checksOk + d.profile.checksFail ? `${Math.round((d.profile.checksOk / (d.profile.checksOk + d.profile.checksFail)) * 100)}%` : '—'}</dd><dt>checks pass</dt></div>
+          <div><dd>{d.profile.saves}</dd><dt>saves</dt></div>
+          <div><dd className={d.profile.scrapped ? 'hot' : ''}>{d.profile.scrapped}</dd><dt>scrapped</dt></div>
         </dl>
       ) : null}
 
