@@ -35,7 +35,7 @@ const JOB_LINE: Record<Job, string> = {
   scout: 'I look into things before anyone builds',
 };
 
-const lowerFirst = (s: string) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+const lowerFirst = (s: string) => (/^([A-Z][a-z]|An? )/.test(s) ? s[0].toLowerCase() + s.slice(1) : s); // keeps "API", "iOS"
 const noDot = (s: string) => s.trim().replace(/[.!]+$/, '');
 
 /** The instant, always-true version. */

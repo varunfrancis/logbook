@@ -9,6 +9,8 @@ export const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(HOME, '.cla
 export const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
 export const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions');
 export const DB_PATH = path.join(DATA_DIR, 'logbook.db');
+/** Logbook's own small-model runs (naming, intros) happen in <data dir>/namer; any Logbook data dir, not only this one. */
+export const isOwnRun = (cwd: string | null | undefined) => !!cwd && (cwd.startsWith(DATA_DIR) || (path.basename(cwd) === 'namer' && fs.existsSync(path.join(path.dirname(cwd), 'logbook.db'))));
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 export const WEB_DIST = path.join(REPO_ROOT, 'web', 'dist');
 

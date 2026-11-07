@@ -43,7 +43,9 @@ function useTypewriter(text: string, cps = 48) {
   useEffect(() => {
     if (reduced()) { setN(text.length); return; }
     setN(0);
-    const id = setInterval(() => setN((x) => { if (x >= text.length) { clearInterval(id); return x; } return x + 1; }), 1000 / cps);
+    // by elapsed time, so a busy frame (the 3D town is drawing) skips ahead instead of slowing the speech down
+    const t0 = performance.now();
+    const id = setInterval(() => { const k = Math.min(text.length, Math.floor(((performance.now() - t0) * cps) / 1000)); setN(k); if (k >= text.length) clearInterval(id); }, 30);
     return () => clearInterval(id);
   }, [text, cps]);
   return { shown: text.slice(0, n), done: n >= text.length, finish: () => setN(text.length) };
@@ -71,7 +73,7 @@ function Pip({ text, children, wide, extra }: { text: string; children?: React.R
         {extra}
         {children ? <div className="wel-actions">{children}</div> : null}
       </div>
-      <div className="wel-pip-av"><AgentAvatar agent={FOREMAN} mood="hello" size={84} live talking={!done} /></div>
+      <div className="wel-pip-av"><AgentAvatar agent={FOREMAN} mood="hello" size={104} live talking={!done} /></div>
     </div>
   );
 }
@@ -111,8 +113,7 @@ export function Welcome({ state, api, setTourFocus, showTown }: { state: StateVi
   if (step === 'turn') return (
     <div className="wel-card turn" role="dialog" aria-labelledby="turn-title">
       <div className="wel-head"><AgentAvatar agent={FOREMAN} mood="hello" size={56} live /><div><h3 id="turn-title">Want to give someone a job?</h3><p className="muted">Pick a project and how you'd like to start. Planning first is a good habit: nothing gets built until you say so.</p></div></div>
-      <StartWork state={state} moves={WELCOME_MOVES} defaultMove="plan" idPrefix="wel" onStarted={(r) => { setStarted(r); go('handoff'); }} />
-      <div className="wel-foot"><SkipTour onSkip={finish} label="Maybe later" /></div>
+      <StartWork state={state} moves={WELCOME_MOVES} defaultMove="plan" idPrefix="wel" onStarted={(r) => { setStarted(r); go('handoff'); }} secondary={<SkipTour onSkip={finish} label="Maybe later" />} />
     </div>
   );
   if (step === 'handoff') return <Handoff state={state} started={started} onNext={() => go('arrival')} />;

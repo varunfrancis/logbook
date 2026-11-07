@@ -24,9 +24,25 @@ node bin/logbook.ts install   # builds the UI, adds Claude Code hooks, runs Logb
 open http://localhost:7777
 ```
 
-First launch asks you to name your town.
+Install opens your town in the browser. The first launch is a short welcome tour, about two minutes and skippable at every step:
 
-- `node bin/logbook.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in. Reload open VS Code windows after installing.
+1. **Setting up**: Logbook reads the work you've already done with Claude Code and shows real counts as it goes. All your buildings get friendly names in one go.
+2. **Name your town.**
+3. **Pip, the foreman**, says hello. Pip is the guide and never works a shift.
+4. **Roll call**: up to three agents (different projects first) introduce themselves: who they are, what they're on, one fact from their record. A plain line appears instantly; the small Claude model writes a livelier one in the background (one call for the roll call, cached per agent per day).
+5. **Four signs**: raised hand, rain cloud, fireworks, coffee mug, each pointing at a real example in your town when there is one.
+6. **Where to look**: Town, Crew, Day.
+7. **Your turn**: pick a project and *Brainstorm with me*, *Plan with me* (opens Claude Code in plan mode, so nothing changes until you approve) or *Fix something*.
+8. It opens in VS Code (or Terminal), with an option to have **agents say hi in the terminal** (off by default).
+9. Your new agent **walks into town** and says hi.
+
+After that, Pip explains the rest the first time it happens (first raised hand, rain cloud, fire, fireworks, tombstone, and bricks on the Day view). A skipped tour can be finished from the header for a week; Settings → *Replay the welcome* runs it again. Every agent's profile has **Work with {name}** with the same starting moves, led by what their job is good at.
+
+New agents walk in from the street with a "Hi, I'm …" bubble whenever they start, and a note in the corner says who joined.
+
+**Agents say hi in the terminal** (Settings, off by default): when a Claude Code session starts, the hook tells Claude its name and look in your town, so its first reply opens with "Hi, I'm Juno. You'll see me at Support Bot in Maple Harbor." The hook waits at most a second for this and only on session start.
+
+- `node bin/logbook.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in, and opens new jobs you start from Logbook. New VS Code windows pick it up; restart VS Code once for windows already open. Without it, Logbook uses Terminal.
 - Settings → *Skyline for your GitHub profile*: point it at a local clone of your profile README repo. **README skyline** in the Town view then saves `logbook-skyline.png` there, commits and pushes.
 - `node bin/logbook.ts uninstall` removes the hooks, the login item and the VS Code helper. Your data in `~/.logbook` stays.
 

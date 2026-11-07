@@ -670,7 +670,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .tour-pill small { font-weight: 600; color: var(--ink-2); margin-left: 4px; }
 
 /* New agents greet the town for a minute and a half */
-.city-labels > .hello { display: flex; flex-direction: column; align-items: center; gap: 3px; background: #fff; color: #25303d; padding: 6px 11px; border-radius: 12px; font-size: 12.5px; box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; white-space: nowrap; }
+.city-labels > .hello { z-index: 9000 !important; display: flex; flex-direction: column; align-items: center; gap: 3px; background: #fff; color: #25303d; padding: 6px 11px; border-radius: 12px; font-size: 12.5px; box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; white-space: nowrap; }
 .city-labels > .hello b { font-family: var(--f-display); font-weight: 600; font-size: 14px; }
 .city-labels > .hello span { font: 800 9.5px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; background: var(--accent); color: #fff; border-radius: 99px; padding: 3px 7px; }
 .city-labels > .hello::after { content: ""; position: absolute; left: 50%; margin-left: -6px; bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
@@ -695,3 +695,4 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 @keyframes av-talk { from { transform: scaleY(.3); } to { transform: scaleY(1.1); } }
 @keyframes av-enter { from { transform: translateY(36px) scale(.5); opacity: 0; } 70% { transform: translateY(-6px) scale(1.06); opacity: 1; } to { transform: none; } }
 @keyframes wel-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.view-town .arrival-toast { top: 128px; } /* below the Share / Replay row */
