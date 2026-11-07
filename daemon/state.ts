@@ -108,6 +108,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     projectId: s.project_id,
     agent: agentOf(s),
     title: shorten(s.ai_title || liveName || s.first_prompt || live?.name || 'New session'),
+    focus: s.focus ?? null,
     status,
     away,
     action: status === 'ended' ? null : status === 'idle' ? 'Waiting for your next message' : s.current_action,

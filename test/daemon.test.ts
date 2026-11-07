@@ -540,3 +540,13 @@ test('one project, one building: sub-folders of a plain folder, and repos that g
   assert.equal(one('SELECT project_id FROM notes').project_id, after);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('current job label: follow-ups keep the label, real replies are tidied, junk is rejected', async () => {
+  const { carriesOn, parseFocusReply } = await import('../daemon/focus.ts');
+  for (const p of ['Yes, build it.', 'fix all', 'Merge it', '/review-pr 12', 'ok']) assert.equal(carriesOn(p), true, p);
+  for (const p of ['Can you move the toast to the bottom?', 'Extend the offer expiry for CAT users']) assert.equal(carriesOn(p), false, p);
+  assert.equal(parseFocusReply('SAME'), 'same');
+  assert.equal(parseFocusReply('Label: "extend the offer."'), 'Extend the offer');
+  assert.equal(parseFocusReply('Here is a long rambling answer that is clearly not a short label at all'), null);
+  assert.equal(parseFocusReply(null), null);
+});
