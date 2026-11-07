@@ -100,6 +100,9 @@ function migrate(db: DatabaseSync) {
     for (const [col, type] of Object.entries(cols)) if (!have.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS events_unique ON events(session_id, ts, kind, text)');
+  // Hands raised by a background job's notice to the terminal that launched it ("<job> needs your input: …") were never the
+  // terminal's own and nothing would ever lower them (hooks.ts now ignores those notices): bring them down.
+  db.exec("UPDATE sessions SET hook_state = 'idle', needs_message = NULL WHERE hook_state = 'needs_input' AND needs_message LIKE '% needs your input%' AND needs_message NOT LIKE 'Claude %'");
   const v = (db.prepare("SELECT v FROM kv WHERE k = 'schema'").get() as Row | undefined)?.v;
   if (Number(v ?? 1) < SCHEMA) {
     db.exec(`

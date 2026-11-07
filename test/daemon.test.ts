@@ -10,7 +10,7 @@ import { consolidateProjects, ensureProjectForCwd, spiral } from '../daemon/proj
 import { execFileSync } from 'node:child_process';
 import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
-import { handleHook } from '../daemon/hooks.ts';
+import { handleHook, isJobNotice } from '../daemon/hooks.ts';
 import { buildState } from '../daemon/state.ts';
 import { isClaude, stopProcess } from '../daemon/stop.ts';
 
@@ -162,6 +162,36 @@ test('hooks drive a session from start to needs-you to closed', () => {
   const st = buildState(db, new Map(), t0 + 70);
   assert.equal(st.sessions[0].status, 'ended');
   assert.equal(st.projects[0].state, 'construction');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a background job asking for input does not raise the hand of the terminal that launched it', () => {
+  assert.equal(isJobNotice(undefined, 'logbook brand logo redesign needs your input: Pick amber Pip or blue Pip'), true);
+  assert.equal(isJobNotice(undefined, 'just-finished-section-reorder finished'), true);
+  assert.equal(isJobNotice('permission_prompt', 'deploy needs your input: ok?'), false);
+  assert.equal(isJobNotice(undefined, 'Claude needs your permission to use Bash'), false);
+  assert.equal(isJobNotice(undefined, 'Claude is waiting for your input'), false);
+  assert.equal(isJobNotice(undefined, null), false);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const base = { session_id: 'parent', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
+  const t0 = Date.now();
+  const status = (t: number) => buildState(db, new Map(), t).sessions[0].status;
+  handleHook(db, { ...base, hook_event_name: 'SessionStart', source: 'startup' }, t0);
+  handleHook(db, { ...base, hook_event_name: 'Notification', message: 'logo redesign needs your input: pick a face' }, t0 + 10);
+  assert.equal(status(t0 + 20), 'idle');
+
+  // a real permission prompt in this terminal stays up through a job's notices
+  handleHook(db, { ...base, hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, t0 + 30);
+  handleHook(db, { ...base, hook_event_name: 'Notification', message: 'section reorder finished' }, t0 + 40);
+  assert.equal(status(t0 + 50), 'needs_input');
+
+  // a hand left up by a job notice before this fix comes down at the next job notice
+  db.prepare("UPDATE sessions SET hook_state = 'needs_input', needs_message = 'logo redesign needs your input: pick a face' WHERE id = 'parent'").run();
+  handleHook(db, { ...base, hook_event_name: 'Notification', message: 'music finished' }, t0 + 60);
+  assert.equal(status(t0 + 70), 'idle');
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

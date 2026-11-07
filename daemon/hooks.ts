@@ -7,6 +7,17 @@ import { isOwnRun } from './config.ts';
 
 const PR_RE = /https:\/\/github\.com\/[^/\s"]+\/[^/\s"]+\/pull\/\d+/;
 
+/**
+ * Claude Code tells the terminal that launched a background job about that job: "<job> needs your input: …", "<job> finished".
+ * That's the job's state, not this session's (the job's own session already shows it), and answering the job never reaches
+ * this session, so treating it as this session's raised hand would leave the hand up for good.
+ */
+export function isJobNotice(type: unknown, message: unknown): boolean {
+  if (type === 'permission_prompt' || type === 'idle_prompt') return false;
+  const msg = String(message ?? '').trim();
+  return !/^Claude\b/.test(msg) && /^\S.*? (needs your input\b|finished\b)/.test(msg);
+}
+
 /** Applies one Claude Code hook payload. Never throws for bad input. */
 export function handleHook(db: Db, p: any, now = Date.now()) {
   const sid = p?.session_id;
@@ -15,7 +26,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
 
   if (isOwnRun(typeof p.cwd === 'string' ? p.cwd : null)) return; // Logbook's own helper runs
   db.prepare('INSERT OR IGNORE INTO sessions(id, transcript, cwd, started_at) VALUES(?, ?, ?, ?)').run(sid, p.transcript_path ?? null, p.cwd ?? null, now);
-  const s = db.prepare('SELECT project_id, hook_state, hook_state_at FROM sessions WHERE id = ?').get(sid) as Row;
+  const s = db.prepare('SELECT project_id, hook_state, hook_state_at, needs_message FROM sessions WHERE id = ?').get(sid) as Row;
   // A raised hand ends when anything else happens: record how long the agent waited for you.
   if (s.hook_state === 'needs_input' && s.hook_state_at && event !== 'Notification' && event !== 'SubagentStop' && now > s.hook_state_at) {
     db.prepare('INSERT INTO segments(session_id, start, end, kind) VALUES(?, ?, ?, ?)').run(sid, s.hook_state_at, now, 'wait');
@@ -64,6 +75,12 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
     }
     case 'Notification': {
       const msg = String(p.message ?? '');
+      if (isJobNotice(p.notification_type, msg)) {
+        // a hand raised by an earlier job notice (before Logbook knew better) comes down; a real one stays up
+        if (s.hook_state === 'needs_input' && isJobNotice(null, s.needs_message)) set({ hook_state: 'idle', hook_state_at: now, needs_message: null });
+        logEvent(db, sid, now, 'job', msg);
+        break;
+      }
       const needs = p.notification_type === 'permission_prompt' || /permission|approve|needs your/i.test(msg);
       if (needs && s.hook_state === 'needs_input') break; // still the same raised hand
       set(needs ? { hook_state: 'needs_input', hook_state_at: now, needs_message: msg } : { hook_state: 'idle', hook_state_at: now });
