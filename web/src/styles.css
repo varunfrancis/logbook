@@ -179,6 +179,7 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .bb.sel { outline: 2.5px solid var(--accent); }
 .tag { white-space: nowrap; font-size: 11px; font-weight: 800; background: #25303dee; color: #fff; padding: 2px 8px; border-radius: 999px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 5px; align-items: center; }
 .tag .who { display: none; opacity: .7; font-weight: 600; } .tag.named .who { display: inline; }
+.tag .grp { display: none; } .tag.grouped .grp { display: inline; } .tag.grouped .doing { display: none; }
 .tag.doing-run { background: #0f8f8f; box-shadow: 0 0 0 2px #17c3c355; } .tag.doing-run .doing::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9ff3f3; margin-right: 5px; vertical-align: 1px; animation: blink 1.2s ease-in-out infinite; }
 .tag.doing-needs { background: #e5484d; } .tag.doing-rest { background: #5c6878e6; font-weight: 700; }
 @keyframes blink { 50% { opacity: .25; } }
@@ -459,7 +460,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 
 /* town additions */
 .city-labels > .chat { max-width: 220px; white-space: normal; font-size: 12.5px; font-weight: 700; background: #fff; color: #25303d; padding: 6px 10px; border-radius: 12px; box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; }
-.city-labels > .chat::after { content: ""; position: absolute; left: 18px; bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+.city-labels > .chat::after { content: ""; position: absolute; left: calc(50% - 6px); bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
 .grave-sign small { opacity: .7; font-weight: 500; margin-left: 2px; }
 .grave-sign, .rip { pointer-events: auto; cursor: pointer; }
 .grave-sign:hover { background: #3f5a39; }
