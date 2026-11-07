@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { post } from './useLogbook.ts';
 import { setChime, setMusic, useSound } from './audio.ts';
+import type { Voice } from './copy.ts';
 
 /** First launch: name your town. Also used from Settings to rename it. */
 export function TownPicker({ state, onDone }: { state: StateView; onDone: () => void }) {
@@ -28,7 +29,21 @@ export function TownPicker({ state, onDone }: { state: StateView; onDone: () => 
   );
 }
 
-export function Settings({ state, onClose, renameTown }: { state: StateView; onClose: () => void; renameTown: () => void }) {
+export type Prefs = {
+  voice: Voice; setVoice: (v: Voice) => void;
+  bubble: 'project' | 'task'; setBubble: (b: 'project' | 'task') => void;
+  showLots: boolean; setShowLots: (b: boolean) => void;
+};
+
+function Seg<T extends string>({ label, value, set, options }: { label: string; value: T; set: (v: T) => void; options: [T, string][] }) {
+  return (
+    <div className="seg-toggle" role="group" aria-label={label}>
+      {options.map(([v, text]) => <button type="button" key={v} className={value === v ? 'on' : ''} aria-pressed={value === v} onClick={() => set(v)}>{text}</button>)}
+    </div>
+  );
+}
+
+export function Settings({ state, onClose, renameTown, prefs }: { state: StateView; onClose: () => void; renameTown: () => void; prefs: Prefs }) {
   const [repo, setRepo] = useState(state.settings.skylineRepo ?? '');
   const [saved, setSaved] = useState(false);
   const sound = useSound();
@@ -36,6 +51,12 @@ export function Settings({ state, onClose, renameTown }: { state: StateView; onC
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={async (e) => { e.preventDefault(); await post('/api/settings', { skylineRepo: repo || null }); setSaved(true); }}>
         <h2 id="settings-title">Settings</h2>
+        <div className="setting"><div><b>Language</b><div className="muted">Plain talks in bricks and buildings; Technical shows tokens and tool calls.</div></div>
+          <Seg label="Language" value={prefs.voice} set={prefs.setVoice} options={[['plain', 'Plain'], ['technical', 'Technical']]} /></div>
+        <div className="setting"><div><b>Agent bubbles</b><div className="muted">What the bubble over each agent in Town says: the project they're on, or the task they're doing right now.</div></div>
+          <Seg label="Agent bubbles" value={prefs.bubble} set={prefs.setBubble} options={[['project', 'Project'], ['task', 'Task']]} /></div>
+        <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Logbook knows about but hasn't seen any work on yet.</div></div>
+          <label className="toggle"><input type="checkbox" id="show-lots" checked={prefs.showLots} onChange={(e) => prefs.setShowLots(e.target.checked)} /> Show</label></div>
         <div className="setting"><div><b>Town name</b><div className="muted">{state.town.name}</div></div><button type="button" className="ghost" onClick={renameTown}>Rename</button></div>
         <div className="setting col">
           <label htmlFor="skyline-repo"><b>Skyline for your GitHub profile</b></label>
