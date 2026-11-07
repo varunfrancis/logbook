@@ -222,14 +222,15 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .tool { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); font-size: 17px; font-weight: 800; cursor: pointer; color: var(--ink); }
 .tool { display: grid; place-items: center; padding: 0; }
 .tool:disabled { opacity: .45; cursor: default; }
-.tool.on { background: var(--ink); color: var(--surface); }
-.keys-card { position: absolute; right: 64px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6; width: 310px; max-width: calc(100% - 96px); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px 12px; font-size: 13px; }
-.keys-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.keys-card dl { margin: 0; display: grid; gap: 6px; }
-.keys-card dl > div { display: flex; align-items: center; gap: 10px; }
-.keys-card dt { display: flex; gap: 3px; min-width: 96px; }
-.keys-card dd { margin: 0; color: var(--ink-2); }
-.legend { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 12px; font-weight: 700; box-shadow: var(--shadow); max-width: calc(100% - 100px); }
+.city-tools { align-items: flex-end; }
+.tool-row { display: flex; align-items: center; gap: 8px; }
+.tool-key, .tool-hint kbd { min-width: 22px; text-align: center; font-size: 11px; font-weight: 700; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 5px; box-shadow: var(--shadow); }
+.tool-row.off .tool-key { opacity: .45; }
+.tool-hint { display: flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; box-shadow: var(--shadow); white-space: nowrap; }
+.tool-hint kbd { box-shadow: none; min-width: 0; padding: 0 4px; }
+/* no keyboard on phones and tablets, and no room: just the buttons */
+@media (max-width: 720px), (hover: none) { .tool-key, .tool-hint { display: none; } }
+.legend { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 12px; font-weight: 700; box-shadow: var(--shadow); max-width: calc(100% - 140px); }
 .legend small { font-weight: 600; color: var(--ink-3); margin-left: 2px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .legend .p-site { background: var(--run); box-shadow: 0 0 0 3px color-mix(in srgb, var(--run) 30%, transparent); animation: blink 1.1s ease-in-out infinite; } .legend .p-needs { background: var(--needs); } .legend .p-construction { background: #f5c542; } .legend .p-recent { background: var(--done); } .legend .p-done { background: var(--quiet); } .legend .p-lot { background: var(--lot); }
@@ -526,8 +527,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .view-town .main:has(.panel) .city-actions { right: 408px; }
 .action-msg { flex-basis: 100%; text-align: right; font-size: 13px; color: var(--ink); background: var(--surface); padding: 6px 10px; border-radius: 10px; box-shadow: var(--shadow); }
 .view-town .main:has(.panel) .city-tools { right: 408px; }
-.view-town .main:has(.panel) .keys-card { right: 456px; }
-
+.view-town .main:has(.panel) 
 /* ---------- sound toggle + "bumping into each other" heads-ups ---------- */
 .ghost.music { min-width: 92px; }
 .ghost.music.on { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
@@ -547,6 +547,8 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 @media (max-width: 720px) {
   .view-town .main:has(.panel) .city-actions { right: 16px; }
   .city-actions { top: auto; bottom: 80px; }
+  /* phones: the tools lie in one row along the bottom, under Share and friends */
+  .city-tools, .view-town .main:has(.panel) .city-tools { flex-direction: row; right: 16px; left: 16px; justify-content: flex-end; }
 }
 
 /* Agent profile: who they are, how they're doing, what they're on. One spacing scale: 4 / 8 / 12 / 20. */
