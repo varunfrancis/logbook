@@ -6,7 +6,7 @@ import { Avatar, type Mood } from '../crew/Avatar.tsx';
 /*
  * Crew in the town are the exact same artwork as their dashboard avatar: the Avatar SVG is drawn into a texture
  * and shown as a camera-facing figure standing in the 3D world, with a soft shadow and a few 3D props
- * (crate, box, blueprint) for what they're doing. Whatever angle you look from, you see their face.
+ * (seat, bedroll, blueprint) for what they're doing. Whatever angle you look from, you see their face.
  */
 
 export type CrewMode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit' | 'stuck' | 'stand' | 'sleep';
@@ -101,7 +101,6 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?:
   };
   let seat = 0;
   if (spec.mode === 'sit') { mesh(new THREE.BoxGeometry(0.55, 0.3, 0.45), '#a8774c', 0, 0.15, -0.05); seat = 0.28; }
-  if (spec.mode === 'carry') mesh(new THREE.BoxGeometry(0.42, 0.28, 0.34), '#c27a4a', 0, S * 0.98, 0, body);
   if (spec.mode === 'sleep') { // a bedroll and pillow beside the building: a scheduled job between runs
     mesh(new THREE.BoxGeometry(1.5, 0.08, 0.75), '#7d9bd1', -0.1, 0.04, 0);
     mesh(new THREE.BoxGeometry(0.4, 0.12, 0.5), '#f4efe6', 0.5, 0.12, 0);
