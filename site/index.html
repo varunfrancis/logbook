@@ -379,6 +379,15 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   .js .pop { transform: translateY(30px) scale(.94); opacity: 0; transition: transform .6s cubic-bezier(.2, 1.4, .4, 1), opacity .4s; }
   .js .pop.in { transform: none; opacity: 1; }
 }
+
+/* iOS-style continuous corners on every rounded box: the curve eases into the straight edge instead of meeting it at a
+ * sharp tangent. superellipse(1.4) keeps the same overall roundness (a full squircle reads boxy at these radii).
+ * Circles (50%) and pills (999px) stay as they are. Browsers without corner-shape keep plain rounded corners. */
+@supports (corner-shape: superellipse(1.4)) {
+  .btn, .way, .gh-btn, .theme, .tab, .key, .cmd, .browser, .browser .url, .mini-chat, .mini-chat .me, .mini-chat .typing,
+  .panel, .panel .opt, .allow, .allow .row span, .bubble, .not-mac, .say, .toast, .opening, .faq details, .faq summary:focus-visible,
+  .talk, .card, .oss-card, .step, .art, .frame, .frame .clip { corner-shape: superellipse(1.4); }
+}
 </style>
 </head>
 <body>
