@@ -91,7 +91,7 @@ export function ShareSheet({ state, onClose, initial = 'team' }: { state: StateV
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="share-title" onClick={onClose}>
       <div className="modal share" onClick={(e) => e.stopPropagation()}>
-        <div className="row between"><h2 id="share-title">Share your team</h2><button className="ghost close" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="row between"><h2 id="share-title">Show off your crew</h2><button className="ghost close" onClick={onClose} aria-label="Close">×</button></div>
         <div className="tabs-row" role="tablist">
           {TABS.map((t) => <button key={t.key} role="tab" aria-selected={kind === t.key} className={kind === t.key ? 'on' : ''} onClick={() => { setKind(t.key); setMsg(null); }}>{t.label}</button>)}
         </div>
