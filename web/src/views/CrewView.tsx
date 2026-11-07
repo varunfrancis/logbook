@@ -3,7 +3,7 @@ import type { ProjectView, RoutineView, SessionView, StateView } from '../../../
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../copy.ts';
 import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
-import { Empty, GoTo, PrChip, Stamp } from '../components.tsx';
+import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { useNow } from '../useLogbook.ts';
 
 type Open = { agent: (id: string) => void; project: (id: string) => void };
@@ -136,6 +136,7 @@ function FinishedList({ items, projects, now, open }: { items: SessionView[]; pr
               </div>
               {s.status === 'ended' ? (s.stamp ? <Stamp stamp={s.stamp} /> : <span className="pill s-ended">Clocked out</span>) : <span className="pill s-idle">{s.away ? 'Away' : 'On a break'}</span>}
               <PrChip url={s.prUrl} state={s.prState} />
+              <ClockOut s={s} />
               <span className="muted when">{ago(finishedAt(s), now)}</span>
             </li>
           );

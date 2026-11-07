@@ -11,6 +11,30 @@ import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '.
 import { openDb } from '../daemon/db.ts';
 import { handleHook } from '../daemon/hooks.ts';
 import { buildState } from '../daemon/state.ts';
+import { isClaude, stopProcess } from '../daemon/stop.ts';
+
+test('clock out only signals a real Claude process: TERM after a grace period, KILL only if it hangs on', () => {
+  assert.equal(isClaude('claude bg-spare'), true);
+  assert.equal(isClaude('/Users/u/.local/share/claude/versions/2.1.319'), true);
+  assert.equal(isClaude('/opt/homebrew/bin/claude --resume abc'), true);
+  assert.equal(isClaude('node daemon/server.ts'), false);
+  assert.equal(isClaude(null), false);
+
+  const entry = { pid: 42, sessionId: 's', cwd: '/w', kind: 'interactive', status: 'idle', name: null, updatedAt: null, startedAt: null };
+  const run = (cmd: string | null, stillAlive: boolean) => {
+    const sent: string[] = [];
+    const queue: (() => void)[] = [];
+    const r = stopProcess(entry, { command: () => cmd, alive: () => stillAlive, signal: (_p, s) => { sent.push(s); }, later: (fn) => { queue.push(fn); } });
+    while (queue.length) queue.shift()!();
+    return { r, sent };
+  };
+  assert.deepEqual(run('claude', true).sent, ['SIGTERM', 'SIGKILL']);
+  assert.deepEqual(run('claude', false).sent, []); // closing the terminal already ended it
+  const recycled = run('/usr/bin/vim', true);
+  assert.equal(recycled.r.ok, false);
+  assert.deepEqual(recycled.sent, []);
+  assert.equal(stopProcess(undefined, {} as any).ok, false);
+});
 
 const line = (o: object) => JSON.stringify(o);
 
