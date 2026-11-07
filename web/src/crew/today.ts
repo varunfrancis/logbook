@@ -10,7 +10,10 @@ export const DECIDE_DAYS = 7;
 
 export type TodaySession = Pick<SessionView, 'id' | 'status' | 'stamp' | 'prState' | 'prUrl' | 'endedAt' | 'lastEventAt' | 'kind' | 'scheduled' | 'projectId'>;
 
-export const finishedAt = (s: TodaySession) => (s.status === 'ended' ? s.endedAt : s.lastEventAt) ?? 0;
+/** "#441" from a pull request link. */
+export const prNum = (url: string | null) => (url ? `#${url.split('/').pop()}` : null);
+
+export const finishedAt =(s: TodaySession) => (s.status === 'ended' ? s.endedAt : s.lastEventAt) ?? 0;
 
 const startOfDay = (now: number) => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); };
 

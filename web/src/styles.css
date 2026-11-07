@@ -829,23 +829,34 @@ code.ask-detail { display: block; }
 /* Crew → Today: what still needs a call from you, and what got done. */
 .today-h { margin: 0 0 8px; font: 800 11.5px var(--f-body); letter-spacing: .7px; text-transform: uppercase; color: var(--ink-3); }
 .today-h span { text-transform: none; letter-spacing: 0; font-weight: 700; }
-#today .closed + .today-h, #today .today-gone + .today-h, #today .closed ~ .today-h { margin-top: 20px; }
+#today .done-strip + .today-h { margin-top: 20px; }
+/* Done: just the headline numbers; the full list is one click away in the Shipped drawer. */
+.done-strip { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; cursor: pointer; }
+.done-strip:hover { background: var(--surface-2); }
+.done-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.done-big { font: 600 34px/1 var(--f-display); color: var(--done); white-space: nowrap; }
+.done-big small { font: 700 13px var(--f-body); color: var(--ink-2); margin-left: 6px; }
+.done-projects { flex: 1; min-width: 0; display: flex; gap: 6px 18px; flex-wrap: wrap; color: var(--ink-2); font-size: 14px; }
+.done-projects b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; margin-right: 3px; }
+.done-see { font: 800 13px var(--f-body); color: var(--ink); white-space: nowrap; }
+.done-projects span { white-space: nowrap; }
+@media (max-width: 640px) {
+  .done-strip { gap: 10px 16px; }
+  .done-projects { flex-basis: 100%; order: 2; }
+  .done-see { order: 3; }
+}
+.shipped-panel { width: min(460px, calc(100% - 24px)); }
+.shipped-list ul { display: flex; flex-direction: column; }
+.shipped-item { align-items: flex-start; padding-left: 10px; }
+.shipped-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.shipped-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.shipped-top b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shipped-meta { font-size: 12px; color: var(--ink-3); }
+.shipped-said { font-size: 12.5px; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .decide .said { font-size: 13.5px; color: var(--ink-2); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .today-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; cursor: default; }
 .today-acts a.btn { text-decoration: none; }
 .today-gone { margin: 8px 0 0; color: var(--ink-3); font-size: 13.5px; }
-.done-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.done-proj { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.done-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.done-top .link { color: var(--ink); text-decoration: none; font: 600 17px var(--f-display); text-align: left; }
-.done-top .link:hover { text-decoration: underline; }
-.done-n { font: 600 22px var(--f-display); color: var(--done); white-space: nowrap; }
-.done-n small { font: 700 12px var(--f-body); color: var(--ink-3); margin-left: 4px; }
-.done-proj ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
-.done-proj li { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; border-radius: 6px; }
-.done-proj li:hover { color: var(--ink); background: var(--surface-2); }
-.done-proj li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.more-n { align-self: flex-start; }
 .today-chats { margin-top: 12px; }
 .today-chats ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
 .today-chats li { cursor: pointer; }
