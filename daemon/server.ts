@@ -7,6 +7,7 @@ import { DATA_DIR, PORT, WEB_DIST } from './config.ts';
 import { kvGet, kvSet, openDb, type Row } from './db.ts';
 import { scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { backfillEntrypoints } from './routines.ts';
+import { consolidateProjects } from './projects.ts';
 import { readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, wrappedView } from './state.ts';
 import { handleHook } from './hooks.ts';
@@ -329,6 +330,7 @@ server.listen(PORT, '127.0.0.1', () => console.log(`[logbook] http://localhost:$
 function bootStep() {
   try { scanTranscripts(db, Date.now() + 400); } catch (e) { console.error('[logbook] reading transcripts failed', e); }
   if (transcriptsLeft() > 0) { refresh(); setTimeout(bootStep, 15); return; }
+  try { consolidateProjects(db); } catch (e) { console.error('[logbook] joining duplicate projects failed', e); }
   tick(); // first full pass: characters, outcomes
   console.log(`[logbook] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
   setInterval(tick, 2000);

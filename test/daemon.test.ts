@@ -6,7 +6,8 @@ import path from 'node:path';
 import { describeTool } from '../daemon/describe.ts';
 import { cleanPrompt, parseLines } from '../daemon/transcripts.ts';
 import { parseGithubRemote, rootFromPath } from '../daemon/git.ts';
-import { spiral } from '../daemon/projects.ts';
+import { consolidateProjects, ensureProjectForCwd, spiral } from '../daemon/projects.ts';
+import { execFileSync } from 'node:child_process';
 import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
 import { handleHook } from '../daemon/hooks.ts';
@@ -491,4 +492,51 @@ test('medals: one crew per category, minimums before a rate counts, ties to whoe
   const moved = handovers(prev, medals([a, b]));
   assert.ok(moved.some((x) => x.medal.id === 'shipped' && x.from === 'a'));
   assert.deepEqual(handovers(new Map(), medals([a])), []);
+});
+
+test('one project, one building: sub-folders of a plain folder, and repos that gain a GitHub remote', async () => {
+  const { addNote } = await import('../daemon/crews.ts');
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-')));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'ignore' });
+  const one = (sql: string, ...args: any[]) => ({ ...(db.prepare(sql).get(...args) as any) });
+
+  // A plain folder: Claude started in the project, then in a sub-folder of it.
+  const app = path.join(dir, 'app');
+  fs.mkdirSync(path.join(app, 'frontend'), { recursive: true });
+  const top = ensureProjectForCwd(db, app).projectId;
+  assert.equal(ensureProjectForCwd(db, path.join(app, 'frontend')).projectId, top);
+
+  // A real repo inside that plain folder is still its own project.
+  const lib = path.join(app, 'lib');
+  fs.mkdirSync(lib);
+  sh(lib, 'init', '-q');
+  assert.equal(ensureProjectForCwd(db, lib).projectId, `local:${lib}`);
+
+  // Sub-folder met first (by an older version): the startup pass folds it into its parent.
+  db.prepare("INSERT INTO projects(id, name, root) VALUES(?, 'frontend', ?)").run(`local:${app}/frontend`, `${app}/frontend`);
+  db.prepare("INSERT INTO sessions(id, project_id, started_at) VALUES('f1', ?, 5)").run(`local:${app}/frontend`);
+  consolidateProjects(db);
+  assert.equal(one("SELECT project_id FROM sessions WHERE id = 'f1'").project_id, top);
+  assert.equal(db.prepare('SELECT 1 FROM projects WHERE id = ?').get(`local:${app}/frontend`), undefined);
+
+  // A repo with sessions before it had a remote, then pushed to GitHub.
+  const repo = path.join(dir, 'tool');
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  sh(repo, 'init', '-q');
+  const before = ensureProjectForCwd(db, repo).projectId;
+  assert.equal(before, `local:${repo}`);
+  db.prepare("UPDATE projects SET display_name = 'Tool Shed', lot = 7 WHERE id = ?").run(before);
+  db.prepare("INSERT INTO sessions(id, project_id, started_at, agent_key) VALUES('s1', ?, 10, ?)").run(before, `${before}#resident`);
+  db.prepare("INSERT INTO agents(key, name) VALUES(?, 'Ada')").run(`${before}#resident`);
+  addNote(db, before, 'check the tests');
+  sh(repo, 'remote', 'add', 'origin', 'git@github.com:someone/Tool.git');
+  const after = ensureProjectForCwd(db, path.join(repo, 'src')).projectId; // a new cwd, so git is asked again
+  assert.equal(after, 'gh:someone/tool');
+  assert.deepEqual(one('SELECT display_name, lot FROM projects WHERE id = ?', after), { display_name: 'Tool Shed', lot: 7 });
+  assert.equal(db.prepare('SELECT 1 FROM projects WHERE id = ?').get(before), undefined);
+  assert.deepEqual(one("SELECT project_id, agent_key FROM sessions WHERE id = 's1'"), { project_id: after, agent_key: `${after}#resident` });
+  assert.equal(one('SELECT name FROM agents WHERE key = ?', `${after}#resident`).name, 'Ada');
+  assert.equal(one('SELECT project_id FROM notes').project_id, after);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
