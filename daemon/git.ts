@@ -8,6 +8,7 @@ export type RepoInfo = {
   remote: string | null;
   ghFull: string | null; // "owner/name"
   worktree: string | null; // name of the worktree dir when cwd is a linked worktree
+  inGit: boolean; // false for a plain folder: then the folder Claude started in is all we know
 };
 
 const WORKTREE_MARKERS = ['/.claude/worktrees/', '/.worktrees/', '/worktrees/'];
@@ -53,13 +54,13 @@ export function resolveRepo(cwd: string): RepoInfo {
       const top = git(cwd, ['rev-parse', '--show-toplevel']);
       const worktree = top && path.resolve(top) !== path.resolve(root) ? path.basename(top) : fallback.worktree;
       const remote = git(root, ['remote', 'get-url', 'origin']);
-      info = { root, remote, ghFull: parseGithubRemote(remote), worktree };
+      info = { root, remote, ghFull: parseGithubRemote(remote), worktree, inGit: true };
     } else {
-      info = { root: fallback.root, remote: null, ghFull: null, worktree: fallback.worktree };
+      info = { root: fallback.root, remote: null, ghFull: null, worktree: fallback.worktree, inGit: false };
     }
   } else {
     const remote = fs.existsSync(fallback.root) ? git(fallback.root, ['remote', 'get-url', 'origin']) : null;
-    info = { root: fallback.root, remote, ghFull: parseGithubRemote(remote), worktree: fallback.worktree };
+    info = { root: fallback.root, remote, ghFull: parseGithubRemote(remote), worktree: fallback.worktree, inGit: remote !== null || fs.existsSync(path.join(fallback.root, '.git')) };
   }
   cache.set(cwd, info);
   return info;
