@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { GraveEntry, ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
 import type { Mood } from '../crew/Avatar.tsx';
-import { compact, duration, nextRunText } from '../format.ts';
+import { compact, elapsed, nextRunText } from '../format.ts';
 import { shortDoing, shortJob, type Bubble } from '../copy.ts';
 
 // Pastel colors as authored (matches the prototype); no linear-space conversion.
@@ -935,7 +935,7 @@ export class CityScene {
     // Always-on label: the job they're on, the project, or their current step (a setting); their name appears when you hover or select the building.
     const next = sleeper ? nextRunText(sleeper.nextAt) : null;
     const doing = sleeper ? (next ? `asleep · up ${next}` : 'asleep') : this.bubbleText(s);
-    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : sleeper ? 'sleep' : 'rest'}`, `<span class="doing">${esc(doing)}</span><span class="grp"></span><span class="who">${esc(a.name)}<span class="for"></span></span>`);
+    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : sleeper ? 'sleep' : 'rest'}`, `<span class="doing">${esc(doing)}</span><span class="for"></span><span class="grp"></span>`);
     tag.dataset.sid = s.id; if (!sleeper && s.startedAt) tag.dataset.since = String(s.startedAt); tag.dataset.status = sleeper ? 'asleep' : s.away ? 'away' : s.status;
     this.label(labels, tag, anchor, 0.42, 'tag', pid);
     if (!sleeper) this.doingEls.set(s.id, tag); // a sleeper's id is its last (ended) run: keep the bubble refresh off it
@@ -1305,12 +1305,9 @@ export class CityScene {
         // working / waiting crew always show what they're doing; resting crew only when you're close or looking at their building
         const atCafe = L.el.dataset.cafe === '1';
         show = ds === 'running' || ds === 'needs_input' || zoomedIn || L.pid === this.selected || L.pid === this.hovered || !!F.sessions?.has(L.el.dataset.sid ?? '') || (atCafe && this.cafeHover);
-        const named = L.pid === this.selected || L.pid === this.hovered || (atCafe && this.cafeHover);
-        L.el.classList.toggle('named', named);
-        // the name pop-up also says how long they've been at it this session, ticking up while it's open
-        if (named && L.el.dataset.since) {
-          const f = L.el.querySelector('.for'), d = duration(Number(L.el.dataset.since));
-          const txt = d ? ` · ${d} in` : '';
+        // small clock after the label: how long they've been at it this session, ticking up
+        if (show && L.el.dataset.since) {
+          const f = L.el.querySelector('.for'), txt = elapsed(Number(L.el.dataset.since));
           if (f && f.textContent !== txt) f.textContent = txt;
         }
       }
