@@ -182,7 +182,10 @@ function SettingUp({ state, onReady }: { state: StateView; onReady: () => void }
         <p className="muted">Reading the work you've already done with Claude Code.</p>
         <ul>
           {row(s.phase !== 'reading', s.phase === 'reading' ? `Reading your past work… ${s.read.toLocaleString()} of ${s.total.toLocaleString()} files` : `Read ${s.shifts.toLocaleString()} shifts of work`)}
-          {row(s.projects > 0 && s.phase !== 'reading', s.projects ? `Found ${s.projects} project${s.projects === 1 ? '' : 's'} you've worked on` : 'Looking for your projects…')}
+          {/* The count grows while reading, so it only says "Found" (with a check) once reading is done. */}
+          {s.phase === 'reading'
+            ? row(false, s.projects ? `Finding your projects… ${s.projects.toLocaleString()} so far` : 'Looking for your projects…')
+            : row(true, s.projects ? `Found ${s.projects.toLocaleString()} project${s.projects === 1 ? '' : 's'} you've worked on` : 'No past projects yet: your town starts fresh')}
           {s.crew ? row(true, `Met ${s.crew} Claude Code agent${s.crew === 1 ? '' : 's'}, your crew`) : null}
           {s.phase !== 'reading' ? row(ready, ready ? 'Gave your buildings friendly names' : 'Giving your buildings friendly names…') : null}
         </ul>
