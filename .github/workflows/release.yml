@@ -1,0 +1,38 @@
+name: Release
+
+# Tag a version (git tag v0.1.0 && git push origin v0.1.0) to publish logbook.tar.gz, which install.sh downloads.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Check the tag matches package.json
+        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+      - name: Pack
+        # The daemon only uses Node's built-in modules, so the app is its source plus the built web UI. No node_modules.
+        run: |
+          mkdir -p out/logbook
+          cp -R daemon bin hook vscode package.json README.md LICENSE INSTALL.md out/logbook/
+          mkdir -p out/logbook/web && cp -R web/dist out/logbook/web/dist
+          tar -czf logbook.tar.gz -C out logbook
+          tar -tzf logbook.tar.gz | head -20
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" logbook.tar.gz --title "Logbook $GITHUB_REF_NAME" --generate-notes

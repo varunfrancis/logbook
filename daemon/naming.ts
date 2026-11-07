@@ -29,8 +29,25 @@ function findClaude(): string | null {
   const candidates = [path.join(process.env.HOME ?? '', '.local/bin/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'];
   claudeBin = candidates.find((c) => fs.existsSync(c)) ?? null;
   if (!claudeBin) { try { claudeBin = execFileSync('/bin/sh', ['-lc', 'command -v claude'], { encoding: 'utf8', timeout: 5000 }).trim() || null; } catch { claudeBin = null; } }
+  if (!claudeBin) claudeBin = desktopClaude();
   if (!claudeBin) console.error('[logbook] naming: could not find the claude CLI; using folder names');
   return claudeBin;
+}
+
+/**
+ * People who only use the Claude desktop app have no `claude` command, but the app keeps its own copy of Claude Code,
+ * which answers with the same login. Its location isn't documented, so this is a best-effort fallback: newest version wins.
+ */
+function desktopClaude(): string | null {
+  const root = path.join(process.env.HOME ?? '', 'Library', 'Application Support', 'Claude', 'claude-code');
+  try {
+    const versions = fs.readdirSync(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).reverse();
+    for (const v of versions) for (const id of fs.readdirSync(path.join(root, v))) {
+      const bin = path.join(root, v, id, 'claude.app', 'Contents', 'MacOS', 'claude');
+      if (fs.existsSync(bin)) return bin;
+    }
+  } catch {}
+  return null;
 }
 
 /** Asks the small Claude model, through the user's own Claude Code login, for a 1–3 word plain name. */

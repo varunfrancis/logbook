@@ -2,6 +2,7 @@
   "name": "logbook",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "A local logbook + game-world view of everything your Claude Code agents are doing.",
   "bin": {
