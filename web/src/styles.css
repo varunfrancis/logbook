@@ -272,15 +272,31 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .agent-name { font-size: 15.5px; font-weight: 800; }
 .wait { color: var(--needs); font-weight: 800; font-size: 13px; white-space: nowrap; }
 .ask { font-size: 15px; font-weight: 700; }
-.work { display: flex; flex-direction: column; gap: 9px; }
+.work { display: flex; flex-direction: column; gap: 9px; position: relative; }
+/* building cards jiggle briefly every few seconds (offset per agent), then sit still; hover or trouble stops it */
+.work:not(.f-bad):not(:hover) { animation: jiggle 5s ease-in-out infinite; }
+@keyframes jiggle { 0%, 88%, 100% { rotate: 0deg; } 90% { rotate: -.6deg; } 92% { rotate: .6deg; } 94% { rotate: -.4deg; } 96% { rotate: .25deg; } 98% { rotate: 0deg; } }
 .work.f-bad { border-color: color-mix(in srgb, var(--needs) 45%, transparent); }
 .work.f-warn { border-color: #f5c26b; }
-.work-head { display: flex; gap: 12px; align-items: center; }
-.task { font-weight: 800; }
-.now { font-size: 13.5px; background: var(--surface-2); border-radius: 9px; padding: 7px 10px; }
-.flag { font-size: 13px; font-weight: 800; border-radius: 9px; padding: 7px 10px; }
+/* every slot below has a fixed height, so live updates never resize the card */
+.work-head { display: flex; gap: 12px; align-items: center; min-height: 60px; }
+.work-who { flex: 1; min-width: 0; }
+.work-who > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task { font-weight: 800; line-height: 1.35; height: 2.7em; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.now { font-size: 13.5px; line-height: 1.35; height: calc(1.35em + 14px); background: var(--surface-2); border-radius: 9px; padding: 7px 10px; display: flex; gap: .3em; white-space: nowrap; overflow: hidden; position: relative; }
+.swap { flex: 1; min-width: 0; overflow: hidden; }
+.swap > span { display: block; overflow: hidden; text-overflow: ellipsis; transition: translate .3s ease, opacity .3s ease, filter .3s ease; }
+.swap.s-out > span { translate: 0 -80%; opacity: 0; filter: blur(1px); }
+.swap.s-in > span { animation: swap-in .34s ease-out; }
+@keyframes swap-in { from { translate: 0 80%; opacity: 0; } }
+/* a soft light sweeps across the box just before the line changes */
+.now:has(.s-out)::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--run) 24%, transparent) 50%, transparent 70%); background-size: 250% 100%; animation: sweep .6s ease-in-out forwards; }
+@keyframes sweep { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+.flag { align-self: flex-start; flex: none; max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 800; border-radius: 999px; padding: 3px 10px; }
 .flag.bad { color: #b4232a; background: color-mix(in srgb, var(--needs) 12%, transparent); }
 .flag.warn { color: #8a5a00; background: #f5b3012a; }
+.work .meta { flex-wrap: nowrap; white-space: nowrap; }
+.work .goto-msg { position: absolute; right: 0; bottom: calc(100% + 6px); width: max-content; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; box-shadow: var(--shadow); white-space: normal; z-index: 2; }
 .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); font-weight: 700; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip-agent { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px 4px 6px; cursor: pointer; font: inherit; color: inherit; }
