@@ -307,9 +307,11 @@ test("today's cost breaks down by project, then by agent, and adds up to the tot
   const { refreshAgents, buildState } = await import('../daemon/state.ts');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
-  const now = Date.now();
+  const now = new Date(2026, 10, 7, 12, 0).getTime(); // midday, so "a few seconds ago" is still today
   db.prepare("INSERT INTO projects(id, name) VALUES('gh:a/cat', 'Cat'), ('gh:a/dog', 'Dog')").run();
-  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at, cost_usd) VALUES(?, ?, ?, ?, ?, ?, ?)');
+  const session = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at, api_usd) VALUES(?, ?, ?, ?, ?, ?, ?)');
+  const reply = db.prepare('INSERT INTO usage(msg_id, session_id, ts, usd) VALUES(?, ?, ?, ?)');
+  const ins = { run: (id: string, p: string, b: string, w: string | null, start: number, last: number, usd: number) => { session.run(id, p, b, w, start, last, usd); reply.run(`msg-${id}`, id, last, usd); } };
   ins.run('c1', 'gh:a/cat', 'main', null, now - 9000, now - 8000, 2);   // resident, first shift
   ins.run('c2', 'gh:a/cat', 'main', null, now - 7000, now - 6000, 3);   // same resident, second shift
   ins.run('c3', 'gh:a/cat', 'seo', 'seo', now - 5000, now - 4000, 10); // worktree character

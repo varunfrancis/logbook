@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Db, Row } from './db.ts';
 import { kvGet, kvSet } from './db.ts';
 import type { LiveEntry } from './live.ts';
-import { agentOf, costOf, startOfDay } from './state.ts';
+import { agentOf, costOf, endOfDay, startOfDay } from './state.ts';
 import { sizeFor } from './outcome.ts';
 import type { Agent, CrewDay, CrewNote, Size } from './types.ts';
 
@@ -70,7 +70,7 @@ export function crewsToday(db: Db, rows: Row[], live: Map<string, LiveEntry>, na
       workMs: seg('work').reduce((n, g) => n + Math.max(0, g.ms), 0),
       waitedMs: seg('wait').reduce((n, g) => n + Math.max(0, g.ms), 0),
       interruptions: seg('wait').length + list.reduce((n, r) => n + (r.asks || 0), 0),
-      costUsd: list.reduce((n, r) => n + costOf(db, r).usd, 0),
+      costUsd: list.reduce((n, r) => n + costOf(db, r, today, endOfDay(today)).usd, 0),
       checksOk: list.reduce((n, r) => n + (r.tests_ok || 0), 0),
       checksFail: list.reduce((n, r) => n + (r.tests_fail || 0), 0),
       stuck: 0, firstDeliveredAt: null, flag: null,

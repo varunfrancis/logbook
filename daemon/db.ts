@@ -66,6 +66,10 @@ export function openDb(file = DB_PATH) {
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, session_id TEXT, ts INTEGER, kind TEXT, text TEXT);
     CREATE INDEX IF NOT EXISTS events_session ON events(session_id, ts);
     CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
+    -- One row per API reply, keyed by message id: a resumed session copies earlier replies into its new transcript, and they must count once.
+    CREATE TABLE IF NOT EXISTS usage(msg_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, ts INTEGER NOT NULL, usd REAL NOT NULL);
+    CREATE INDEX IF NOT EXISTS usage_session ON usage(session_id, ts);
+    CREATE INDEX IF NOT EXISTS usage_ts ON usage(ts);
     CREATE TABLE IF NOT EXISTS agents(key TEXT PRIMARY KEY, name TEXT, shape TEXT, color TEXT, accessory TEXT, created_at INTEGER);
     CREATE TABLE IF NOT EXISTS segments(session_id TEXT, start INTEGER, end INTEGER, kind TEXT);
     CREATE INDEX IF NOT EXISTS segments_session ON segments(session_id);
@@ -79,14 +83,14 @@ export function openDb(file = DB_PATH) {
 
 export type Db = ReturnType<typeof openDb>;
 
-const SCHEMA = 2;
+const SCHEMA = 3; // 3: per-reply usage rows priced at API rates (sessions.api_usd)
 const ADD: Record<string, Record<string, string>> = {
   sessions: {
     agent_key: 'TEXT', job: 'TEXT', err_sig: 'TEXT', err_count: 'INTEGER DEFAULT 0', err_at: 'INTEGER',
     test_at: 'INTEGER', test_ok: 'INTEGER', tests_ok: 'INTEGER DEFAULT 0', tests_fail: 'INTEGER DEFAULT 0',
     files: 'TEXT', edits: 'INTEGER DEFAULT 0', asks: 'INTEGER DEFAULT 0', reads: 'INTEGER DEFAULT 0', webs: 'INTEGER DEFAULT 0',
     stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER', entrypoint: 'TEXT',
-    focus: 'TEXT', focus_for: 'TEXT', job_verdict: 'TEXT',
+    focus: 'TEXT', focus_for: 'TEXT', job_verdict: 'TEXT', api_usd: 'REAL DEFAULT 0',
   },
   projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER', summary: 'TEXT', summary_tried_at: 'INTEGER' },
   offsets: { state: 'TEXT' },
@@ -107,10 +111,11 @@ function migrate(db: DatabaseSync) {
   if (Number(v ?? 1) < SCHEMA) {
     db.exec(`
       DELETE FROM offsets;
+      DELETE FROM usage;
       DELETE FROM segments;
       DELETE FROM events WHERE kind LIKE 'm_%';
       UPDATE sessions SET tok_in = 0, tok_out = 0, tok_cache_read = 0, tok_cache_write = 0, tok_sub = 0, prompts = 0, commits = 0, tools = 0,
-        edits = 0, asks = 0, reads = 0, webs = 0, tests_ok = 0, tests_fail = 0, err_count = 0, err_sig = NULL, files = NULL, first_prompt = NULL;
+        edits = 0, asks = 0, reads = 0, webs = 0, api_usd = 0, tests_ok = 0, tests_fail = 0, err_count = 0, err_sig = NULL, files = NULL, first_prompt = NULL;
     `);
     db.prepare("INSERT INTO kv(k, v) VALUES('schema', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").run(String(SCHEMA));
   }

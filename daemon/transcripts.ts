@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Db, Row } from './db.ts';
 import { describeTool, type ActionKind } from './describe.ts';
+import { usdOf } from './pricing.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
 import { DATA_DIR, isOwnRun, OWN_PROMPT, PROJECTS_DIR } from './config.ts';
 
@@ -46,6 +47,8 @@ export type Delta = {
   testsOk: number; testsFail: number; lastTest: { t: number; ok: boolean } | null;
   prUrl: string | null;
   cost: { usd: number; added: number; removed: number } | null;
+  /** Each new API reply, priced at API rates. */
+  usage: { id: string; ts: number; usd: number }[];
   moments: Moment[];
   segments: Segment[];
   state: ParseState;
@@ -95,7 +98,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
     tokIn: 0, tokOut: 0, tokCR: 0, tokCW: 0, model: null, aiTitle: null,
     firstPrompt: null, lastPrompt: null, prompts: 0, outcome: null, action: null, turnEnded: null,
     commits: 0, tools: 0, edits: 0, reads: 0, webs: 0, asks: 0, files: [], errors: [],
-    testsOk: 0, testsFail: 0, lastTest: null, prUrl: null, cost: null, moments: [], segments: [], state: st,
+    testsOk: 0, testsFail: 0, lastTest: null, prUrl: null, cost: null, usage: [], moments: [], segments: [], state: st,
   };
   const endWork = (ts: number) => {
     if (st.workStart && ts > st.workStart) d.segments.push({ start: st.workStart, end: ts, kind: 'work' });
@@ -174,6 +177,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
           d.tokOut += u.output_tokens || 0;
           d.tokCR += u.cache_read_input_tokens || 0;
           d.tokCW += u.cache_creation_input_tokens || 0;
+          if (ts) d.usage.push({ id: msg.id, ts, usd: usdOf(msg.model, u) });
           st.lastMsgId = msg.id;
         }
         if (ts && !st.workStart) st.workStart = ts; // work we didn't see start (e.g. resumed)
@@ -307,6 +311,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
     d.cost?.usd ?? null, d.cost?.added ?? null, d.cost?.removed ?? null,
     d.sessionId,
   );
+  addUsage(db, d.sessionId!, d.usage);
   const seg = db.prepare('INSERT INTO segments(session_id, start, end, kind) VALUES(?, ?, ?, ?)');
   for (const g of d.segments) seg.run(d.sessionId, g.start, g.end, g.kind);
   const ev = db.prepare('INSERT OR IGNORE INTO events(session_id, ts, kind, text) VALUES(?, ?, ?, ?)');
@@ -314,8 +319,17 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
   if (s.project_id && d.last) touchProject(db, s.project_id, d.last);
 }
 
-/** Subagent transcripts only add tokens and "a helper is active" timestamps to their parent. */
+/** Records each reply once (a resumed session's transcript repeats the earlier ones) and adds what's new to the session's API-price total. */
+function addUsage(db: Db, sessionId: string, usage: Delta['usage']) {
+  const ins = db.prepare('INSERT OR IGNORE INTO usage(msg_id, session_id, ts, usd) VALUES(?, ?, ?, ?)');
+  let usd = 0;
+  for (const u of usage) if (ins.run(u.id, sessionId, u.ts, u.usd).changes) usd += u.usd;
+  if (usd) db.prepare('UPDATE sessions SET api_usd = COALESCE(api_usd, 0) + ? WHERE id = ?').run(usd, sessionId);
+}
+
+/** Subagent transcripts only add tokens, cost and "a helper is active" timestamps to their parent. */
 function applySubagent(db: Db, parentId: string, d: Delta) {
+  addUsage(db, parentId, d.usage);
   db.prepare('UPDATE sessions SET tok_sub = tok_sub + ?, subagent_at = MAX(COALESCE(subagent_at, 0), COALESCE(?, 0)) WHERE id = ?')
     .run(d.tokIn + d.tokOut + d.tokCW, d.last, parentId);
 }

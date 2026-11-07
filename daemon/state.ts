@@ -17,35 +17,29 @@ import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDet
 const BRICK = 10_000; // tokens per brick
 const shorten = (s: string, n = 72) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 export const startOfDay = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
+/** Midnight at the end of the day that starts at `dayStart` (23 or 25 hours on clock-change days). */
+export const endOfDay = (dayStart: number) => startOfDay(new Date(dayStart + 36 * 3600_000));
 const tokensOf = (s: Row) => (s.tok_in || 0) + (s.tok_out || 0) + (s.tok_cache_write || 0) + (s.tok_sub || 0);
 const fmtMin = (ms: number) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
 
 // ---------- cost ----------
-let costRate = { at: 0, perToken: new Map<string, number>(), fallback: 15 / 1e6 };
-/** $ per token learned from sessions where Claude Code recorded the real cost. Used to estimate live sessions. */
-function rateFor(db: Db, model: string | null): number {
-  if (Date.now() - costRate.at > 10 * 60_000) {
-    const rows = db.prepare('SELECT model, SUM(cost_usd) c, SUM(tok_in + tok_out + tok_cache_write + tok_cache_read) t FROM sessions WHERE cost_usd > 0 GROUP BY model').all() as Row[];
-    const m = new Map<string, number>();
-    let C = 0, T = 0;
-    for (const r of rows) if (r.t > 0) { m.set(r.model, r.c / r.t); C += r.c; T += r.t; }
-    costRate = { at: Date.now(), perToken: m, fallback: T ? C / T : 15 / 1e6 };
-  }
-  return (model && costRate.perToken.get(model)) || costRate.fallback;
-}
-export function costOf(db: Db, s: Row): { usd: number; estimated: boolean } {
-  if (s.cost_usd != null && s.cost_usd > 0) return { usd: s.cost_usd, estimated: false };
-  const t = tokensOf(s) + (s.tok_cache_read || 0);
-  return { usd: t * rateFor(db, s.model), estimated: true };
+/**
+ * What a session's work would cost at API prices (see pricing.ts), counted per API reply so a resumed session's copied history
+ * counts once. With a window, only the replies sent inside it: a session started last week and touched today adds only today's part.
+ */
+export function costOf(db: Db, s: Row, from?: number, to = Infinity): { usd: number; estimated: boolean } {
+  if (from == null) return { usd: s.api_usd || 0, estimated: false };
+  const r = db.prepare('SELECT SUM(usd) usd FROM usage WHERE session_id = ? AND ts >= ? AND ts < ?').get(s.id, from, Number.isFinite(to) ? to : Number.MAX_SAFE_INTEGER) as Row;
+  return { usd: r.usd || 0, estimated: false };
 }
 
 /** Group sessions' cost by project, then by agent (one character can work several shifts). Biggest spenders first. */
-export function breakdownOf(db: Db, rows: Row[], names: Map<string, string>): CostBreakdown {
+export function breakdownOf(db: Db, rows: Row[], names: Map<string, string>, from?: number, to?: number): CostBreakdown {
   const byProject = new Map<string, CostBreakdown[number]>();
   const latest = new Map<string, number>();
   for (const s of rows) {
     if (!s.project_id) continue;
-    const { usd, estimated } = costOf(db, s);
+    const { usd, estimated } = costOf(db, s, from, to);
     let p = byProject.get(s.project_id);
     if (!p) byProject.set(s.project_id, p = { projectId: s.project_id, name: names.get(s.project_id) ?? path.basename(s.project_id), usd: 0, estimated: false, agents: [] });
     p.usd += usd; p.estimated ||= estimated && usd > 0;
@@ -268,14 +262,14 @@ const READY: Setup = { phase: 'ready', read: 0, total: 0, projects: 0, shifts: 0
 
 export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(), vscodeConnected = false, setup: Setup = READY): StateView {
   assignLots(db);
-  const today = startOfDay();
+  const today = startOfDay(new Date(now));
   const t = town(db);
   const projects = db.prepare('SELECT * FROM projects ORDER BY lot').all() as Row[];
   const aggRows = db.prepare(`
     SELECT project_id, COUNT(*) AS n,
       SUM(tok_in + tok_out + tok_cache_write + tok_sub) AS tokens,
       SUM(CASE WHEN last_event_at >= ? THEN tok_in + tok_out + tok_cache_write + tok_sub ELSE 0 END) AS today,
-      SUM(COALESCE(cost_usd, 0)) AS cost,
+      SUM(COALESCE(api_usd, 0)) AS cost,
       SUM(COALESCE(lines_added, 0)) AS lines, SUM(commits) AS commits
     FROM sessions WHERE project_id IS NOT NULL GROUP BY project_id`).all(today) as Row[];
   const agg = new Map<string, Agg>();
@@ -336,8 +330,8 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
   const names = new Map(projectViews.map((p) => [p.id, p.name]));
 
   const todayRows = db.prepare('SELECT * FROM sessions WHERE last_event_at >= ? AND project_id IS NOT NULL').all(today) as Row[];
-  const costToday = todayRows.reduce((n, s) => n + costOf(db, s).usd, 0);
-  const costBreakdown = breakdownOf(db, todayRows, names);
+  const costToday = todayRows.reduce((n, s) => n + costOf(db, s, today, endOfDay(today)).usd, 0);
+  const costBreakdown = breakdownOf(db, todayRows, names, today, endOfDay(today));
   const waitedTodayMs = (db.prepare("SELECT SUM(MIN(end, ?) - MAX(start, ?)) w FROM segments WHERE kind = 'wait' AND end > ?").get(now, today, today) as Row).w || 0;
   const peakToday = peakOf([...sessionIntervals(db, today, now).values()].flat()).peak;
   const count = (st: SessionView['status']) => sessions.filter((s) => s.status === st).length;
@@ -454,7 +448,7 @@ export function profileFor(db: Db, key: string, live: Map<string, LiveEntry>, ow
     workMs: seg('work').ms || 0,
     interruptions: (seg('wait').n || 0) + sum((r) => r.asks),
     waitedMs: seg('wait').ms || 0,
-    costUsd: sum((r) => costOf(db, r).usd),
+    costUsd: sum((r) => costOf(db, r, since).usd),
     checksOk: sum((r) => r.tests_ok),
     checksFail: sum((r) => r.tests_fail),
     recent: rows.slice(0, 5).map((r) => ({ id: r.id, title: toSessionView(db, r, live.get(r.id), Date.now(), owner).title, ask: r.last_prompt ?? r.first_prompt ?? null, stamp: live.has(r.id) ? null : r.stamp ?? null, live: live.has(r.id), at: r.ended_at ?? r.last_event_at ?? null })),
@@ -496,7 +490,7 @@ export function dayView(db: Db, state: StateView, live: Map<string, LiveEntry>, 
       peak: pk.peak, peakAt: pk.at,
       shipped: closed.filter((l) => l.session.stamp === 'shipped').length, closed: closed.length,
       unfinished: closed.filter((l) => l.session.stamp === 'unfinished').length, scrapped: closed.filter((l) => l.session.stamp === 'scrapped').length,
-      bricks: lanes.reduce((n, l) => n + l.session.bricks, 0), costUsd: lanes.reduce((n, l) => n + l.session.costUsd, 0),
+      bricks: lanes.reduce((n, l) => n + l.session.bricks, 0), costUsd: rows.reduce((n, r) => n + costOf(db, r, start, end).usd, 0),
     },
   };
 }
@@ -513,7 +507,7 @@ export function teamView(db: Db, state: StateView, days: number, now = Date.now(
     const k = r.agent_key || agentKey(r);
     const e = byAgent.get(k) ?? { rows: [] as Row[], delivered: 0, workMs: 0, costUsd: 0, byProject: new Map<string, number>() };
     const ms = work.get(r.id) ?? 0;
-    e.rows.push(r); e.workMs += ms; e.costUsd += costOf(db, r).usd;
+    e.rows.push(r); e.workMs += ms; e.costUsd += costOf(db, r, from, now).usd;
     if (r.stamp === 'shipped' || r.stamp === 'review') e.delivered++;
     e.byProject.set(r.project_id, (e.byProject.get(r.project_id) ?? 0) + ms + 1);
     byAgent.set(k, e);
