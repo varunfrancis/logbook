@@ -2,7 +2,7 @@
 
 # Swarmville
 
-Everything your Claude Code agents are doing, told as a little town. (Formerly Logbook. Installing or updating moves an old `~/.logbook` to `~/.swarmville` and keeps your town; the old `logbook` command, folder path and `LOGBOOK_*` settings still work. The GitHub repo is still `varunfrancis/logbook`.)
+Everything your Claude Code agents are doing, told as a little town. (Formerly Logbook. Installing or updating moves an old `~/.logbook` to `~/.swarmville` and keeps your town; the old `logbook` command, folder path and `LOGBOOK_*` settings still work. The GitHub repo was renamed from `varunfrancis/logbook`; old links redirect.)
 
 - **Town**: a low-poly isometric world. Each project is a building with a plain-English name ("Support Bot", "Sales Training"). Projects with crew on site rise up and glow; others are *under construction* (worked on in the last 7 days), *just completed* (7–30 days), *complete*, or *for sale* (on GitHub, never worked on here). Agents are characters on the scaffolding. A rain cloud means someone is stuck, a small fire means checks just failed, fireworks mean work went live. Scrapped work gets a tombstone in the graveyard. Agents on a coffee break leave their building for the café at the edge of town, where they sit at a table with a steaming mug until you're back (when the tables fill up, they queue at the counter). Similar projects share a neighborhood ("Money & Investing", "Learning & Practice"), sorted by the small Claude model and re-sorted when a new project shows up. Unrelated neighborhoods are a park apart. Drag to pan, scroll to zoom, right-drag or shift-drag (or Q / E, or the ⟲ ⟳ buttons) to turn the town all the way around. It settles on one of the four corner views, where the grid keeps its proportions. Clicking a building flies to it and centers it beside its panel.
 - **Crew**: who raised a hand (and what they need), who's building, who's on a coffee break, and who clocked out today, stamped from git as *Shipped / Sent for review / Saved, not sent / Left unfinished / Scrapped / Just a chat*. Warnings when an agent is stuck on the same problem or two agents are changing the same file.
@@ -22,12 +22,12 @@ Effort is measured in **bricks** (1 brick ≈ 10,000 tokens). Costs are in the d
 
 Paste this into Claude Code (the Claude desktop app or the terminal):
 
-> Install Swarmville for me: https://raw.githubusercontent.com/varunfrancis/logbook/main/INSTALL.md
+> Install Swarmville for me: https://raw.githubusercontent.com/varunfrancis/swarmville/main/INSTALL.md
 
 Claude explains what it will do, asks before running anything, and opens your town. Or run it yourself in Terminal:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/varunfrancis/swarmville/main/install.sh | bash
 ```
 
 Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.swarmville/runtime` if you don't have one (checked against nodejs.org's checksums), puts Swarmville in `~/.swarmville/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. Running it again updates Swarmville and keeps your town. Afterwards: `~/.swarmville/bin/swarmville status | update | uninstall [--everything]`.

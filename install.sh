@@ -1,6 +1,6 @@
 #!/bin/bash
 # Swarmville installer: one command, no sudo, no Homebrew, no Node needed beforehand.
-#   curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/varunfrancis/swarmville/main/install.sh | bash
 # Running it again updates Swarmville and keeps your town.
 #
 # What it does:
@@ -27,7 +27,7 @@ for v in DATA_DIR PORT RELEASE_URL NO_LOGIN_ITEM NO_OPEN NO_VSCODE FORCE; do
   if [ -z "${!new:-}" ] && [ -n "${!old:-}" ]; then export "$new=${!old}"; fi
 done
 
-REPO="varunfrancis/logbook"
+REPO="varunfrancis/swarmville"
 DATA="${SWARMVILLE_DATA_DIR:-$HOME/.swarmville}"
 LEGACY="$HOME/.logbook"
 PORT="${SWARMVILLE_PORT:-7777}"
