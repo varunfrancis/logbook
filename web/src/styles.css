@@ -659,6 +659,10 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .wel-setup li.wait { color: var(--ink-2); }
 .wel-progress { height: 8px; border-radius: 8px; background: var(--surface-2); overflow: hidden; }
 .wel-progress b { display: block; height: 100%; background: var(--accent); border-radius: 8px; transition: width .4s ease; }
+.wel-trust { margin-top: 10px; display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.wel-trust svg { color: var(--done); flex: none; box-sizing: content-box; padding: 7px; border-radius: 50%; background: color-mix(in srgb, var(--done) 14%, transparent); }
+.wel-trust b { display: block; font: 600 16px var(--f-display); }
+.wel-trust span { display: block; font-size: 13.5px; color: var(--ink-2); }
 @keyframes wel-spin { to { transform: rotate(360deg); } }
 
 .wel-hiring { position: absolute; z-index: 30; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; justify-items: center; }

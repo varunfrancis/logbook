@@ -179,7 +179,7 @@ function SettingUp({ state, onReady }: { state: StateView; onReady: () => void }
       <div className="wel-setup-in">
         <AgentAvatar agent={FOREMAN} mood="hello" size={88} live />
         <h2>Setting up your town</h2>
-        <p className="muted">Reading the work you've already done with Claude Code. Nothing leaves this computer.</p>
+        <p className="muted">Reading the work you've already done with Claude Code.</p>
         <ul>
           {row(s.phase !== 'reading', s.phase === 'reading' ? `Reading your past work… ${s.read.toLocaleString()} of ${s.total.toLocaleString()} files` : `Read ${s.shifts.toLocaleString()} shifts of work`)}
           {row(s.projects > 0 && s.phase !== 'reading', s.projects ? `Found ${s.projects} project${s.projects === 1 ? '' : 's'} you've worked on` : 'Looking for your projects…')}
@@ -187,6 +187,13 @@ function SettingUp({ state, onReady }: { state: StateView; onReady: () => void }
           {s.phase !== 'reading' ? row(ready, ready ? 'Gave your buildings friendly names' : 'Giving your buildings friendly names…') : null}
         </ul>
         <div className="wel-progress" aria-hidden="true"><b style={{ width: `${Math.round(pct * 100)}%` }} /></div>
+        <div className="wel-trust">
+          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <path d="M12 2.5 4.5 5.4v5.9c0 4.7 3.1 8.9 7.5 10.2 4.4-1.3 7.5-5.5 7.5-10.2V5.4z" fill="currentColor" />
+            <path d="m8.4 12.2 2.5 2.5 4.8-5" fill="none" stroke="var(--surface)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div><b>Nothing leaves your computer</b><span>Swarmville runs only on this Mac. No account, no servers: your work stays here.</span></div>
+        </div>
       </div>
     </div>
   );
