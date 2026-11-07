@@ -15,7 +15,7 @@
 #
 # Options (environment variables, mostly for testing; the old LOGBOOK_* names still work):
 #   SWARMVILLE_DATA_DIR      where Swarmville lives (default ~/.swarmville)
-#   SWARMVILLE_PORT          default 7777
+#   SWARMVILLE_PORT          default 7777; if another app has 7777, the installer picks the next free port (up to 7799) itself
 #   SWARMVILLE_RELEASE_URL   a specific swarmville.tar.gz (URL or file path) instead of the latest release
 #   SWARMVILLE_NO_LOGIN_ITEM=1  run in the background now, not at login
 #   SWARMVILLE_NO_OPEN=1     don't open the browser
@@ -34,6 +34,15 @@ done
 REPO="varunfrancis/swarmville"
 DATA="${SWARMVILLE_DATA_DIR:-$HOME/.swarmville}"
 LEGACY="$HOME/.logbook"
+# An earlier install that moved off 7777 (because something else had it) keeps its port across updates.
+ASKED_PORT="${SWARMVILLE_PORT:-}"
+if [ -z "$ASKED_PORT" ]; then
+  for w in "$DATA/bin/swarmville" "$LEGACY/bin/swarmville"; do
+    [ -f "$w" ] || continue
+    p="$(sed -n "s/^export SWARMVILLE_PORT='\([0-9]*\)'$/\1/p" "$w" | head -1)" || p=""
+    if [ -n "$p" ]; then export SWARMVILLE_PORT="$p"; break; fi
+  done
+fi
 PORT="${SWARMVILLE_PORT:-7777}"
 RELEASE_URL="${SWARMVILLE_RELEASE_URL:-https://github.com/$REPO/releases/latest/download/swarmville.tar.gz}"
 PLIST="$HOME/Library/LaunchAgents/dev.swarmville.daemon.plist"
@@ -67,11 +76,23 @@ if [ -z "${SWARMVILLE_DATA_DIR:-}" ] && [ -z "${SWARMVILLE_NO_LOGIN_ITEM:-}" ] &
   done
 fi
 
-# The port: free, or already ours (an update)
+# The port: free, already ours (an update), or taken by another app. If another app has it and no port was asked
+# for, Swarmville moves to the next free one and says so; the Swarmville app and `swarmville` command follow it.
+busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+who() { local pid; pid="$(lsof -nP -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -1)"; [ -n "$pid" ] && basename "$(ps -p "$pid" -o comm= 2>/dev/null)" || true; }
 running=""
 if curl -fs -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then running=1
-elif lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  fail "Something else is using port $PORT. Close it, or install on another port: SWARMVILLE_PORT=7788 (then open http://localhost:7788)."
+elif busy "$PORT"; then
+  app="$(who "$PORT")"; app="${app:-another app}"
+  [ -z "$ASKED_PORT" ] || fail "Port $PORT is being used by $app. Close $app, or pick another port, e.g. SWARMVILLE_PORT=$((PORT + 1))."
+  moved=""
+  for p in $(seq 7777 7799); do
+    if ! busy "$p"; then
+      info "Port $PORT is being used by $app, so Swarmville will use $p instead (your Swarmville icon opens it)."
+      PORT="$p"; export SWARMVILLE_PORT="$p"; moved=1; break
+    fi
+  done
+  [ -n "$moved" ] || fail "Ports 7777 to 7799 are all in use, starting with $app. Close $app and run the installer again."
 fi
 
 # The app is fetched first (unpacked in step 3), so a failed download leaves an existing install exactly as it was.
