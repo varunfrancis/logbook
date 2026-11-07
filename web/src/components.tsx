@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SessionView } from '../../daemon/types.ts';
-import { STAMP, STATUS, useVoice } from './copy.ts';
+import { plainAction, STAMP, STATUS, useVoice } from './copy.ts';
 import { post } from './useLogbook.ts';
 
 export function StatusDot({ status }: { status: string }) {
@@ -50,6 +50,47 @@ export function GoTo({ s, primary }: { s: SessionView; primary?: boolean }) {
         {live ? <>Go to {s.agent.name}{primary ? <kbd>↵</kbd> : null}</> : 'Resume this job'}
       </button>
       {msg ? <span className="goto-msg" role="status">{msg}</span> : null}
+    </span>
+  );
+}
+
+/** "Clock out": stops a running agent and closes its terminal, after a confirmation in place (no pop-up dialog). */
+export function ClockOut({ s }: { s: SessionView }) {
+  const voice = useVoice();
+  const [step, setStep] = useState<'idle' | 'confirm' | 'busy' | 'done'>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
+  if (s.status === 'ended') return null;
+  const name = s.agent.name;
+  const working = s.status === 'running';
+  const stop = (e: React.MouseEvent) => { e.stopPropagation(); };
+  const yes = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStep('busy');
+    const r = await post(`/api/stop/${encodeURIComponent(s.id)}`);
+    setStep(r.ok ? 'done' : 'idle');
+    setMsg(r.ok ? `${name} clocked out` : r.message ?? 'Couldn’t clock them out.');
+    if (!r.ok) setTimeout(() => setMsg(null), 5000);
+  };
+  if (step === 'done') return <span className="clockout-msg ok" role="status">{msg}</span>;
+  return (
+    <span className="clockout" onClick={stop}>
+      {step === 'idle' ? (
+        <button className="ghost small" onClick={(e) => { e.stopPropagation(); setStep('confirm'); }} title={`Stop ${name} and close their terminal`}>Clock out</button>
+      ) : (
+        <span className={`clockout-confirm${working ? ' hot' : ''}`} role="alertdialog" aria-label={`Clock ${name} out?`}>
+          <span className="cc-text">
+            {working
+              ? <><b>{name} is still working{s.action ? `: right now, ${(plainAction(s.action, voice) ?? '').replace(/^\w/, (c) => c.toLowerCase())}` : ''}.</b> Stop them anyway? </>
+              : <><b>Clock {name} out?</b> </>}
+            Their terminal closes. The conversation is saved and you can resume it any time.
+          </span>
+          <span className="cc-actions">
+            <button className="btn small stop" disabled={step === 'busy'} onClick={yes} autoFocus>{working ? `Stop ${name}` : 'Clock out'}</button>
+            <button className="ghost small" disabled={step === 'busy'} onClick={(e) => { e.stopPropagation(); setStep('idle'); }}>Keep working</button>
+          </span>
+        </span>
+      )}
+      {msg ? <span className="clockout-msg" role="status">{msg}</span> : null}
     </span>
   );
 }

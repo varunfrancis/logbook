@@ -10,6 +10,7 @@ import { backfillEntrypoints } from './routines.ts';
 import { readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, wrappedView } from './state.ts';
 import { handleHook } from './hooks.ts';
+import { stopProcess, systemDeps } from './stop.ts';
 import { checkPullRequests, syncGithub } from './github.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
@@ -95,6 +96,20 @@ function jump(sessionId: string): { ok: boolean; via: string; message: string } 
   if (vscodeClients.size) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' };
   execFile('open', ['-a', 'Visual Studio Code'], () => {});
   return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Logbook VS Code helper to jump straight to the terminal.' };
+}
+
+/** "Clock out": the VS Code helper closes the agent's terminal tab, and the daemon makes sure Claude itself stops. */
+function clockOut(sessionId: string): { ok: boolean; message: string } {
+  const e = live.get(sessionId);
+  const r = stopProcess(e, systemDeps);
+  if (!r.ok || !e) return r;
+  let shellPid: number | null = null;
+  try { shellPid = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(e.pid)], { encoding: 'utf8' }).trim()) || null; } catch {}
+  const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid });
+  for (const c of vscodeClients) c.write(`event: close\ndata: ${payload}\n\n`);
+  setTimeout(soon, 2000);
+  setTimeout(soon, 7000);
+  return r;
 }
 
 /*
@@ -216,6 +231,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
+    if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, jump(decodeURIComponent(p.slice('/api/jump/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/resume/claim/')) {
       const r = pendingResumes.get(decodeURIComponent(p.slice('/api/resume/claim/'.length)));

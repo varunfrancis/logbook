@@ -3,7 +3,7 @@ import type { StateView } from '../../daemon/types.ts';
 import { AgentAvatar, moodFor } from './crew/Avatar.tsx';
 import { money, PROJECT, plainAction, STATUS, useVoice } from './copy.ts';
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
-import { GoTo, PrChip, Stamp } from './components.tsx';
+import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
 import { post, useNow, useProject } from './useLogbook.ts';
 
 export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; state: StateView; onClose: () => void; openAgent: (id: string) => void }) {
@@ -59,7 +59,7 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
               <li key={s.id} onClick={() => openAgent(s.id)}>
                 <div className="pl-top"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={40} /><div><b>{s.agent.title}</b><div className="sub">{s.title}</div></div></div>
                 <div className="pl-act">{s.status === 'needs_input' ? s.needsMessage : s.status === 'running' ? `Right now: ${plainAction(s.action, voice)}` : STATUS[voice][s.status]}</div>
-                <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num">{duration(s.startedAt, now)}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /></div>
+                <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num">{duration(s.startedAt, now)}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /><ClockOut s={s} /></div>
               </li>
             ))}
           </ul>

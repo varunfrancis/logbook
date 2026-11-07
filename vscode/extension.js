@@ -38,10 +38,11 @@ async function handle(block) {
   let j;
   try { j = JSON.parse(data); } catch { return; }
   if (ev === 'resume') return maybeResume(j);
-  if (ev !== 'jump') return;
+  if (ev !== 'jump' && ev !== 'close') return;
   for (const t of vscode.window.terminals) {
     const pid = await t.processId;
     if (pid && (pid === j.shellPid || pid === j.pid)) {
+      if (ev === 'close') { t.dispose(); return; } // "Clock out" in Logbook: close the agent's terminal tab
       t.show(false);
       raiseWindow();
       return;

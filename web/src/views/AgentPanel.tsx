@@ -3,7 +3,7 @@ import { scorecard } from '../crew/scorecard.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { clock, mins, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
-import { GoTo, PrChip, Stamp } from '../components.tsx';
+import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useLogbook.ts';
 import { WorkWith } from '../welcome/WorkWith.tsx';
 
@@ -80,7 +80,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         <p className="one-liner latest" title={latest}>{latest}</p>
         {live ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
           : s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
-        <div className="row actions"><GoTo s={s} />{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
+        <div className="row actions"><GoTo s={s} />{live ? <ClockOut key={s.id} s={s} /> : null}{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
       <WorkWith key={s.id} state={state} s={s} />
