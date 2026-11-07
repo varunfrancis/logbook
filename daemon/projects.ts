@@ -32,8 +32,14 @@ export function ensureProjectForCwd(db: Db, cwd: string): { projectId: string; w
     // Repo first seen on GitHub, now found locally.
     db.prepare('UPDATE projects SET root = ?, remote = ?, name = ? WHERE id = ?').run(info.root, info.remote, projectNameFor(info), id);
   }
-  // The folder got a GitHub remote after we'd already met it: its old building becomes this one.
-  if (info.ghFull) mergeProject(db, `local:${info.root}`, id);
+  if (info.ghFull) {
+    // The folder got a GitHub remote after we'd already met it: its old building becomes this one.
+    mergeProject(db, `local:${info.root}`, id);
+    // The repo was renamed or moved on GitHub (origin now points at the new name): same folder, same building.
+    for (const r of db.prepare("SELECT id FROM projects WHERE id LIKE 'gh:%' AND root = ? AND id != ?").all(info.root, id) as Row[]) {
+      mergeProject(db, r.id, id);
+    }
+  }
   return { projectId: id, worktree: info.worktree };
 }
 
@@ -55,7 +61,11 @@ export function mergeProject(db: Db, fromId: string, intoId: string) {
   try {
     db.prepare('UPDATE sessions SET project_id = ? WHERE project_id = ?').run(intoId, fromId);
     db.prepare('UPDATE sessions SET agent_key = ? || substr(agent_key, ?) WHERE substr(agent_key, 1, ?) = ?').run(to, pre.length + 1, pre.length, pre);
-    // Crew already living in the target keeps its look; anyone new moves in with theirs.
+    // The crew that was there first keeps its look; anyone new moves in with theirs.
+    if (older === from) {
+      db.prepare('DELETE FROM agents WHERE substr(key, 1, ?) = ? AND ? || substr(key, ?) IN (SELECT key FROM agents)')
+        .run(to.length, to, pre, to.length + 1);
+    }
     db.prepare('UPDATE OR IGNORE agents SET key = ? || substr(key, ?) WHERE substr(key, 1, ?) = ?').run(to, pre.length + 1, pre.length, pre);
     db.prepare('DELETE FROM agents WHERE substr(key, 1, ?) = ?').run(pre.length, pre);
     db.prepare('UPDATE notes SET project_id = ? WHERE project_id = ?').run(intoId, fromId);
@@ -71,13 +81,15 @@ export function mergeProject(db: Db, fromId: string, intoId: string) {
   }
 }
 
-/** Startup pass: joins buildings that turned out to be the same project (a remote added later, or a sub-folder met first). */
+/** Startup pass: joins buildings that turned out to be the same project (a remote added later, a sub-folder met first, a repo renamed). */
 export function consolidateProjects(db: Db) {
-  const rows = db.prepare("SELECT id, root FROM projects WHERE id LIKE 'local:%' AND root IS NOT NULL ORDER BY length(root)").all() as Row[];
+  const rows = db.prepare("SELECT id, root FROM projects WHERE (id LIKE 'local:%' OR id LIKE 'gh:%') AND root IS NOT NULL ORDER BY length(root)").all() as Row[];
   for (const r of rows) {
     if (catchAll(r.root) || !fs.existsSync(r.root)) continue;
     const info = resolveRepo(r.root);
-    if (info.ghFull) ensureProjectForCwd(db, r.root);
+    if (info.ghFull) {
+      if (r.id !== projectIdFor(info)) ensureProjectForCwd(db, r.root);
+    }
     else if (!info.inGit) {
       const parent = enclosingProject(db, r.root);
       if (parent) mergeProject(db, r.id, parent);
