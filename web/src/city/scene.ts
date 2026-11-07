@@ -266,8 +266,10 @@ export class CityScene {
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
+      // a rebuild keeps the lot at the height it already reached, so a raised site doesn't drop and rise again (and jolt its labels) on every update
+      const startY = prev?.group.position.y ?? 0;
       if (prev) this.removeBuilding(p.id);
-      this.addBuilding(p, sessions, key, away);
+      this.addBuilding(p, sessions, key, away, startY);
       if (celebrate) this.confetti(p);
     }
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
@@ -652,7 +654,7 @@ export class CityScene {
     this.labels = this.labels.filter((l) => !list.includes(l));
   }
 
-  private addBuilding(p: ProjectView, sessions: SessionView[], key: string, onBreakCount = 0) {
+  private addBuilding(p: ProjectView, sessions: SessionView[], key: string, onBreakCount = 0, startY = 0) {
     const outer = new THREE.Group();
     outer.position.set(p.lot[0] * PITCH, 0, p.lot[1] * PITCH);
     outer.userData.pid = p.id;
@@ -669,7 +671,7 @@ export class CityScene {
     const live = p.state === 'site' || p.state === 'needs';
     const building = live || p.state === 'construction';
     const quiet = p.state === 'done';
-    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#17c3c3', updaters);
+    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#17c3c3', updaters, startY);
     let color = PALETTE[h % PALETTE.length];
     if (quiet) color = this.desat(color);
     const recent = p.state === 'recent';
@@ -776,7 +778,7 @@ export class CityScene {
   }
 
   /** Lifts a lot with crew on site onto a lit plinth, with a pulsing ring on the street below. */
-  private raise(outer: THREE.Group, accent: string, updaters: Updater[]) {
+  private raise(outer: THREE.Group, accent: string, updaters: Updater[], startY = 0) {
     const plinth = this.bx(8.4, 1, 8.4, this.tint(accent, 0.55), 0, 0, 0, outer);
     const rimMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true });
     const rim = new THREE.Group(); outer.add(rim);
@@ -789,7 +791,7 @@ export class CityScene {
     const beamMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 18, 32, 1, true), beamMat); beam.position.y = 9; beam.renderOrder = -1; outer.add(beam);
     const lamp = new THREE.PointLight(this.tint(accent, 0.45), this.dark ? 70 : 14, 16, 1.6); lamp.position.set(2.5, 6, 3.5); outer.add(lamp);
-    outer.position.y = 0;
+    outer.position.y = startY;
     updaters.push((t, dt) => {
       const b = 0.5 + 0.5 * Math.sin(t * 2);
       beamMat.opacity = (this.dark ? 0.14 : 0.08) + 0.06 * b;
