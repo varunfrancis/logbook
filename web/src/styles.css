@@ -699,7 +699,8 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 14px; }
 .wel-tip p { margin: 0 0 8px; font-size: 13.5px; }
 .view-crew .wel-tip, .view-day .wel-tip { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-.arrival-toast { position: fixed; z-index: 36; right: max(16px, env(safe-area-inset-right, 0px)); top: 72px; display: flex; gap: 10px; align-items: center; text-align: left; font: 600 13px var(--f-body); color: var(--ink);
+/* Top-left of the map area: the right side is where project, agent and cost panels open */
+.arrival-toast { position: absolute; z-index: 36; left: max(16px, env(safe-area-inset-left, 0px)); top: 16px; display: flex; gap: 10px; align-items: center; text-align: left; font: 600 13px var(--f-body); color: var(--ink);
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 10px 14px 10px 10px; cursor: pointer; max-width: min(300px, calc(100% - 32px)); }
 .arrival-avs { display: flex; }
 .arrival-avs svg + svg { margin-left: -12px; }
@@ -732,7 +733,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 @keyframes av-talk { from { transform: scaleY(.3); } to { transform: scaleY(1.1); } }
 @keyframes av-enter { from { transform: translateY(36px) scale(.5); opacity: 0; } 70% { transform: translateY(-6px) scale(1.06); opacity: 1; } to { transform: none; } }
 @keyframes wel-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
-.view-town .arrival-toast { top: 128px; } /* below the Share / Replay row */
+.main:has(.replay-clock) .arrival-toast { top: 128px; } /* below the replay clock */
+.main:has(.arrival-toast) .bump-toasts { top: 84px; } /* heads-ups step down under the arrival note */
+.main:has(.arrival-toast) .bump-toasts.below-clock { top: 196px; }
 
 /* Crew voices: a small speaker in the corner of anything that talks */
 .wel-bubble { position: relative; }
