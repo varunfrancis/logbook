@@ -4,7 +4,7 @@ import { kvGet } from './db.ts';
 import type { LiveEntry } from './live.ts';
 import { assignLots, ensureProjectForCwd } from './projects.ts';
 import { currentDistricts, layoutTown } from './districts.ts';
-import { floorsFor, projectState, sessionStatus } from './status.ts';
+import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from './status.ts';
 import { githubMeta } from './github.ts';
 import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
 import { fallbackName, town } from './naming.ts';
@@ -273,8 +273,11 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
   const districtOf = new Map<string, string>();
   for (const g of groups) for (const id of g.ids) districtOf.set(id, g.name);
 
+  // Building size is relative: the project with the most scope gets the biggest building in town.
+  const maxScope = Math.max(0, ...[...agg.values()].map(scopeOf));
   const projectViews: ProjectView[] = projects.map((p) => {
     const a = agg.get(p.id) ?? { tokens: 0, today: 0, total: 0, cost: 0, crew: [], lastEnded: 0, pr: null, lines: 0, commits: 0, stuck: false, failing: false };
+    const scope = scopeOf(a), size = buildingSize(scope, maxScope);
     const state = projectState({ root: p.root, sessionsTotal: a.total, lastActivity: p.last_activity ?? null }, a.crew, now);
     const n = projectNames(p);
     const liveCount = a.crew.filter((s) => s.status !== 'ended' && !s.away).length;
@@ -286,7 +289,8 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
       lot: plan.cells.get(p.id) ?? [0, 0],
       district: districtOf.get(p.id) ?? null,
       state,
-      floors: state === 'lot' ? 0 : a.total ? floorsFor(a.tokens) : 2,
+      scope, size: state === 'lot' ? 0 : size,
+      floors: state === 'lot' ? 0 : floorsFor(size),
       tokens: a.tokens, bricks: Math.round(a.tokens / BRICK), tokensToday: a.today, costUsd: a.cost,
       sessionsTotal: a.total, liveSessions: liveCount, lastActivity: p.last_activity ?? null,
       prState: a.pr?.pr_state ?? (a.pr ? 'open' : null), prUrl: a.pr?.pr_url ?? null,

@@ -20,10 +20,22 @@ export function sessionStatus(s: Row, live: LiveEntry | undefined, now: number):
   return 'idle';
 }
 
-/** Building height: grows with lifetime tokens on a log scale. 100k ≈ 3 floors, 1M ≈ 5, 10M ≈ 7. */
-export function floorsFor(tokens: number): number {
-  if (tokens <= 0) return 1;
-  return Math.max(1, Math.min(10, 1 + Math.round(Math.log10(Math.max(tokens, 1e4) / 1e4) * 2)));
+/** How much a project amounts to: code written and commits landed, plus a little for read-heavy work that ships no lines (2k tokens ≈ 1 line). */
+export function scopeOf(a: { lines: number; commits: number; tokens: number }): number {
+  return Math.max(0, a.lines) + Math.max(0, a.commits) * 150 + Math.max(0, a.tokens) / 2000;
+}
+
+/** Building size, 0..1, relative to the biggest project in town. Every dimension grows with the cube root, so a building's volume tracks its scope. */
+export function buildingSize(scope: number, maxScope: number): number {
+  if (maxScope <= 0 || scope <= 0) return 0;
+  return Math.min(1, Math.cbrt(scope / maxScope));
+}
+
+export const MAX_FLOORS = 10;
+
+/** Building height from its size: 1 floor for a sketch, MAX_FLOORS for the biggest project in town. */
+export function floorsFor(size: number): number {
+  return Math.max(1, Math.min(MAX_FLOORS, Math.round(size * MAX_FLOORS)));
 }
 
 export function projectState(p: { root: string | null; sessionsTotal: number; lastActivity: number | null }, crew: { status: SessionStatus; away?: boolean }[], now: number): ProjectState {

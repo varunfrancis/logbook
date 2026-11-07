@@ -193,7 +193,7 @@ export class CityScene {
     for (const p of visible) {
       seen.add(p.id);
       const sessions = (byProject.get(p.id) ?? []).sort((a, c) => a.id.localeCompare(c.id));
-      const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
+      const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
@@ -510,7 +510,11 @@ export class CityScene {
     let color = PALETTE[h % PALETTE.length];
     if (quiet) color = this.desat(color);
     const recent = p.state === 'recent';
-    const w = 4.4 + ((h >> 4) % 3) * 0.4, d = 4.4 + ((h >> 6) % 3) * 0.4;
+    // Footprint grows with scope (as does height), with a slight per-project lean so blocks aren't all square.
+    // Capped so the biggest block plus its scaffold and crew ring still sit on the lot.
+    const side = 2.6 + 3.2 * Math.max(0, Math.min(1, p.size ?? 0.4));
+    const lean = (((h >> 4) % 5) - 2) * 0.04;
+    const w = side * (1 + lean), d = side * (1 - lean);
     const floors = Math.max(1, p.floors);
     let roofY = 0;
 
@@ -667,10 +671,10 @@ export class CityScene {
     const ledge = this.tint(color, 0.35), wm = this.winMat(win);
     for (let i = 0; i < floors; i++) {
       this.bx(w + 0.12, 0.08, d + 0.12, ledge, 0, (i + 1) * FH - 0.06, 0, g);
-      for (let k = -1; k <= 1; k++) {
-        this.bx(0.06, 0.46, 0.62, wm, w / 2 + 0.02, i * FH + 0.3, (k * d) / 3.2, g);
-        this.bx(0.62, 0.46, 0.06, wm, (k * w) / 3.2, i * FH + 0.3, d / 2 + 0.02, g);
-      }
+      // window bays spaced ~1.3 apart, so wide buildings get more windows rather than stretched ones
+      const nd = Math.max(2, Math.round(d / 1.3)), nw = Math.max(2, Math.round(w / 1.3));
+      for (let k = 0; k < nd; k++) this.bx(0.06, 0.46, 0.62, wm, w / 2 + 0.02, i * FH + 0.3, ((k + 0.5) / nd - 0.5) * d * 0.9, g);
+      for (let k = 0; k < nw; k++) this.bx(0.62, 0.46, 0.06, wm, ((k + 0.5) / nw - 0.5) * w * 0.9, i * FH + 0.3, d / 2 + 0.02, g);
     }
     return g;
   }

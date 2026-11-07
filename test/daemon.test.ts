@@ -7,7 +7,7 @@ import { describeTool } from '../daemon/describe.ts';
 import { cleanPrompt, parseLines } from '../daemon/transcripts.ts';
 import { parseGithubRemote, rootFromPath } from '../daemon/git.ts';
 import { spiral } from '../daemon/projects.ts';
-import { floorsFor, projectState, sessionStatus } from '../daemon/status.ts';
+import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
 import { handleHook } from '../daemon/hooks.ts';
 import { buildState } from '../daemon/state.ts';
@@ -101,8 +101,13 @@ test('status rules', () => {
   assert.equal(sessionStatus({}, { ...live, status: 'idle' }, now), 'idle');
   assert.equal(sessionStatus({ hook_state: 'needs_input', hook_state_at: now - 1000 }, { ...live, status: 'idle' }, now), 'needs_input');
   assert.equal(sessionStatus({ hook_state: 'running', hook_state_at: now - 2000 }, undefined, now), 'running'); // registry lag grace
-  assert.equal(floorsFor(1e5), 3);
-  assert.equal(floorsFor(1e7), 7);
+  assert.equal(scopeOf({ lines: 1000, commits: 2, tokens: 2e6 }), 2300);
+  assert.equal(buildingSize(1000, 1000), 1);
+  assert.equal(buildingSize(125, 1000), 0.5); // 1/8 the scope → half each dimension → 1/8 the volume
+  assert.equal(buildingSize(0, 1000), 0);
+  assert.equal(floorsFor(1), 10);
+  assert.equal(floorsFor(0.5), 5);
+  assert.equal(floorsFor(0), 1);
   assert.equal(projectState({ root: '/x', sessionsTotal: 3, lastActivity: now }, [{ status: 'ended' }, { status: 'needs_input' }], now), 'needs');
   assert.equal(projectState({ root: null, sessionsTotal: 0, lastActivity: null }, [], now), 'lot');
   const day = 24 * 3600_000, T = 100 * day;
