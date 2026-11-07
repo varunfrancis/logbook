@@ -144,6 +144,8 @@ export type StateView = {
   routines: RoutineView[];
   graveyard: GraveEntry[];
   costBreakdown: CostBreakdown;
+  crews: CrewDay[];
+  notes: CrewNote[];
   totals: {
     live: number; running: number; needs: number; idle: number; doneToday: number; shippedToday: number;
     tokensToday: number; bricksToday: number; costToday: number; waitedTodayMs: number; peakToday: number;
@@ -152,6 +154,40 @@ export type StateView = {
   hooks: { lastEventAt: number | null };
   settings: { skylineRepo: string | null; vscodeConnected: boolean; terminalIntros: boolean; welcome: Welcome };
   setup: Setup;
+};
+
+/** Everyone who worked on one project today, judged together. The web turns these into medals. */
+export type CrewDay = {
+  projectId: string;
+  name: string;
+  agents: Agent[];          // resident first
+  shifts: number;
+  finished: number;         // shifts that set out to change something and are done (or have a PR)
+  delivered: number;        // shipped or sent for review
+  points: number;           // delivered work weighted by size: tweak 1, fix 2, feature 3, overhaul 5
+  sizes: Partial<Record<Size, number>>;
+  lost: number;             // scrapped or left unfinished
+  workMs: number;
+  waitedMs: number;
+  interruptions: number;
+  costUsd: number;
+  checksOk: number;
+  checksFail: number;
+  stuck: number;            // shifts that looped on the same error today
+  firstDeliveredAt: number | null; // breaks ties: whoever got there first
+  flag: { reasons: string[]; draft: string } | null; // "needs a word"
+};
+
+/** A standing note from you to a project's crew. Every agent there is told about it until you remove it. */
+export type CrewNote = {
+  id: number;
+  projectId: string;
+  projectName: string;
+  text: string;
+  createdAt: number;
+  reached: number;          // sessions that have been handed it
+  before: { finished: number; delivered: number }; // the 7 days before you sent it
+  since: { finished: number; delivered: number };
 };
 
 /** First run: reading past work, then giving buildings names, then ready. */

@@ -70,6 +70,8 @@ export function openDb(file = DB_PATH) {
     CREATE TABLE IF NOT EXISTS segments(session_id TEXT, start INTEGER, end INTEGER, kind TEXT);
     CREATE INDEX IF NOT EXISTS segments_session ON segments(session_id);
     CREATE INDEX IF NOT EXISTS segments_start ON segments(start);
+    CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, removed_at INTEGER);
+    CREATE TABLE IF NOT EXISTS note_reach(note_id INTEGER NOT NULL, session_id TEXT NOT NULL, at INTEGER, PRIMARY KEY(note_id, session_id));
   `);
   migrate(db);
   return db;

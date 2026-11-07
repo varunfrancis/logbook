@@ -5,6 +5,7 @@ import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../cop
 import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { useNow } from '../useLogbook.ts';
+import { Leaderboard } from '../crew/Leaderboard.tsx';
 
 type Open = { agent: (id: string) => void; project: (id: string) => void };
 
@@ -210,6 +211,7 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
         <h2>Just finished <small>what they did before their break</small></h2>
         <FinishedList items={finished} projects={projects} now={now} open={open} />
       </section>
+      <Leaderboard state={state} now={now} openProject={open.project} />
       {state.routines?.length ? (
         <Fold id="scheduled" title="Scheduled" note={`${state.routines.length} · jobs that wake up, do their run, and go back to sleep`}>
           <div className="grid routines">{state.routines.map((r) => <RoutineCard key={r.key} r={r} p={projects.get(r.projectId)} now={now} open={open} />)}</div>
