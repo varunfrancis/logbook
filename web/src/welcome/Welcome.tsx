@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionView, StateView, WelcomeStep } from '../../../daemon/types.ts';
 import type { Intro } from '../../../daemon/intros.ts';
 import { AgentAvatar, FOREMAN, type Mood } from '../crew/Avatar.tsx';
-import { post } from '../useLogbook.ts';
+import { post } from '../useSwarmville.ts';
 import { setVoices, useSound } from '../audio.ts';
 import { canSpeak, hush, speak, type Speaker } from '../crew/voice.ts';
 import { TownPicker } from '../TownPicker.tsx';
@@ -10,7 +10,7 @@ import { StartWork, type Started } from './StartWork.tsx';
 import { WELCOME_MOVES } from './moves.ts';
 
 /*
- * The welcome tour, for someone who has just installed Logbook:
+ * The welcome tour, for someone who has just installed Swarmville:
  * setting up → name your town → Pip says hello → the crew introduce themselves → four signs → where to look
  * → start your first job → it opens in Claude Code → watch your agent walk in.
  * One decision per screen, every screen skippable, and Settings → "Replay the welcome" brings it back.
@@ -20,7 +20,7 @@ export const STEPS: WelcomeStep[] = ['setup', 'name', 'reveal', 'rollcall', 'sig
 const WEEK = 7 * 24 * 3600_000;
 const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Where the tour is, saved on this machine's Logbook so it survives reloads and can be resumed. */
+/** Where the tour is, saved on this machine's Swarmville so it survives reloads and can be resumed. */
 export function useWelcome(state: StateView | null) {
   const w = state?.settings.welcome;
   const [local, setLocal] = useState<{ step: WelcomeStep | null; active: boolean } | null>(null);

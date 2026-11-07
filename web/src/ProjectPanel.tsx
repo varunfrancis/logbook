@@ -4,7 +4,7 @@ import { AgentAvatar, moodFor } from './crew/Avatar.tsx';
 import { money, PROJECT, plainAction, STATUS, useVoice } from './copy.ts';
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
-import { post, useNow, useProject } from './useLogbook.ts';
+import { post, useNow, useProject } from './useSwarmville.ts';
 
 export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; state: StateView; onClose: () => void; openAgent: (id: string) => void }) {
   const voice = useVoice();

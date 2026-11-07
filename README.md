@@ -2,7 +2,7 @@
 
 # Swarmville
 
-Everything your Claude Code agents are doing, told as a little town. (Formerly Logbook: the command, the `~/.logbook` folder and the repo keep that name.)
+Everything your Claude Code agents are doing, told as a little town. (Formerly Logbook. Installing or updating moves an old `~/.logbook` to `~/.swarmville` and keeps your town; the old `logbook` command, folder path and `LOGBOOK_*` settings still work. The GitHub repo is still `varunfrancis/logbook`.)
 
 - **Town**: a low-poly isometric world. Each project is a building with a plain-English name ("Support Bot", "Sales Training"). Projects with crew on site rise up and glow; others are *under construction* (worked on in the last 7 days), *just completed* (7–30 days), *complete*, or *for sale* (on GitHub, never worked on here). Agents are characters on the scaffolding. A rain cloud means someone is stuck, a small fire means checks just failed, fireworks mean work went live. Scrapped work gets a tombstone in the graveyard. Agents on a coffee break leave their building for the café at the edge of town, where they sit at a table with a steaming mug until you're back (when the tables fill up, they queue at the counter). Similar projects share a neighborhood ("Money & Investing", "Learning & Practice"), sorted by the small Claude model and re-sorted when a new project shows up. Unrelated neighborhoods are a park apart. Drag to pan, scroll to zoom, right-drag or shift-drag (or Q / E, or the ⟲ ⟳ buttons) to turn the town all the way around. It settles on one of the four corner views, where the grid keeps its proportions. Clicking a building flies to it and centers it beside its panel.
 - **Crew**: who raised a hand (and what they need), who's building, who's on a coffee break, and who clocked out today, stamped from git as *Shipped / Sent for review / Saved, not sent / Left unfinished / Scrapped / Just a chat*. Warnings when an agent is stuck on the same problem or two agents are changing the same file.
@@ -30,7 +30,7 @@ Claude explains what it will do, asks before running anything, and opens your to
 curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
 ```
 
-Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.logbook/runtime` if you don't have one (checked against nodejs.org's checksums), puts Swarmville in `~/.logbook/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. Running it again updates Swarmville and keeps your town. Afterwards: `~/.logbook/bin/logbook status | update | uninstall [--everything]`.
+Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.swarmville/runtime` if you don't have one (checked against nodejs.org's checksums), puts Swarmville in `~/.swarmville/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. Running it again updates Swarmville and keeps your town. Afterwards: `~/.swarmville/bin/swarmville status | update | uninstall [--everything]`.
 
 There are no API keys. Friendly names and agent intros use the small Claude model through your own Claude Code login (the `claude` command, or the Claude desktop app's built-in copy), and GitHub features use your own `gh` login.
 
@@ -38,10 +38,10 @@ There are no API keys. Friendly names and agent intros use the small Claude mode
 
 ```sh
 npm install
-node bin/logbook.ts install   # builds the UI, adds Claude Code hooks, runs Swarmville at login, installs the VS Code helper
+node bin/swarmville.ts install   # builds the UI, adds Claude Code hooks, runs Swarmville at login, installs the VS Code helper
 ```
 
-Releases: bump `version` in `package.json`, merge, then tag `vX.Y.Z` and push the tag. `.github/workflows/release.yml` publishes `logbook.tar.gz`, which `install.sh` downloads. The landing page in `site/` deploys to GitHub Pages from `main`.
+Releases: bump `version` in `package.json`, merge, then tag `vX.Y.Z` and push the tag. `.github/workflows/release.yml` publishes `swarmville.tar.gz`, which `install.sh` downloads. The landing page in `site/` deploys to GitHub Pages from `main`.
 
 ## First launch
 
@@ -63,9 +63,9 @@ New agents walk in from the street with a "Hi, I'm …" bubble whenever they sta
 
 **Agents say hi in the terminal** (Settings, off by default): when a Claude Code session starts, the hook tells Claude its name and look in your town, so its first reply opens with "Hi, I'm Juno. You'll see me at Support Bot in Maple Harbor." The hook waits at most a second for this and only on session start.
 
-- `node bin/logbook.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in, and opens new jobs you start from Logbook. New VS Code windows pick it up; restart VS Code once for windows already open. Without it, Swarmville uses Terminal.
-- Settings → *Skyline for your GitHub profile*: point it at a local clone of your profile README repo. **README skyline** in the Town view then saves `logbook-skyline.png` there, commits and pushes.
-- `node bin/logbook.ts uninstall` removes the hooks, the login item and the VS Code helper. Your data in `~/.logbook` stays.
+- `node bin/swarmville.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in, and opens new jobs you start from Swarmville. New VS Code windows pick it up; restart VS Code once for windows already open. Without it, Swarmville uses Terminal.
+- Settings → *Skyline for your GitHub profile*: point it at a local clone of your profile README repo. **README skyline** in the Town view then saves `swarmville-skyline.png` there (or updates `logbook-skyline.png` if the repo already has one from before the rename), commits and pushes.
+- `node bin/swarmville.ts uninstall` removes the hooks, the login item and the VS Code helper. Your data in `~/.swarmville` stays.
 
 ## How it knows what's happening
 
@@ -87,6 +87,6 @@ npm test           # node:test unit tests
 npm run typecheck
 ```
 
-Environment: `LOGBOOK_PORT` (default 7777), `LOGBOOK_DATA_DIR` (default `~/.logbook`), `LOGBOOK_NO_NOTIFY=1` silences macOS notifications, `LOGBOOK_NO_NAMING=1` skips the Claude naming calls, `LOGBOOK_DISABLE=1` makes the hook a no-op.
+Environment: `SWARMVILLE_PORT` (default 7777), `SWARMVILLE_DATA_DIR` (default `~/.swarmville`), `SWARMVILLE_NO_NOTIFY=1` silences macOS notifications, `SWARMVILLE_NO_NAMING=1` skips the Claude naming calls, `SWARMVILLE_DISABLE=1` makes the hook a no-op. The older `LOGBOOK_*` names still work.
 
 Requires Node 24+ (built-in `node:sqlite` and TypeScript type stripping).

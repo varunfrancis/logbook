@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { StateView } from './types.ts';
+import { env } from './legacy.ts';
 
 const prev = new Map<string, string>();
 let primed = false;
@@ -7,7 +8,7 @@ let primed = false;
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 function notify(title: string, body: string) {
-  if (process.platform !== 'darwin' || process.env.LOGBOOK_NO_NOTIFY) return;
+  if (process.platform !== 'darwin' || env('NO_NOTIFY')) return;
   execFile('osascript', ['-e', `display notification "${esc(body)}" with title "${esc(title)}" sound name "Glass"`], () => {});
 }
 

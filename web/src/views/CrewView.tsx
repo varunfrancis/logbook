@@ -4,7 +4,7 @@ import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, plainAction, useVoice } from '../copy.ts';
 import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
-import { post, useNow } from '../useLogbook.ts';
+import { post, useNow } from '../useSwarmville.ts';
 import { jobLabel } from '../city/liveJobs.ts';
 import { Leaderboard } from '../crew/Leaderboard.tsx';
 import { finishedAt, prNum, todayView } from '../crew/today.ts';
@@ -102,7 +102,7 @@ function RoutineCard({ r, p, now, open }: { r: RoutineView; p?: ProjectView; now
 
 /** A section you can fold away. Starts closed unless you left it open last time. */
 function Fold({ id, title, note, children }: { id: string; title: string; note?: ReactNode; children: ReactNode }) {
-  const key = `logbook.crew.fold.${id}`;
+  const key = `swarmville.crew.fold.${id}`;
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) === '1'; } catch { return false; } });
   return (
     <section>

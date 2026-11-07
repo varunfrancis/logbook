@@ -4,7 +4,7 @@ import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { clock, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
-import { post, useAgent, useNow } from '../useLogbook.ts';
+import { post, useAgent, useNow } from '../useSwarmville.ts';
 import { WorkWith } from '../welcome/WorkWith.tsx';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {

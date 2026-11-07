@@ -1,29 +1,39 @@
 #!/bin/bash
-# Logbook installer: one command, no sudo, no Homebrew, no Node needed beforehand.
+# Swarmville installer: one command, no sudo, no Homebrew, no Node needed beforehand.
 #   curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
-# Running it again updates Logbook and keeps your town.
+# Running it again updates Swarmville and keeps your town.
 #
 # What it does:
 #   1. Checks this is a Mac.
-#   2. Uses Node 24+ if you have it, otherwise downloads a private copy into ~/.logbook/runtime (checked against nodejs.org's checksums).
-#   3. Downloads the latest Logbook release into ~/.logbook/app.
+#   2. Uses Node 24+ if you have it, otherwise downloads a private copy into ~/.swarmville/runtime (checked against nodejs.org's checksums).
+#   3. Downloads the latest Swarmville release into ~/.swarmville/app.
 #   4. Connects it to Claude Code (hooks in ~/.claude/settings.json, backed up first), starts it at login, opens your town.
 #
-# Options (environment variables, mostly for testing):
-#   LOGBOOK_DATA_DIR      where Logbook lives (default ~/.logbook)
-#   LOGBOOK_PORT          default 7777
-#   LOGBOOK_RELEASE_URL   a specific logbook.tar.gz (URL or file path) instead of the latest release
-#   LOGBOOK_NO_LOGIN_ITEM=1  run in the background now, not at login
-#   LOGBOOK_NO_OPEN=1     don't open the browser
-#   LOGBOOK_NO_VSCODE=1   skip the VS Code helper
-#   LOGBOOK_FORCE=1       install even if a developer copy is already set up as the login item
+# Swarmville used to be called Logbook and lived in ~/.logbook. An install from then is moved to ~/.swarmville, town
+# and all, and ~/.logbook is left as a link to it so anything still using the old path keeps working.
+#
+# Options (environment variables, mostly for testing; the old LOGBOOK_* names still work):
+#   SWARMVILLE_DATA_DIR      where Swarmville lives (default ~/.swarmville)
+#   SWARMVILLE_PORT          default 7777
+#   SWARMVILLE_RELEASE_URL   a specific swarmville.tar.gz (URL or file path) instead of the latest release
+#   SWARMVILLE_NO_LOGIN_ITEM=1  run in the background now, not at login
+#   SWARMVILLE_NO_OPEN=1     don't open the browser
+#   SWARMVILLE_NO_VSCODE=1   skip the VS Code helper
+#   SWARMVILLE_FORCE=1       install even if a developer copy is already set up as the login item
 set -euo pipefail
 
+for v in DATA_DIR PORT RELEASE_URL NO_LOGIN_ITEM NO_OPEN NO_VSCODE FORCE; do
+  old="LOGBOOK_$v"; new="SWARMVILLE_$v"
+  if [ -z "${!new:-}" ] && [ -n "${!old:-}" ]; then export "$new=${!old}"; fi
+done
+
 REPO="varunfrancis/logbook"
-DATA="${LOGBOOK_DATA_DIR:-$HOME/.logbook}"
-PORT="${LOGBOOK_PORT:-7777}"
-RELEASE_URL="${LOGBOOK_RELEASE_URL:-https://github.com/$REPO/releases/latest/download/logbook.tar.gz}"
-PLIST="$HOME/Library/LaunchAgents/dev.logbook.daemon.plist"
+DATA="${SWARMVILLE_DATA_DIR:-$HOME/.swarmville}"
+LEGACY="$HOME/.logbook"
+PORT="${SWARMVILLE_PORT:-7777}"
+RELEASE_URL="${SWARMVILLE_RELEASE_URL:-https://github.com/$REPO/releases/latest/download/swarmville.tar.gz}"
+PLIST="$HOME/Library/LaunchAgents/dev.swarmville.daemon.plist"
+LEGACY_PLIST="$HOME/Library/LaunchAgents/dev.logbook.daemon.plist"
 
 # Colors only in a real terminal; Claude Code and logs get plain text.
 if [ -t 1 ]; then G=$'\033[32m'; R=$'\033[31m'; N=$'\033[0m'; else G=''; R=''; N=''; fi
@@ -32,11 +42,11 @@ info() { printf '  → %s\n' "$1"; }
 fail() { printf '\n  %s✗%s %s\n\n' "$R" "$N" "$1" >&2; exit 1; }
 
 echo
-echo "  Installing Logbook"
+echo "  Installing Swarmville"
 echo
 
 # 1. A Mac
-[ "$(uname -s)" = "Darwin" ] || fail "Logbook works on macOS for now. This computer is $(uname -s)."
+[ "$(uname -s)" = "Darwin" ] || fail "Swarmville works on macOS for now. This computer is $(uname -s)."
 case "$(uname -m)" in
   arm64) ARCH=arm64; ok "Mac with Apple silicon" ;;
   x86_64) ARCH=x64; ok "Mac with an Intel chip" ;;
@@ -45,15 +55,40 @@ esac
 command -v curl >/dev/null || fail "curl is missing, which is unusual on a Mac."
 
 # A developer copy already set up as the login item stays in charge unless asked otherwise.
-if [ -z "${LOGBOOK_DATA_DIR:-}" ] && [ -z "${LOGBOOK_NO_LOGIN_ITEM:-}" ] && [ -z "${LOGBOOK_FORCE:-}" ] && [ -f "$PLIST" ] && ! grep -q "$DATA/app/" "$PLIST"; then
-  fail "Logbook is already set up from a developer copy ($(grep -o '/[^<]*daemon/server.ts' "$PLIST" | head -1)). Update that copy with git, or rerun with LOGBOOK_FORCE=1 to switch to the installed version."
+if [ -z "${SWARMVILLE_DATA_DIR:-}" ] && [ -z "${SWARMVILLE_NO_LOGIN_ITEM:-}" ] && [ -z "${SWARMVILLE_FORCE:-}" ]; then
+  for p in "$PLIST" "$LEGACY_PLIST"; do
+    if [ -f "$p" ] && ! grep -q -e "$DATA/app/" -e "$LEGACY/app/" "$p"; then
+      fail "Swarmville is already set up from a developer copy ($(grep -o '/[^<]*daemon/server.ts' "$p" | head -1)). Update that copy with git, or rerun with SWARMVILLE_FORCE=1 to switch to the installed version."
+    fi
+  done
 fi
 
 # The port: free, or already ours (an update)
 running=""
 if curl -fs -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then running=1
 elif lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  fail "Something else is using port $PORT. Close it, or install on another port: LOGBOOK_PORT=7788 (then open http://localhost:7788)."
+  fail "Something else is using port $PORT. Close it, or install on another port: SWARMVILLE_PORT=7788 (then open http://localhost:7788)."
+fi
+
+# The app is fetched first (unpacked in step 3), so a failed download leaves an existing install exactly as it was.
+info "Downloading Swarmville…"
+pkg="$(mktemp -d)"
+if [ -f "$RELEASE_URL" ]; then cp "$RELEASE_URL" "$pkg/swarmville.tar.gz"
+else curl -fsSL "$RELEASE_URL" -o "$pkg/swarmville.tar.gz" || fail "Downloading Swarmville failed. Check your internet connection and try again."; fi
+
+# An install from before the rename (~/.logbook): stop it, then move it to its new home with a link left behind.
+if [ -z "${SWARMVILLE_DATA_DIR:-}" ] && [ -d "$LEGACY" ] && [ ! -L "$LEGACY" ]; then
+  if [ -d "$DATA" ] && [ -z "$(ls -A "$DATA")" ]; then rmdir "$DATA"; fi
+  if [ -e "$DATA" ]; then
+    info "Found both $LEGACY and $DATA; leaving $LEGACY as it is."
+  else
+    if [ -f "$LEGACY_PLIST" ]; then launchctl bootout "gui/$(id -u)/dev.logbook.daemon" >/dev/null 2>&1 || true; sleep 1; fi
+    mv "$LEGACY" "$DATA" && ln -s "$DATA" "$LEGACY"
+    if [ -e "$DATA/logbook.db" ] && [ ! -e "$DATA/swarmville.db" ]; then
+      for ext in "" -wal -shm; do if [ -e "$DATA/logbook.db$ext" ]; then mv "$DATA/logbook.db$ext" "$DATA/swarmville.db$ext"; fi; done
+    fi
+    ok "Moved your town from $LEGACY to $DATA (Logbook is now Swarmville)"
+  fi
 fi
 
 mkdir -p "$DATA"
@@ -67,9 +102,9 @@ fi
 if [ -z "$NODE" ]; then
   RUNTIME="$DATA/runtime"
   if [ -x "$RUNTIME/node/bin/node" ] && [ "$("$RUNTIME/node/bin/node" -p 'process.versions.node.split(".")[0]')" -ge 24 ]; then
-    NODE="$RUNTIME/node/bin/node"; ok "Using Logbook's private Node $("$NODE" -v)"
+    NODE="$RUNTIME/node/bin/node"; ok "Using Swarmville's private Node $("$NODE" -v)"
   else
-    info "Downloading a private copy of Node 24 (only Logbook uses it)…"
+    info "Downloading a private copy of Node 24 (only Swarmville uses it)…"
     base="https://nodejs.org/dist/latest-v24.x"
     sums="$(curl -fsSL "$base/SHASUMS256.txt")" || fail "Couldn't reach nodejs.org. Check your internet connection and try again."
     file="$(printf '%s\n' "$sums" | awk '{print $2}' | grep -E "^node-v24\.[0-9.]+-darwin-$ARCH\.tar\.gz$" | head -1)"
@@ -87,43 +122,40 @@ if [ -z "$NODE" ]; then
   fi
 fi
 
-# 3. Logbook itself, swapped in whole so a failed download never leaves half an app
-info "Downloading Logbook…"
-pkg="$(mktemp -d)"
-if [ -f "$RELEASE_URL" ]; then cp "$RELEASE_URL" "$pkg/logbook.tar.gz"
-else curl -fsSL "$RELEASE_URL" -o "$pkg/logbook.tar.gz" || fail "Downloading Logbook failed. Check your internet connection and try again."; fi
+# 3. Swarmville itself, swapped in whole so a broken download never leaves half an app
 rm -rf "$DATA/app.new" && mkdir -p "$DATA/app.new"
-tar -xzf "$pkg/logbook.tar.gz" -C "$DATA/app.new" --strip-components 1 || fail "The Logbook download was damaged. Try again."
+tar -xzf "$pkg/swarmville.tar.gz" -C "$DATA/app.new" --strip-components 1 || fail "The Swarmville download was damaged. Try again."
 rm -rf "$pkg"
-[ -f "$DATA/app.new/daemon/server.ts" ] && [ -f "$DATA/app.new/web/dist/index.html" ] || fail "The Logbook download is missing files. Try again."
+[ -f "$DATA/app.new/daemon/server.ts" ] && [ -f "$DATA/app.new/bin/swarmville.ts" ] && [ -f "$DATA/app.new/web/dist/index.html" ] || fail "The Swarmville download is missing files. Try again."
 rm -rf "$DATA/app.old"; [ -d "$DATA/app" ] && mv "$DATA/app" "$DATA/app.old"
 mv "$DATA/app.new" "$DATA/app" && rm -rf "$DATA/app.old"
 VERSION="$("$NODE" -p "require('$DATA/app/package.json').version")"
-ok "Downloaded Logbook $VERSION"
+ok "Downloaded Swarmville $VERSION"
 
 # A test install replaces the background copy it started last time.
-if [ -n "$running" ] && [ -n "${LOGBOOK_NO_LOGIN_ITEM:-}" ]; then
+if [ -n "$running" ] && [ -n "${SWARMVILLE_NO_LOGIN_ITEM:-}" ]; then
   lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN | xargs kill 2>/dev/null || true; sleep 1
 fi
 
-# The `logbook` command
+# The `swarmville` command (`logbook`, its name before the rename, still works)
 mkdir -p "$DATA/bin"
 {
   echo '#!/bin/sh'
-  [ -n "${LOGBOOK_DATA_DIR:-}" ] && echo "export LOGBOOK_DATA_DIR='$DATA'"
-  [ -n "${LOGBOOK_PORT:-}" ] && echo "export LOGBOOK_PORT='$PORT'"
-  echo "exec '$NODE' --no-warnings '$DATA/app/bin/logbook.ts' \"\$@\""
-} > "$DATA/bin/logbook"
-chmod +x "$DATA/bin/logbook"
+  [ -n "${SWARMVILLE_DATA_DIR:-}" ] && echo "export SWARMVILLE_DATA_DIR='$DATA'"
+  [ -n "${SWARMVILLE_PORT:-}" ] && echo "export SWARMVILLE_PORT='$PORT'"
+  echo "exec '$NODE' --no-warnings '$DATA/app/bin/swarmville.ts' \"\$@\""
+} > "$DATA/bin/swarmville"
+chmod +x "$DATA/bin/swarmville"
+rm -f "$DATA/bin/logbook" && ln -s swarmville "$DATA/bin/logbook"
 
 # 4. Connect to Claude Code, start, open
 flags=""
-[ -n "${LOGBOOK_NO_LOGIN_ITEM:-}" ] && flags="$flags --no-login-item"
-[ -n "${LOGBOOK_NO_OPEN:-}" ] && flags="$flags --no-open"
-[ -n "${LOGBOOK_NO_VSCODE:-}" ] && flags="$flags --no-vscode"
+[ -n "${SWARMVILLE_NO_LOGIN_ITEM:-}" ] && flags="$flags --no-login-item"
+[ -n "${SWARMVILLE_NO_OPEN:-}" ] && flags="$flags --no-open"
+[ -n "${SWARMVILLE_NO_VSCODE:-}" ] && flags="$flags --no-vscode"
 echo
 # shellcheck disable=SC2086
-"$NODE" --no-warnings "$DATA/app/bin/logbook.ts" install $flags || fail "Setup didn't finish. The details are above."
+"$NODE" --no-warnings "$DATA/app/bin/swarmville.ts" install $flags || fail "Setup didn't finish. The details are above."
 
 # Friendly names come from the small Claude model, through the user's own Claude Code.
 echo
@@ -132,11 +164,11 @@ if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
 elif ls "$HOME/Library/Application Support/Claude/claude-code/"*/*/claude.app/Contents/MacOS/claude >/dev/null 2>&1; then
   ok "Using the Claude desktop app for friendly building names"
 else
-  info "Optional: Logbook can give your projects friendly names using Claude Code's command-line tool, which isn't on this Mac."
+  info "Optional: Swarmville can give your projects friendly names using Claude Code's command-line tool, which isn't on this Mac."
   info "To add it (Anthropic's official installer): curl -fsSL https://claude.ai/install.sh | bash"
 fi
 
 echo
-ok "Logbook $VERSION is running at http://localhost:$PORT"
-echo "    Manage it with: $DATA/bin/logbook status | update | uninstall"
+ok "Swarmville $VERSION is running at http://localhost:$PORT"
+echo "    Manage it with: $DATA/bin/swarmville status | update | uninstall"
 echo

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { StateView } from '../../../daemon/types.ts';
-import { post } from '../useLogbook.ts';
+import { post } from '../useSwarmville.ts';
 import { MOVES, type MoveId } from './moves.ts';
 
 export type Started = { ok: boolean; via: string; message: string; command?: string; projectId: string; projectName: string; at: number; plan: boolean };
 
 /**
- * Pick a project and a way to start, say what it's about, and Logbook opens Claude Code there.
+ * Pick a project and a way to start, say what it's about, and Swarmville opens Claude Code there.
  * Used on the welcome tour ("Your turn") and on every agent's profile ("Work with me").
  */
 export function StartWork({ state, moves, defaultMove, projectId, onStarted, idPrefix = 'sw', secondary }: {

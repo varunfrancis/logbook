@@ -4,7 +4,7 @@ import type { AgentDetail, DayView, ProjectDetail, StateView, WrappedView } from
 export type Conn = 'connecting' | 'live' | 'offline';
 
 /** Subscribes to the daemon's SSE stream; reconnects if it drops. */
-export function useLogbook() {
+export function useSwarmville() {
   const [state, setState] = useState<StateView | null>(null);
   const [conn, setConn] = useState<Conn>('connecting');
   useEffect(() => {

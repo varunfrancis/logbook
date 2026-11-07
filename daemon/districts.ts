@@ -108,12 +108,12 @@ export async function groupDistricts(db: Db): Promise<boolean> {
     const raw = await askClaude(prompt);
     const parsed = raw ? parseGrouping(raw, projects.length) : null;
     if (!parsed) {
-      if (raw) console.error('[logbook] districts: unusable reply:', raw.slice(0, 160));
+      if (raw) console.error('[swarmville] districts: unusable reply:', raw.slice(0, 160));
       return false;
     }
     const groups = parsed.map((g) => ({ name: g.name, ids: g.items.map((i) => projects[i - 1].id) }));
     kvSet(db, KEY, { groups, ids, at: Date.now(), source: 'ai' } satisfies Saved);
-    console.log('[logbook] districts:', groups.map((g) => `${g.name}(${g.ids.length})`).join(' '));
+    console.log('[swarmville] districts:', groups.map((g) => `${g.name}(${g.ids.length})`).join(' '));
     return true;
   } finally {
     running = false;

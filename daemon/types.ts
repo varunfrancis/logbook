@@ -42,7 +42,7 @@ export type SessionView = {
   action: string | null;
   actionKind: ActionKind | null;
   needsMessage: string | null;
-  /** A permission prompt you can answer from Logbook (needs the PermissionRequest hook); null for questions, or when the hook isn't waiting. */
+  /** A permission prompt you can answer from Swarmville (needs the PermissionRequest hook); null for questions, or when the hook isn't waiting. */
   ask: AskView | null;
   branch: string | null;
   worktree: string | null;

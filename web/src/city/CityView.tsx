@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { StateView } from '../../../daemon/types.ts';
 import { CityScene } from './scene.ts';
 import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.ts';
-import { isoDate, post, useDay } from '../useLogbook.ts';
+import { isoDate, post, useDay } from '../useSwarmville.ts';
 import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 import { LiveFeed } from './LiveFeed.tsx';
@@ -79,9 +79,9 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     scene.current.fit();
     await new Promise((r) => setTimeout(r, 400));
     const png = scene.current.snapshot();
-    const a = document.createElement('a'); a.href = png; a.download = 'logbook-skyline.png'; a.click();
+    const a = document.createElement('a'); a.href = png; a.download = 'swarmville-skyline.png'; a.click();
     const r = await post('/api/skyline', { png, push: !!state.settings.skylineRepo });
-    setMsg(r.pushed ? 'Skyline updated in your profile repo and pushed. Add ![My agent town](logbook-skyline.png) to your README once.'
+    setMsg(r.pushed ? `Skyline updated in your profile repo and pushed. Add ${r.markdown} to your README once (skip if it is already there).`
       : r.error ? r.error : 'Saved the skyline image. Set your profile repo in Settings to update your README automatically.');
     setBusy(null);
   };

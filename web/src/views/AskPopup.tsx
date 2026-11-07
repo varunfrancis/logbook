@@ -3,7 +3,7 @@ import type { SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { duration } from '../format.ts';
-import { post, useNow } from '../useLogbook.ts';
+import { post, useNow } from '../useSwarmville.ts';
 
 type Decision = 'allow' | 'always' | 'deny';
 const DONE: Record<Decision, string> = { allow: 'Approved.', always: 'Approved, and they won’t ask about this again.', deny: 'Told them no.' };

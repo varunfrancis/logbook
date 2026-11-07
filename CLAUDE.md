@@ -1,6 +1,6 @@
-# Working on Logbook
+# Working on Swarmville
 
-Logbook is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24+) that reads Claude Code's files and hooks, plus a React/three.js UI (`web/`) built into `web/dist`, which the daemon serves on http://localhost:7777. It's macOS-only for now.
+Swarmville (formerly Logbook; the GitHub repo is still `logbook`) is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24+) that reads Claude Code's files and hooks, plus a React/three.js UI (`web/`) built into `web/dist`, which the daemon serves on http://localhost:7777. It's macOS-only for now.
 
 ## Branch workflow
 
@@ -20,11 +20,11 @@ Logbook is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24
 ## Running it while developing
 
 - `npm run dev`: daemon with `--watch` plus Vite on http://localhost:5177.
-- To try the installer without touching your real setup: `LOGBOOK_DATA_DIR=/tmp/lb LOGBOOK_PORT=7792 LOGBOOK_NO_LOGIN_ITEM=1 LOGBOOK_NO_VSCODE=1 CLAUDE_CONFIG_DIR=/tmp/claude-test bash install.sh` (see the comment at the top of `install.sh`).
-- Logbook's own small-model runs happen in `<data dir>/namer` and are never shown as projects. Clean up any test data folders you create.
+- To try the installer without touching your real setup: `SWARMVILLE_DATA_DIR=/tmp/lb SWARMVILLE_PORT=7792 SWARMVILLE_NO_LOGIN_ITEM=1 SWARMVILLE_NO_VSCODE=1 CLAUDE_CONFIG_DIR=/tmp/claude-test bash install.sh` (see the comment at the top of `install.sh`).
+- Swarmville's own small-model runs happen in `<data dir>/namer` and are never shown as projects. Clean up any test data folders you create.
 
 ## Releasing
 
-Bump `version` in `package.json` through a PR, then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` publishes `logbook.tar.gz`, which `install.sh` downloads.
+Bump `version` in `package.json` through a PR, then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` publishes `swarmville.tar.gz`, which `install.sh` downloads.
 
 Maintainers may keep personal steps (where they review, how they deploy) in a gitignored `CLAUDE.local.md`.

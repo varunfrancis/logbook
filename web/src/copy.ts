@@ -56,7 +56,7 @@ export type Bubble = 'job' | 'project' | 'task';
 export function shortJob(title: string | null | undefined, max = 30): string | null {
   const t = (title ?? '').replace(/^\/\S+\s*/, '').replace(/[`"“”]/g, '').replace(/\s+/g, ' ').replace(/…$/, '').trim();
   if (!t || /^new session$/i.test(t)) return null;
-  if (!/\s/.test(t) && /\d/.test(t)) return null; // an id like "5e313808" or "logbook-f1", not a job
+  if (!/\s/.test(t) && /\d/.test(t)) return null; // an id like "5e313808" or "swarmville-f1", not a job
   const cap = (x: string) => x.replace(/^\w/, (c) => c.toUpperCase());
   if (t.length <= max) return cap(t.replace(/[.,:;!?]+$/, ''));
   const cut = t.slice(0, max + 1).replace(/\s+\S*$/, '');

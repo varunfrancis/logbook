@@ -19,7 +19,7 @@ test('live feed: one word for where a job is at', () => {
 test('live feed: only working or waiting jobs, hands up first, finished ones gone at once', () => {
   const s = (id: string, o: Record<string, unknown>) => ({ ...base, id, projectId: 'p1', focus: `Job ${id}`, title: 'x', startedAt: 0, agent: { name: id }, ...o }) as any;
   const state = {
-    projects: [{ id: 'p1', name: 'Logbook' }, { id: 'p2', name: 'Other' }] as any,
+    projects: [{ id: 'p1', name: 'Swarmville' }, { id: 'p2', name: 'Other' }] as any,
     sessions: [
       s('a', { startedAt: 1 }),
       s('b', { status: 'idle' }),
@@ -31,7 +31,7 @@ test('live feed: only working or waiting jobs, hands up first, finished ones gon
   };
   const jobs = liveJobs(state);
   assert.deepEqual(jobs.map((j) => j.id), ['d', 'f', 'a', 'e']);
-  assert.equal(jobs[0].project, 'Logbook');
+  assert.equal(jobs[0].project, 'Swarmville');
   assert.equal(jobs[3].job, 'Getting started'); // no machine-made names like a session hash
   assert.deepEqual(liveJobs(state, new Set(['p2'])).map((j) => j.id), ['e']);
 });

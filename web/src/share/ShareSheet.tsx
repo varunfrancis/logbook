@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { toBlob, toPng } from 'html-to-image';
 import type { StateView } from '../../../daemon/types.ts';
 import { GraveyardCard, ReceiptCard, WrappedCards, type Privacy } from './Cards.tsx';
-import { isoDate, useDay, useWrapped } from '../useLogbook.ts';
+import { isoDate, useDay, useWrapped } from '../useSwarmville.ts';
 
 export type ShareKind = 'receipt' | 'graveyard' | 'wrapped';
 const TABS: { key: ShareKind; label: string }[] = [

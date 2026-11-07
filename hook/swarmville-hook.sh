@@ -1,8 +1,9 @@
 #!/bin/sh
-# Claude Code hook -> Logbook daemon. Never blocks or fails the agent.
-[ -n "$LOGBOOK_DISABLE" ] && exit 0
+# Claude Code hook -> Swarmville daemon. Never blocks or fails the agent.
+# (LOGBOOK_* names are from before the rename to Swarmville and still work.)
+[ -n "$SWARMVILLE_DISABLE$LOGBOOK_DISABLE" ] && exit 0
 payload=$(cat)
-url="http://127.0.0.1:${LOGBOOK_PORT:-7777}/hook"
+url="http://127.0.0.1:${SWARMVILLE_PORT:-${LOGBOOK_PORT:-7777}}/hook"
 case "$payload" in
   *'"hook_event_name":"SessionStart"'*|*'"hook_event_name": "SessionStart"'*)
     # Session start waits a moment for an answer: if "Agents say hi in the terminal" is on, it tells Claude who it is in the town.
@@ -18,7 +19,7 @@ case "$payload" in
     ;;
   *'"hook_event_name":"PermissionRequest"'*|*'"hook_event_name": "PermissionRequest"'*)
     # A permission prompt: wait for an answer from the town (the terminal prompt shows meanwhile; whichever answers first wins).
-    # No answer, or Logbook isn't running: print nothing and the terminal prompt carries on as usual.
+    # No answer, or Swarmville isn't running: print nothing and the terminal prompt carries on as usual.
     printf '%s' "$payload" | curl -s -m 590 -X POST -H 'content-type: application/json' --data-binary @- "$url?wait=1" 2>/dev/null
     exit 0
     ;;

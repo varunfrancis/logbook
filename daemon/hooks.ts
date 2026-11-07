@@ -31,7 +31,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
   const event = p?.hook_event_name;
   if (typeof sid !== 'string' || typeof event !== 'string') return;
 
-  if (isOwnRun(typeof p.cwd === 'string' ? p.cwd : null)) return; // Logbook's own helper runs
+  if (isOwnRun(typeof p.cwd === 'string' ? p.cwd : null)) return; // Swarmville's own helper runs
   db.prepare('INSERT OR IGNORE INTO sessions(id, transcript, cwd, started_at) VALUES(?, ?, ?, ?)').run(sid, p.transcript_path ?? null, p.cwd ?? null, now);
   const s = db.prepare('SELECT project_id, hook_state, hook_state_at, needs_message FROM sessions WHERE id = ?').get(sid) as Row;
   // A raised hand ends when anything else happens: record how long the agent waited for you.
@@ -91,7 +91,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
     case 'Notification': {
       const msg = String(p.message ?? '');
       if (isJobNotice(p.notification_type, msg)) {
-        // a hand raised by an earlier job notice (before Logbook knew better) comes down; a real one stays up
+        // a hand raised by an earlier job notice (before Swarmville knew better) comes down; a real one stays up
         if (s.hook_state === 'needs_input' && isJobNotice(null, s.needs_message)) set({ hook_state: 'idle', hook_state_at: now, needs_message: null });
         logEvent(db, sid, now, 'job', msg);
         break;

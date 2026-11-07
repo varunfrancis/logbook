@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const daemon = `http://127.0.0.1:${process.env.LOGBOOK_PORT || 7777}`;
+const daemon = `http://127.0.0.1:${process.env.SWARMVILLE_PORT || process.env.LOGBOOK_PORT || 7777}`;
 
 export default defineConfig({
   root: 'web',
