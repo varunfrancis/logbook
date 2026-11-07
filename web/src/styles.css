@@ -182,6 +182,7 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .tag .grp { display: none; } .tag.grouped .grp { display: inline; } .tag.grouped .doing { display: none; }
 .tag.doing-run { background: #0f8f8f; box-shadow: 0 0 0 2px #17c3c355; } .tag.doing-run .doing::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9ff3f3; margin-right: 5px; vertical-align: 1px; animation: blink 1.2s ease-in-out infinite; }
 .tag.doing-needs { background: #e5484d; } .tag.doing-rest { background: #5c6878e6; font-weight: 700; }
+.tag.doing-sleep { background: #4b5bb8e6; font-weight: 700; } .tag.doing-sleep .doing::before { content: '☾'; margin-right: 4px; }
 @keyframes blink { 50% { opacity: .25; } }
 .sum:not(.chip) { padding: 3px 0; }
 .sum.chip { border: 1px solid transparent; border-radius: 999px; padding: 3px 9px; margin: -4px 0; }
@@ -297,6 +298,18 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .work .meta { flex-wrap: nowrap; white-space: nowrap; }
 .work .goto-msg { position: absolute; right: 0; bottom: calc(100% + 6px); width: max-content; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; box-shadow: var(--shadow); white-space: normal; z-index: 2; }
 .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); font-weight: 700; }
+/* scheduled jobs: a calm night-blue card while asleep, the working turquoise edge while on a run */
+.grid.routines { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
+.routine { display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid #6b7cff; border-radius: 16px; padding: 12px 14px; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.routine:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.routine.awake { border-left-color: var(--run); }
+.routine:not(.awake) .avatar, .routine:not(.awake) svg:first-child { opacity: .8; }
+.routine-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.routine-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.routine .task { height: auto; -webkit-line-clamp: 1; }
+.routine .stamp { font-size: 10px; }
+.routine-out { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill.s-asleep { background: color-mix(in srgb, #6b7cff 16%, transparent); color: #4b5bb8; white-space: nowrap; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip-agent { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px 4px 6px; cursor: pointer; font: inherit; color: inherit; }
 .chip-agent.away { opacity: .6; }

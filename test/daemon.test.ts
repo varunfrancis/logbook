@@ -286,3 +286,68 @@ test('welcome state starts fresh and setup counts come from what was read', () =
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('scheduled jobs: every headless run of the same job is one character, apart from interactive work', async () => {
+  const { refreshAgents, agentOf } = await import('../daemon/state.ts');
+  const { promptFingerprint } = await import('../daemon/identity.ts');
+  assert.equal(promptFingerprint('Post the 3.0.75 release note for 4 Nov'), promptFingerprint('Post the 3.0.76 release note for 11 Nov'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, started_at, last_event_at, first_prompt, entrypoint) VALUES(?, ?, ?, ?, ?, ?, ?)');
+  ins.run('r1', 'gh:a/bot', 'main', 1, 2, 'Check the nightly export for 2026-11-01 and fix it', 'sdk-cli');
+  ins.run('r2', 'gh:a/bot', 'main', 3, 4, 'Check the nightly export for 2026-11-02 and fix it', 'sdk-cli');
+  ins.run('r3', 'gh:a/bot', 'main', 5, 6, 'Summarize open PRs', 'sdk-cli');
+  ins.run('i1', 'gh:a/bot', 'main', 7, 8, 'add a pricing page', 'cli');
+  refreshAgents(db, 0, new Map());
+  const a = (id: string) => agentOf(db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any);
+  assert.equal(a('r1').key, a('r2').key);
+  assert.notEqual(a('r1').key, a('r3').key);
+  assert.equal(a('r1').role, 'routine');
+  assert.equal(a('i1').role, 'resident');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('scheduled jobs: retries collapse into one wake-up, a regular gap predicts the next run', async () => {
+  const { wakeStarts, cadence, nextRun } = await import('../daemon/routines.ts');
+  const H = 3600_000;
+  const wakes = wakeStarts([0, 60_000, 120_000, 24 * H, 48 * H, 72 * H + 5 * 60_000]);
+  assert.equal(wakes.length, 4);
+  const c = cadence(wakes);
+  assert.ok(c.regular);
+  assert.ok(Math.abs(c.intervalMs! - 24 * H) < H);
+  assert.ok(Math.abs(nextRun(wakes.at(-1)!, c, 80 * H)! - 96 * H) < H);
+  // a job triggered by failures, at random: no guess
+  assert.equal(cadence([0, 2 * H, 50 * H, 51 * H, 200 * H]).regular, false);
+  assert.equal(nextRun(0, { intervalMs: null, regular: false }, 1), null);
+});
+
+test('scheduled jobs: asleep between runs, awake while one is going', async () => {
+  const { refreshAgents } = await import('../daemon/state.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const now = Date.now(), H = 3600_000;
+  db.prepare("INSERT INTO projects(id, name, root, lot) VALUES('local:/w/bot', 'bot', '/w/bot', 0)").run();
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, started_at, last_event_at, first_prompt, entrypoint, outcome) VALUES(?, ?, ?, ?, ?, ?, ?)');
+  for (let i = 3; i >= 1; i--) ins.run(`r${i}`, 'local:/w/bot', now - i * 24 * H, now - i * 24 * H + 60_000, 'Run the nightly export', 'sdk-cli', 'Export done.');
+  refreshAgents(db, 0, new Map());
+  let st = buildState(db, new Map(), now);
+  assert.equal(st.routines.length, 1);
+  const r = st.routines[0];
+  assert.equal(r.state, 'asleep');
+  assert.equal(r.runs, 3);
+  assert.equal(r.lastSessionId, 'r1');
+  assert.equal(r.lastOutcome, 'Export done.');
+  assert.ok(r.nextAt && Math.abs(r.nextAt - (now - 24 * H + 24 * H)) < H);
+  // a new run, mid-turn, with no hooks or live registry entry: it woke up
+  db.prepare('INSERT INTO sessions(id, project_id, started_at, last_event_at, first_prompt, entrypoint, current_action) VALUES(?, ?, ?, ?, ?, ?, ?)')
+    .run('r0', 'local:/w/bot', now - 30_000, now - 5_000, 'Run the nightly export', 'sdk-cli', 'Reading export.csv');
+  refreshAgents(db, 0, new Map());
+  st = buildState(db, new Map(), now);
+  assert.equal(st.routines[0].state, 'awake');
+  assert.equal(st.routines[0].liveSessionId, 'r0');
+  assert.equal(st.sessions.find((s) => s.id === 'r0')?.status, 'running');
+  assert.equal(st.sessions.find((s) => s.id === 'r0')?.scheduled, true);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

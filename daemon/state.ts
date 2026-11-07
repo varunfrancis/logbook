@@ -6,7 +6,8 @@ import { assignLots, ensureProjectForCwd } from './projects.ts';
 import { currentDistricts, layoutTown } from './districts.ts';
 import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from './status.ts';
 import { githubMeta } from './github.ts';
-import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
+import { agentKey, allocateIdentities, helperKey, identityFor, isHeadless, isHelperKey, isResidentKey, isRoutineKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
+import { routinesView } from './routines.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
@@ -42,7 +43,7 @@ export function agentOf(s: Row): Agent {
   const key = s.agent_key || agentKey(s);
   const id = identityFor(key);
   const job = (id.job as Agent['job']) || (s.job as Agent['job']) || jobFor(s); // the character's settled job, not this shift's
-  const role = isHelperKey(key) ? 'helper' : isResidentKey(key) ? 'resident' : 'workbench';
+  const role = isHelperKey(key) ? 'helper' : isResidentKey(key) ? 'resident' : isRoutineKey(key) ? 'routine' : 'workbench';
   return { key, name: id.name, title: `${id.name} the ${JOB_TITLE[job]}`, job, jobTitle: JOB_TITLE[job], shape: id.shape, color: id.color, accessory: id.accessory, role };
 }
 
@@ -55,6 +56,7 @@ function chatterFor(v: Omit<SessionView, 'chatter'>, owner: string, now: number)
   const a = v.action ?? '';
   const file = a.match(/(?:Editing|Writing|Reading) (\S+)/)?.[1];
   if (v.helperActive) return 'Called in a helper for this one.';
+  if (v.scheduled && v.startedAt && now - v.startedAt < 90_000) return ['Alarm went off. On it.', 'Up for my scheduled run.', 'Yawn. Right, the usual job.'][v.id.charCodeAt(2) % 3];
   switch (v.actionKind) {
     case 'edit': return file ? `Hammering away at ${file}.` : 'Building.';
     case 'read': return file === 'package-lock.json' ? 'Reading package-lock.json. Send help.' : file ? `Reading ${file}. Gripping stuff.` : 'Looking around.';
@@ -89,6 +91,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     worktree: s.worktree,
     cwd: s.cwd ?? live?.cwd ?? null,
     kind: live?.kind ?? null,
+    scheduled: isHeadless(s),
     startedAt: s.started_at,
     lastEventAt: s.last_event_at,
     endedAt: s.ended_at ?? (status === 'ended' ? s.last_event_at : null),
@@ -315,6 +318,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     town: t,
     projects: projectViews,
     sessions: sessions.sort((a, b) => (b.lastEventAt ?? 0) - (a.lastEventAt ?? 0)),
+    routines: routinesView(db, sessions, (r) => toSessionView(db, r, live.get(r.id), now, t.owner), now),
     districts: plan.districts.filter((d) => d.name !== 'For sale'),
     graveyard: graveyard(db, names, now, live),
     totals: {

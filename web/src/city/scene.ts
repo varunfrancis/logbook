@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import type { GraveEntry, ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
+import type { GraveEntry, ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
 import type { Mood } from '../crew/Avatar.tsx';
-import { compact } from '../format.ts';
+import { compact, nextRunText } from '../format.ts';
 import { shortDoing } from '../copy.ts';
 
 // Pastel colors as authored (matches the prototype); no linear-space conversion.
@@ -33,6 +33,21 @@ export const onBreak = (s: SessionView) => s.status === 'idle' && !s.away;
 /** Chat bubbles are a glance, not a log: paths become just the file name and long lines are cut. */
 const chatText = (s: string) => { const t = s.replace(/\S*\/(\S+)/g, '$1').replace(/\s+/g, ' ').trim(); return t.length > 64 ? t.slice(0, 62).trimEnd() + '…' : t; };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+
+/**
+ * A scheduled job between runs, drawn as a crew member asleep beside its building.
+ * It carries its last run's id, so clicking it opens that run.
+ */
+function sleeperView(r: RoutineView): SessionView {
+  return {
+    id: r.lastSessionId, projectId: r.projectId, agent: r.agent, title: r.title, status: 'ended', away: true, scheduled: true,
+    action: null, actionKind: null, needsMessage: null, branch: null, worktree: null, cwd: null, kind: null,
+    startedAt: r.lastRunAt, lastEventAt: r.lastEndedAt, endedAt: r.lastEndedAt, endReason: null,
+    tokens: 0, bricks: 0, tokensBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0 }, model: null, costUsd: 0, costEstimated: true,
+    linesAdded: null, linesRemoved: null, size: null, commits: 0, prUrl: null, prState: null, stamp: r.lastStamp, outcome: r.lastOutcome,
+    lastPrompt: null, firstPrompt: r.prompt, prompts: 0, helperActive: false, stuck: null, collision: null, lastCheck: null, chatter: null, filesChanged: 0,
+  };
+}
 
 function modeFor(s: SessionView): Mode {
   if (s.status === 'needs_input') return 'wave';
@@ -87,6 +102,13 @@ export class CityScene {
   // New agents walk in from the street and say hi: when each session was first seen arriving (ms), and every session seen so far.
   private arrivals = new Map<string, number>();
   private seenSids = new Set<string>();
+  /** Sleeping scheduled jobs on the map, by the session id their figure carries. */
+  private sleepers = new Map<string, RoutineView>();
+  private routineSeen = new Map<string, 'awake' | 'asleep'>();
+  /** A scheduled job that just woke up (live session id) or just dozed off (sleeper id) -> when. */
+  private waking = new Map<string, number>();
+  private dozing = new Map<string, number>();
+  private modeOf(s: SessionView): Mode { return this.sleepers.has(s.id) ? 'sleep' : modeFor(s); }
   private states = 0;
   private hl: { sessions: Set<string> | null; projects: Set<string> | null } = { sessions: null, projects: null };
   private graveGroup: THREE.Group | null = null;
@@ -192,6 +214,15 @@ export class CityScene {
       this.seenSids.add(s.id);
       if (!firstLook && s.status !== 'ended' && s.startedAt && Date.now() - s.startedAt < 120_000) this.arrivals.set(s.id, Date.now());
     }
+    // scheduled jobs: asleep beside their building between runs; a run starting wakes them, a run ending puts them back to bed
+    this.sleepers.clear();
+    for (const r of data.routines ?? []) {
+      const was = this.routineSeen.get(r.key);
+      if (!firstLook && was === 'asleep' && r.state === 'awake' && r.liveSessionId) { this.waking.set(r.liveSessionId, Date.now()); this.arrivals.delete(r.liveSessionId); }
+      if (!firstLook && was === 'awake' && r.state === 'asleep') this.dozing.set(r.lastSessionId, Date.now());
+      this.routineSeen.set(r.key, r.state);
+      if (r.state === 'asleep') this.sleepers.set(r.lastSessionId, r);
+    }
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
     const breaks = new Map<string, number>();
@@ -201,6 +232,10 @@ export class CityScene {
       if (onBreak(s)) { cafeCrew.push(s); breaks.set(s.projectId, (breaks.get(s.projectId) ?? 0) + 1); continue; }
       if (!byProject.has(s.projectId)) byProject.set(s.projectId, []);
       byProject.get(s.projectId)!.push(s);
+    }
+    for (const r of this.sleepers.values()) {
+      if (!byProject.has(r.projectId)) byProject.set(r.projectId, []);
+      byProject.get(r.projectId)!.push(sleeperView(r));
     }
     // ground
     const xs = visible.map((p) => p.lot[0]), zs = visible.map((p) => p.lot[1]);
@@ -224,7 +259,7 @@ export class CityScene {
       seen.add(p.id);
       const sessions = (byProject.get(p.id) ?? []).sort((a, c) => a.id.localeCompare(c.id));
       const away = breaks.get(p.id) ?? 0;
-      const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, away, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
+      const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, away, sessions.map((s) => [s.id, this.modeOf(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away, this.sleepers.has(s.id) ? nextRunText(this.sleepers.get(s.id)!.nextAt) : null])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
@@ -645,8 +680,8 @@ export class CityScene {
     const slots = this.slots(w, d, roofY, building && floors > 1 ? Math.min(3, Math.max(1, floors - 1)) : 0);
     const used = new Set<number>();
     sessions.forEach((s, i) => {
-      const mode = modeFor(s);
-      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6], stuck: [0, 4, 6], stand: [8, 9, 5] };
+      const mode = this.modeOf(s);
+      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6], stuck: [0, 4, 6], stand: [8, 9, 5], sleep: [9, 8, 7, 3] };
       let idx = pref[mode].find((k) => !used.has(k) && slots[k]);
       if (idx === undefined) idx = slots.findIndex((sl, k) => sl && !used.has(k));
       if (idx === -1 || idx === undefined) idx = 9 + i;
@@ -662,9 +697,10 @@ export class CityScene {
 
     // billboard
     const pr = p.prState === 'merged' ? '<span class="pr merged">merged</span>' : p.prState === 'open' ? '<span class="pr open">PR open</span>' : '';
+    const asleep = sessions.filter((s) => this.sleepers.has(s.id)).length, awake = sessions.length - asleep;
     const crewText = p.state === 'needs' ? 'hand raised'
-      : !sessions.length && onBreakCount ? 'all at the café'
-      : `${sessions.length + onBreakCount} on site${onBreakCount ? ` · ${onBreakCount} at the café` : ''}`;
+      : !awake && onBreakCount ? 'all at the café'
+      : `${awake + onBreakCount} on site${onBreakCount ? ` · ${onBreakCount} at the café` : ''}${asleep ? ` · ${asleep} asleep` : ''}`;
     const crew = live ? `<span class="crew">${crewText}</span>` : '';
     const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.bricks ? `<span class="tok">${compact(p.bricks)} bricks</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
@@ -808,10 +844,11 @@ export class CityScene {
   private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: Slot, updaters: Updater[], labels: Label[]) {
     if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
     const a = s.agent;
-    const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
+    const sleeper = mode === 'sleep' ? this.sleepers.get(s.id) ?? null : null;
+    const mood: Mood = sleeper ? 'out' : s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
     const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c), { dark: this.dark, glow: s.status === 'needs_input' ? '#e5484d' : s.status === 'running' ? '#17c3c3' : undefined });
     const g = crew.root;
-    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' || mode === 'stand' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
+    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' || mode === 'stand' || mode === 'sleep' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
     parent.add(g);
     this.crewFigures.push({ g, base: g.scale.x, h: crew.height, pid });
@@ -824,19 +861,30 @@ export class CityScene {
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
     // Always-on label: the project they're on (or what they're doing, in 2–3 words — a setting); their name appears when you hover or select the building.
-    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(this.bubbleText(s))}</span><span class="grp"></span><span class="who">${esc(a.name)}</span>`);
-    tag.dataset.sid = s.id; tag.dataset.status = s.away ? 'away' : s.status;
+    const next = sleeper ? nextRunText(sleeper.nextAt) : null;
+    const doing = sleeper ? (next ? `asleep · up ${next}` : 'asleep') : this.bubbleText(s);
+    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : sleeper ? 'sleep' : 'rest'}`, `<span class="doing">${esc(doing)}</span><span class="grp"></span><span class="who">${esc(a.name)}</span>`);
+    tag.dataset.sid = s.id; tag.dataset.status = sleeper ? 'asleep' : s.away ? 'away' : s.status;
     this.label(labels, tag, anchor, 0.42, 'tag', pid);
-    this.doingEls.set(s.id, tag);
+    if (!sleeper) this.doingEls.set(s.id, tag); // a sleeper's id is its last (ended) run: keep the bubble refresh off it
     if (s.away) { const z = this.div('zzz', 'z<small>z</small><small>z</small>'); z.dataset.sid = s.id; this.label(labels, z, anchor, 0.1, 'fx', pid); }
-    const hello = arrivedAt !== null && Date.now() - arrivedAt < 90_000;
+    const wokeAt = this.waking.get(s.id) ?? null, dozedAt = sleeper ? this.dozing.get(s.id) ?? null : null;
+    const nap = wokeAt !== null && Date.now() - wokeAt < 60_000 ? { text: `${a.name} woke up!`, sub: 'Scheduled run', at: wokeAt }
+      : dozedAt !== null && Date.now() - dozedAt < 30_000 ? { text: 'Back to sleep', sub: next ? `Up again ${next}` : 'Until next time', at: dozedAt } : null;
+    if (nap) {
+      const el = this.div('hello', `<b>${esc(nap.text)}</b><span>${esc(nap.sub)}</span>`);
+      el.dataset.sid = s.id;
+      this.label(labels, el, anchor, 1.25, 'fx', pid);
+      setTimeout(() => el.remove(), (wokeAt !== null ? 60_000 : 30_000) - (Date.now() - nap.at));
+    }
+    const hello = !nap && arrivedAt !== null && Date.now() - arrivedAt < 90_000;
     if (hello) {
       const hi = this.div('hello', `<b>Hi, I’m ${esc(a.name)}!</b><span>New on site</span>`);
       hi.dataset.sid = s.id;
       this.label(labels, hi, anchor, 1.9, 'fx', pid);
       setTimeout(() => hi.remove(), 90_000 - (Date.now() - arrivedAt!));
     }
-    if (s.chatter && !hello) {
+    if (s.chatter && !hello && !nap) {
       const chat = this.div('chat', esc(chatText(s.chatter)));
       chat.dataset.seed = String(hash(s.id) % 997); chat.dataset.sid = s.id;
       this.label(labels, chat, anchor, 0.95, 'chat', pid);
@@ -860,6 +908,9 @@ export class CityScene {
           g.rotation.y = Math.atan2(-6, -8);
         } else if (g.userData.walkedIn !== true) { g.userData.walkedIn = true; g.position.copy(home); g.rotation.y = facing; }
       }
+      // waking: sit up from the bedroll and hop to it · dozing: lie back down
+      if (wokeAt !== null) { const u = Math.min(1, (Date.now() - wokeAt) / 1600); crew.setLie(1 - u * u * (3 - 2 * u)); if (u < 1) g.position.y = home.y + Math.abs(Math.sin(u * Math.PI)) * 0.35; }
+      if (dozedAt !== null) { const u = Math.min(1, (Date.now() - dozedAt) / 2200); crew.setLie(u * u * (3 - 2 * u)); }
       crew.update(t);
       if (helper) {
         helper.root.position.set(g.position.x + Math.cos(k * 1.1) * 1.1, g.position.y, g.position.z + Math.sin(k * 1.1) * 1.1);

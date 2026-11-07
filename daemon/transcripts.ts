@@ -22,6 +22,7 @@ export type Segment = { start: number; end: number; kind: 'work' | 'wait' | 'idl
 
 export type Delta = {
   sessionId: string | null;
+  entrypoint: string | null; // cli · sdk-cli (headless `claude -p`, e.g. a cron job) · claude-desktop …
   cwd: string | null;
   branch: string | null;
   first: number | null;
@@ -80,7 +81,7 @@ export function errorSig(label: string, text: string): string {
 export function parseLines(lines: string[], prev: ParseState | string | null = null): Delta {
   const st: ParseState = typeof prev === 'object' && prev ? structuredClone(prev) : { ...freshState(), lastMsgId: (prev as string) ?? null };
   const d: Delta = {
-    sessionId: null, cwd: null, branch: null, first: null, last: null,
+    sessionId: null, entrypoint: null, cwd: null, branch: null, first: null, last: null,
     tokIn: 0, tokOut: 0, tokCR: 0, tokCW: 0, model: null, aiTitle: null,
     firstPrompt: null, lastPrompt: null, prompts: 0, outcome: null, action: null, turnEnded: null,
     commits: 0, tools: 0, edits: 0, reads: 0, webs: 0, asks: 0, files: [], errors: [],
@@ -95,6 +96,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
     let r: any;
     try { r = JSON.parse(line); } catch { continue; }
     if (r.sessionId) d.sessionId ??= r.sessionId;
+    if (r.entrypoint) d.entrypoint ??= r.entrypoint;
     if (r.cwd) d.cwd = r.cwd;
     if (r.gitBranch && r.gitBranch !== 'HEAD') d.branch = r.gitBranch;
     let ts = 0;
@@ -236,6 +238,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
   if (d.lastTest?.ok && errCount) { errCount = 0; } // a passing check clears "stuck"
   db.prepare(`UPDATE sessions SET
       transcript = COALESCE(transcript, ?),
+      entrypoint = COALESCE(entrypoint, ?),
       branch = COALESCE(?, branch),
       started_at = COALESCE(started_at, ?),
       last_event_at = MAX(COALESCE(last_event_at, 0), COALESCE(?, 0)),
@@ -255,7 +258,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
       pr_url = COALESCE(?, pr_url),
       cost_usd = COALESCE(?, cost_usd), lines_added = COALESCE(?, lines_added), lines_removed = COALESCE(?, lines_removed)
     WHERE id = ?`).run(
-    transcript, d.branch, d.first, d.last,
+    transcript, d.entrypoint, d.branch, d.first, d.last,
     d.tokIn, d.tokOut, d.tokCR, d.tokCW, d.model, d.aiTitle, d.firstPrompt, d.lastPrompt, d.prompts, d.outcome,
     d.action ? 1 : 0, d.action?.text ?? null, d.turnEnded ? 1 : 0,
     d.action ? 1 : 0, d.action?.kind ?? null, d.turnEnded ? 1 : 0,

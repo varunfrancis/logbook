@@ -45,7 +45,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
           <h2>{a.title}</h2>
           <div className="agent-meta">
             <span className={`pill s-${s.away ? 'away' : s.status}`}>{s.away ? 'Away' : STATUS[voice][s.status]}</span>
-            <span>{a.role === 'resident' ? 'Resident' : a.role === 'helper' ? 'Helper' : 'Own workbench'}{d?.career.since ? ` · since ${new Date(d.career.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}{d ? ` · ${d.profile.shifts} shift${d.profile.shifts === 1 ? '' : 's'}` : ''}</span>
+            <span>{a.role === 'resident' ? 'Resident' : a.role === 'helper' ? 'Helper' : a.role === 'routine' ? 'Scheduled job' : 'Own workbench'}{d?.career.since ? ` · since ${new Date(d.career.since).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}{d ? ` · ${d.profile.shifts} shift${d.profile.shifts === 1 ? '' : 's'}` : ''}</span>
           </div>
         </div>
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>

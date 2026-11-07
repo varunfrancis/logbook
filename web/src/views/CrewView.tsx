@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
+import type { ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../copy.ts';
-import { ago, compact, duration, firstLine, tildify } from '../format.ts';
+import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { useNow } from '../useLogbook.ts';
 
@@ -61,12 +61,38 @@ function WorkCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectVie
     <article className={`work${flag ? ' f-' + flag.cls : ''}${focused ? ' focused' : ''}`} style={{ animationDelay: jiggleDelay(s.id) }} onClick={() => open.agent(s.id)}>
       <div className="work-head">
         <AgentAvatar agent={s.agent} mood={moodFor(s)} size={60} />
-        <div className="work-who"><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
+        <div className="work-who"><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : s.agent.role === 'routine' ? `Scheduled job · ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
         {flag ? <span className={`flag ${flag.cls}`} title={flag.text}>{flag.label}</span> : null}
       </div>
       <div className="task" title={s.title}>{s.title}</div>
       <div className="now">Right now: <Swap text={plainAction(s.action, voice) ?? 'thinking'} /></div>
       <div className="meta"><span>{duration(s.startedAt, now)}</span><span>{voice === 'plain' ? bricks(s.bricks) : `${compact(s.tokens)} tok`}</span>{s.helperActive ? <span>+ helper</span> : null}<GoTo s={s} /></div>
+    </article>
+  );
+}
+
+/** A scheduled job: asleep between runs, awake (and also on the Building list) while one is going. */
+function RoutineCard({ r, p, now, open }: { r: RoutineView; p?: ProjectView; now: number; open: Open }) {
+  const awake = r.state === 'awake';
+  const next = nextRunText(r.nextAt, now);
+  return (
+    <article className={`routine${awake ? ' awake' : ''}`} onClick={() => open.agent(r.liveSessionId ?? r.lastSessionId)}>
+      <AgentAvatar agent={r.agent} mood={awake ? 'working' : 'out'} size={52} />
+      <div className="routine-body">
+        <div className="routine-top">
+          <div><b className="agent-name">{r.agent.title}</b><div className="sub">{p?.name}</div></div>
+          <span className={`pill ${awake ? 's-running' : 's-asleep'}`}>{awake ? 'Awake · on a run' : 'Asleep'}</span>
+        </div>
+        <div className="task" title={r.prompt ?? r.title}>{r.title}</div>
+        <div className="meta">
+          {awake ? <span>Woke up {ago(r.lastRunAt, now)}</span> : <span>Last ran {ago(r.lastRunAt, now)}</span>}
+          {!awake && r.lastStamp ? <Stamp stamp={r.lastStamp} /> : null}
+          {r.intervalMs ? <span>{every(r.intervalMs)}</span> : null}
+          {next ? <span>Up again {next}</span> : null}
+          <span className="muted">{r.runs} run{r.runs === 1 ? '' : 's'} this month</span>
+        </div>
+        {!awake && r.lastOutcome ? <div className="sub routine-out">{firstLine(r.lastOutcome, 140)}</div> : null}
+      </div>
     </article>
   );
 }
@@ -127,6 +153,12 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
               </button>
             ))}
           </div>
+        </section>
+      ) : null}
+      {state.routines?.length ? (
+        <section>
+          <h2>Scheduled <small>jobs that wake up, do their run, and go back to sleep</small></h2>
+          <div className="grid routines">{state.routines.map((r) => <RoutineCard key={r.key} r={r} p={projects.get(r.projectId)} now={now} open={open} />)}</div>
         </section>
       ) : null}
       <section>

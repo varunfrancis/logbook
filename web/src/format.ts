@@ -34,6 +34,27 @@ export function firstLine(text: string | null | undefined, max = 160): string {
   return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
 }
 
+/** When a sleeping scheduled job is next expected, in a couple of words. */
+export function nextRunText(at: number | null, now = Date.now()): string | null {
+  if (!at) return null;
+  const ms = at - now;
+  if (ms < 10 * 60_000) return 'any minute';
+  if (ms < 90 * 60_000) return `in ${Math.round(ms / 60_000)} min`;
+  if (ms < 36 * 3600_000) return `in ${Math.round(ms / 3600_000)} h`;
+  return `in ${Math.round(ms / 86_400_000)} days`;
+}
+
+/** A typical gap between scheduled runs, roughly: "every ~2 days". */
+export function every(ms: number | null | undefined): string {
+  if (!ms) return '';
+  const m = Math.round(ms / 60000);
+  if (m < 90) return `every ~${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 36) return h === 24 ? 'about daily' : `every ~${h} h`;
+  const d = Math.round(h / 24);
+  return d === 7 ? 'about weekly' : `every ~${d} days`;
+}
+
 export const tildify = (p: string | null | undefined) => (p ?? '').replace(/^\/Users\/[^/]+/, '~');
 
 export const STATUS_LABEL: Record<string, string> = {

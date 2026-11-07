@@ -3,6 +3,8 @@ import type { LiveEntry } from './live.ts';
 import type { ProjectState, SessionStatus } from './types.ts';
 import { CONSTRUCTION_MS, LIVE_GRACE_MS, QUIET_AFTER_MS } from './config.ts';
 
+const HEADLESS_QUIET_MS = 3 * 60_000;
+
 /**
  * Status comes from three sources, strongest first:
  * hook events (exact, real time) > the ~/.claude/sessions registry (alive pid + busy/idle) > transcripts (history).
@@ -10,6 +12,8 @@ import { CONSTRUCTION_MS, LIVE_GRACE_MS, QUIET_AFTER_MS } from './config.ts';
 export function sessionStatus(s: Row, live: LiveEntry | undefined, now: number): SessionStatus {
   const hookFresh = !!s.hook_state_at && now - Math.max(s.hook_state_at, s.last_event_at ?? 0) < LIVE_GRACE_MS;
   if (!live) {
+    // a headless run (cron) may never register a live process or fire hooks: trust a transcript that is still mid-turn
+    if (s.entrypoint === 'sdk-cli' && s.current_action && now - (s.last_event_at ?? 0) < HEADLESS_QUIET_MS && s.hook_state !== 'ended') return 'running';
     if (hookFresh && s.hook_state && s.hook_state !== 'ended') return s.hook_state === 'needs_input' ? 'needs_input' : s.hook_state === 'running' ? 'running' : 'idle';
     return 'ended';
   }
