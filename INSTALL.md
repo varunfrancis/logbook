@@ -38,7 +38,7 @@ Swarmville shows their Claude Code agents as little characters in a town in the 
 
 | The installer says | What to do |
 |---|---|
-| Something else is using port 7777 | Ask what's running there. Or install on another port: `curl -fsSL …/install.sh \| SWARMVILLE_PORT=7788 bash`, then open http://localhost:7788 |
+| Something else is using port 7777 | Nothing to do: the installer says which app has it and moves Swarmville to the next free port (7778 and up) by itself. Tell them the address it printed; their Swarmville icon opens it, and updates keep it. Only a port they chose themselves (`SWARMVILLE_PORT=…`) stops with a message instead. |
 | Could not parse `~/.claude/settings.json` | Their Claude Code settings file has a typo. Show them the error, fix the JSON with their OK, then rerun the installer |
 | Couldn't reach nodejs.org / Downloading Swarmville failed | Check the internet connection and rerun. It's safe to run again |
 | Already set up from a developer copy | They run Swarmville from source already. Leave it alone unless they ask to switch (`SWARMVILLE_FORCE=1`) |

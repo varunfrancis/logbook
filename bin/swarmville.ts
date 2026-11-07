@@ -104,7 +104,13 @@ function installDaemon() {
   if (!CUSTOM) retireLegacyLoginItem();
   const uid = process.getuid!();
   try { execFileSync('launchctl', ['bootout', `gui/${uid}/${LABEL}`], { stdio: 'ignore' }); } catch {}
-  execFileSync('launchctl', ['bootstrap', `gui/${uid}`, PLIST]);
+  // launchd can still be tearing down the old copy right after bootout (an update), which fails bootstrap with error 5: retry briefly.
+  for (let i = 0; ; i++) {
+    try { execFileSync('launchctl', ['bootstrap', `gui/${uid}`, PLIST], { stdio: 'pipe' }); break; } catch (e) {
+      if (i >= 20) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    }
+  }
   console.log(`Daemon installed as a login item (${LABEL}). Logs: ${path.join(DATA, 'daemon.log')}`);
 }
 
