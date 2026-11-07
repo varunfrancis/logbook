@@ -21,7 +21,11 @@ const LIFT = 1.6;
 
 type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
-type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'hello' | 'district'; pid: string };
+type Label = {
+  el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'hello' | 'district'; pid: string;
+  /** crew tags only: the eased upward nudge that keeps it off its neighbours, its place in last frame's stack, and the frame it was last laid out */
+  lift?: number; rank?: number; seen?: number;
+};
 type Slot = { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] };
 
 /** Nearest isometric corner view: π/4 + k·π/2. */
@@ -85,6 +89,7 @@ export class CityScene {
   private buildings = new Map<string, { group: THREE.Group; key: string; updaters: Updater[]; labels: Label[]; top: THREE.Object3D; state: string }>();
   private globalUpdaters: Updater[] = [];
   private labels: Label[] = [];
+  private labelFrame = 0;
   private selected: string | null = null;
   private hovered: string | null = null;
   private bounds = { minX: -1, maxX: 1, minZ: -1, maxZ: 1 };
@@ -1341,7 +1346,9 @@ export class CityScene {
     const hiddenTags = new Set<Label>();
     for (const g of restGroups.values()) {
       if (g.length < 2) { g[0].L.el.classList.remove('grouped'); continue; }
-      const lead = g.reduce((a, b) => (b.y > a.y ? b : a)); // the lowest one, nearest the crew
+      // A fixed member carries the shared tag, so it doesn't hop between agents as they move about; it sits by the lowest one, nearest the crew.
+      const lead = g.reduce((a, b) => ((b.L.el.dataset.sid ?? '') < (a.L.el.dataset.sid ?? '') ? b : a));
+      lead.y = Math.max(...g.map((r) => r.y));
       const doings = new Set(g.map((r) => r.L.el.querySelector('.doing')?.textContent ?? ''));
       const grp = lead.L.el.querySelector('.grp') as HTMLElement | null;
       const text = doings.size === 1 ? `${g.length} on ${[...doings][0]}` : `${g.length} resting`;
@@ -1351,7 +1358,12 @@ export class CityScene {
       for (const r of g) if (r !== lead) { r.L.el.classList.remove('grouped'); r.L.el.style.display = 'none'; hiddenTags.add(r.L); }
     }
     // Crew labels: several agents at one site would stack on top of each other, so nudge them apart.
-    tags.sort((a, b) => b.y - a.y);
+    // Stack from the bottom up, but keep last frame's order while two tags sit at about the same height: crew walking
+    // past each other (or turning on the camera's ring) would otherwise swap their tags back and forth.
+    const frame = ++this.labelFrame;
+    const fresh = (L: Label) => L.seen !== frame - 1;
+    tags.sort((a, b) => (Math.abs(a.y - b.y) < 28 && !fresh(a.L) && !fresh(b.L) ? (a.L.rank ?? 0) - (b.L.rank ?? 0) : b.y - a.y));
+    const ease = this.reduce ? 1 : 1 - Math.exp(-dt * 10);
     const tagBoxes: { x: number; y: number; w: number; h: number }[] = [];
     const tagBySid = new Map<string, { x: number; y: number; w: number; h: number }>();
     for (const r of tags) {
@@ -1362,11 +1374,16 @@ export class CityScene {
         moved = false;
         for (const q of tagBoxes) if (Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && y > q.y - q.h && y - h < q.y) { y = q.y - q.h; moved = true; }
       }
-      const box = { x: r.x, y, w, h };
-      tagBoxes.push(box);
-      if (r.L.el.dataset.sid) tagBySid.set(r.L.el.dataset.sid, box);
-      r.L.el.style.transform = `translate(${r.x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
-      r.L.el.style.zIndex = String(3000 + Math.round(y));
+      tagBoxes.push({ x: r.x, y, w, h });
+      // The tag follows its agent exactly; only the nudge eases, so a re-stack glides instead of jumping.
+      const L = r.L, want = r.y - y;
+      L.lift = fresh(L) || L.lift === undefined ? want : L.lift + (want - L.lift) * ease;
+      if (Math.abs(L.lift - want) < 0.3) L.lift = want;
+      L.rank = tagBoxes.length; L.seen = frame;
+      const shown = r.y - L.lift;
+      if (L.el.dataset.sid) tagBySid.set(L.el.dataset.sid, { x: r.x, y: shown, w, h });
+      L.el.style.transform = `translate(${r.x.toFixed(1)}px,${shown.toFixed(1)}px) translate(-50%,-100%)`;
+      L.el.style.zIndex = String(3000 + Math.round(y));
     }
     // Active projects: lift their name tags above the skyline on a dotted leader, and nudge them apart so none overlap.
     raised.sort((a, b) => b.y - a.y);
