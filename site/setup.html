@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How to set up Swarmville</title>
+<link rel="icon" type="image/svg+xml" href="brand/pip-favicon.svg">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Set up Swarmville on your Mac in about a minute: click the button, press Enter, click Allow.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap">
+<script>
+  // Remembered day/night choice, applied before paint so the page doesn't flash.
+  try { const t = localStorage.getItem('swarmville.site.theme') ?? localStorage.getItem('logbook.site.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+</script>
+<style>
+/* The landing page's stylesheet, copied as-is from index.html so both pages look the same. Keep the two in step. */
+/*
+ * Layout: a playful single page in bands. Hero with the town on a hill and one big "Set up with Claude" button,
+ * a "get it in one minute" band with a picker for where you use Claude, picture-and-text rows, a numbers strip,
+ * round-badge cards, questions and a closing call to action.
+ * Two looks from one set of tokens: day (bright, Duolingo-like) and night (the app's night town: navy sky, stars, lit windows, teal glow).
+ */
+:root {
+  /* Swarmville brand: Pip blue for actions and bands, hard-hat yellow for highlights, warm paper, slate ink */
+  --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --line: #e6e1d6;
+  --ink: #25303d; --ink-2: #5c6878; --ink-3: #8b94a1;
+  --headline: #25303d; --logo: #2f80ee;
+  --cta: #2563c9; --cta-edge: #1a4590; --cta-ink: #ffffff;
+  --btn2: #ffffff; --btn2-edge: #e6e1d6; --btn2-ink: #2563c9;
+  --band: #2563c9; --band-edge: #1a4590; --band-ink: #ffffff; --band-deep: #1a4590; --band-soft: #e3efff;
+  --grass-ink: #25303d; --t-red: #c8323a; --t-sun: #8a6200; --t-pink: #b8306f; --t-teal: #0b7a7a; --t-sky: #1a6fb0; --t-orange: #b0560a; --t-purple: #6d3fd1;
+  --sky-band: #ffc928; --num-ink: #3c2a00; --cloud: #ffffff55;
+  --hill-a: #b9e29b; --hill-b: #a4d684; --stage-sky: transparent;
+  --window: #ffffff99; --window-glow: none;
+  --art-sky: #e5f5fe; --art-sky-g: #cdeefe; --art-sun: #fff6dc; --art-sun-g: #ffe9a8;
+  --art-pink: #ffeef7; --art-pink-g: #ffd9ec; --art-green: #e9f8e1; --art-green-g: #d4f2c4;
+  --chat-me: #47b8f5; --say-bg: #e5f5fe; --say-line: #c9e9fb;
+  --stars: 0; --moon: 0;
+  --talk-edge: #d9d2c3; --talk-glow: #25303d26;
+  --b-top: #e8eaed; --b-bar: #ffffff; --b-url: #f1f3f4;
+  --sky: #47b8f5; --sky-dark: #1f8fd0; --sun: #ffc93c; --sun-dark: #e0a500;
+  --orange: #ff9a3d; --red: #ff5a5f; --purple: #a978ff; --pink: #ff86c8; --teal: #17c3c3;
+  --shadow: 0 10px 24px #0000001a;
+  --f-display: "Fredoka", "Nunito", system-ui, sans-serif;
+  --f-body: "Nunito", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
+  --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
+  --headline: #ffd772; --logo: #ffd772; --grass-ink: #eaf2ff; --t-red: #ff7b7f; --t-sun: #ffd34d; --t-pink: #ff86c8; --t-teal: #5fe0e0; --t-sky: #7cc8ff; --t-orange: #ffb067; --t-purple: #c4a8ff;
+  --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
+  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
+  --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
+  --sky-band: #1f3042; --num-ink: #ffffff; --cloud: #ffffff10;
+  --hill-a: #263a2a; --hill-b: #1f3122; --stage-sky: radial-gradient(ellipse at 50% 100%, #1f3042 0%, #141b25 70%);
+  --window: #ffd772; --window-glow: 0 0 10px #ffd77299;
+  --art-sky: #1a2a3c; --art-sky-g: #213650; --art-sun: #2a2416; --art-sun-g: #3a3018;
+  --art-pink: #2b1d2a; --art-pink-g: #3a2437; --art-green: #182c22; --art-green-g: #1f3a2c;
+  --chat-me: #17a4a4; --say-bg: #1a2a3c; --say-line: #2b4560;
+  --stars: 1; --moon: 1;
+  --talk-edge: #ffd772; --talk-glow: #00000080;
+  --b-top: #0e141c; --b-bar: #1c2532; --b-url: #232e3d;
+  --shadow: 0 10px 30px #0008;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
+  --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
+  --headline: #ffd772; --logo: #ffd772; --grass-ink: #eaf2ff; --t-red: #ff7b7f; --t-sun: #ffd34d; --t-pink: #ff86c8; --t-teal: #5fe0e0; --t-sky: #7cc8ff; --t-orange: #ffb067; --t-purple: #c4a8ff;
+  --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
+  --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
+  --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
+  --sky-band: #1f3042; --num-ink: #ffffff; --cloud: #ffffff10;
+  --hill-a: #263a2a; --hill-b: #1f3122; --stage-sky: radial-gradient(ellipse at 50% 100%, #1f3042 0%, #141b25 70%);
+  --window: #ffd772; --window-glow: 0 0 10px #ffd77299;
+  --art-sky: #1a2a3c; --art-sky-g: #213650; --art-sun: #2a2416; --art-sun-g: #3a3018;
+  --art-pink: #2b1d2a; --art-pink-g: #3a2437; --art-green: #182c22; --art-green-g: #1f3a2c;
+  --chat-me: #17a4a4; --say-bg: #1a2a3c; --say-line: #2b4560;
+  --stars: 1; --moon: 1;
+  --talk-edge: #ffd772; --talk-glow: #00000080;
+  --b-top: #0e141c; --b-bar: #1c2532; --b-url: #232e3d;
+  --shadow: 0 10px 30px #0008;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+#get, #how, #top, #town { scroll-margin-top: 80px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 700 17px/1.6 var(--f-body); -webkit-font-smoothing: antialiased; overflow-x: hidden; transition: background .3s, color .3s; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+p { margin: 0; }
+a { color: var(--btn2-ink); }
+.gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.inner { max-width: 1040px; margin: 0 auto; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* chunky buttons that press down */
+.btn { --c: var(--cta); --d: var(--cta-edge); --t: var(--cta-ink); display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; padding: 0 28px; border: 0; border-radius: 16px; background: var(--c); color: var(--t); box-shadow: 0 5px 0 var(--d);
+  font: 800 15px/1 var(--f-body); letter-spacing: .08em; text-transform: uppercase; text-decoration: none; cursor: pointer;
+  transition: transform .08s, box-shadow .08s, filter .15s; }
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(5px); box-shadow: 0 0 0 var(--d); }
+.btn:focus-visible { outline: 3px solid var(--sky); outline-offset: 4px; }
+.btn.second { --c: var(--btn2); --d: var(--btn2-edge); --t: var(--btn2-ink); border: 2px solid var(--btn2-edge); }
+.btn.on-band { --c: #ffffff; --d: #c9d9f2; --t: #295ca4; }
+.btn.big { min-height: 64px; padding: 0 34px; font-size: 17px; border-radius: 18px; box-shadow: 0 6px 0 var(--d); }
+.btn.big:active { transform: translateY(6px); }
+.btn.small { min-height: 42px; padding: 0 18px; font-size: 13px; border-radius: 13px; box-shadow: 0 4px 0 var(--d); }
+.btn.small:active { transform: translateY(4px); }
+.btn svg { flex: none; }
+
+/* nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(8px); border-bottom: 2px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--bg); }
+.nav .inner { display: flex; align-items: center; justify-content: space-between; height: 70px; gap: 12px; }
+.logo { display: flex; align-items: center; gap: 8px; font: 700 30px/1 var(--f-display); color: var(--logo); text-decoration: none; letter-spacing: -0.02em; }
+.nav-right { display: flex; gap: 10px; align-items: center; }
+.nav-link { font: 800 14px var(--f-body); color: var(--ink-2); text-decoration: none; padding: 0 6px; white-space: nowrap; }
+.nav-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.nav-link[aria-current="page"] { color: var(--ink); }
+.theme { width: 44px; height: 44px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 0 var(--line); }
+.theme:active { transform: translateY(3px); box-shadow: none; }
+.theme:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+.theme .moon-i { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .theme .sun-i { display: none; } :root:not([data-theme="light"]) .theme .moon-i { display: block; } }
+:root[data-theme="dark"] .theme .sun-i { display: none; } :root[data-theme="dark"] .theme .moon-i { display: block; }
+
+/* hero */
+.hero { position: relative; text-align: center; padding-top: 88px; overflow: hidden; background: var(--stage-sky); }
+.hero h1 { font-size: clamp(42px, 7.4vw, 76px); line-height: 1.02; color: var(--headline); max-width: 20ch; margin: 0 auto; text-transform: lowercase; }
+.hero .sub { font-size: clamp(18px, 2.2vw, 21px); color: var(--ink-2); max-width: 36ch; margin: 22px auto 0; }
+.start { margin: 40px auto 0; display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; z-index: 2; }
+.start .how { font-size: 15px; color: var(--ink-2); max-width: 44ch; }
+.start .how b { color: var(--ink); }
+.ways { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 14px; color: var(--ink-3); }
+.way { border: 2px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 12px; padding: 7px 12px; font: 800 13.5px var(--f-body); cursor: pointer; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+.way:hover { color: var(--ink); border-color: var(--ink-3); }
+.way:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.not-mac { display: none; background: var(--say-bg); border: 2px solid var(--say-line); border-radius: 16px; padding: 12px 16px; font-size: 15px; max-width: 46ch; }
+.is-other .not-mac { display: block; }
+
+.stage { position: relative; height: 380px; margin-top: 48px; }
+.stars { position: absolute; inset: 0 0 120px; opacity: var(--stars); pointer-events: none; transition: opacity .4s; }
+.stars i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; }
+.moon { position: absolute; right: calc(50% - 420px); top: 10px; width: 64px; height: 64px; border-radius: 50%; background: #ffe7a6; box-shadow: 0 0 40px #ffe7a666, inset -14px -6px 0 #f2cf72; opacity: var(--moon); transition: opacity .4s; }
+.hill { position: absolute; left: 50%; bottom: 0; width: max(1500px, 140vw); transform: translateX(-50%); height: 230px; }
+.hill .a { fill: var(--hill-a); } .hill .b { fill: var(--hill-b); }
+.town { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 14px; }
+.house { position: relative; width: 92px; border-radius: 10px 10px 0 0; box-shadow: inset 0 -8px 0 rgba(0,0,0,.08); }
+.house .wins { position: absolute; inset: 14px 14px 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 8px; align-content: start; }
+.house .wins i { height: 16px; border-radius: 3px; background: var(--window); box-shadow: var(--window-glow); }
+.house .wins i:nth-child(3n + 2) { opacity: calc(1 - var(--stars) * .7); }
+.house .door { position: absolute; bottom: 0; left: 50%; width: 22px; height: 30px; margin-left: -11px; background: rgba(0,0,0,.18); border-radius: 11px 11px 0 0; }
+.house .roof { position: absolute; top: -22px; left: -8px; right: -8px; height: 26px; border-radius: 10px; }
+.beam { position: absolute; left: 50%; bottom: 120px; width: 120px; height: 250px; transform: translateX(-62px); background: linear-gradient(to top, #17c3c355, transparent); opacity: var(--stars); border-radius: 60px 60px 0 0; pointer-events: none; }
+.crew { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; }
+/* night: no glow around the crew (it blurred them); a soft pool of warm window light on the ground instead */
+.crew::before { content: ""; position: absolute; left: -40px; right: -40px; bottom: -14px; height: 70px; border-radius: 50%; background: radial-gradient(closest-side, #ffd77240, #ffd77214 60%, transparent); opacity: var(--stars); pointer-events: none; z-index: -1; }
+.float { position: absolute; display: grid; place-items: center; }
+.bubble { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 8px 14px; font: 800 14px var(--f-body); box-shadow: 0 4px 0 #0001, var(--shadow); white-space: nowrap; }
+.bubble.red { background: var(--red); color: #fff; }
+.chip-round { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 5px 0 rgba(0,0,0,.15); color: #fff; font: 900 26px var(--f-display); }
+
+/* the crew's conversation: one speech bubble over whoever is talking */
+.talk { position: absolute; z-index: 3; left: 0; bottom: 0; width: max-content; max-width: min(310px, calc(100vw - 40px)); background: #ffffff; color: #25303d; border: 2.5px solid var(--talk-edge); border-radius: 18px; padding: 12px 16px; font: 800 16px/1.4 var(--f-body); text-align: left; box-shadow: 0 5px 0 var(--talk-edge), 0 18px 34px var(--talk-glow); opacity: 0; transform: translateY(8px) scale(.92); transform-origin: var(--tail, 50%) 100%; transition: opacity .25s, transform .35s cubic-bezier(.2, 1.4, .4, 1); pointer-events: none; }
+.talk.show { opacity: 1; transform: none; }
+.talk b { display: block; font: 700 15px var(--f-display); color: var(--name, #1a6fb0); margin-bottom: 2px; }
+.talk::before, .talk::after { content: ""; position: absolute; left: var(--tail, 50%); border-style: solid; border-color: transparent; border-bottom: 0; }
+.talk::before { bottom: -15px; margin-left: -12px; border-width: 13px 12px 0; border-top-color: var(--talk-edge); }
+.talk::after { bottom: -10px; margin-left: -9px; border-width: 10px 9px 0; border-top-color: #ffffff; }
+
+/* the "it's opening" helper */
+.opening { position: fixed; z-index: 40; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 30px); opacity: 0; visibility: hidden; width: min(460px, calc(100% - 32px));
+  background: var(--surface); color: var(--ink); border: 2px solid var(--line); border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow); transition: transform .35s cubic-bezier(.2, 1.5, .4, 1), opacity .2s, visibility .2s; display: flex; gap: 14px; }
+.opening.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+.opening h3 { font-size: 20px; }
+.opening ol { margin: 6px 0 0; padding-left: 20px; font-size: 15px; color: var(--ink-2); }
+.opening .missing { display: none; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+.opening.didnt .missing { display: block; }
+.inline-link { border: 0; background: none; padding: 0; font: inherit; color: var(--btn2-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.opening .x { position: absolute; top: 8px; right: 10px; border: 0; background: none; color: var(--ink-3); font-size: 22px; cursor: pointer; }
+
+
+/* the town, drawn: a close-up of four buildings inside a browser window that matches the visitor's browser */
+.real { background: var(--hill-b); color: var(--grass-ink); padding-block: 40px 140px; text-align: center; position: relative; }
+.real h2 { font-size: clamp(34px, 5vw, 50px); text-transform: lowercase; }
+.real .lead { font-size: 19px; opacity: .95; margin: 10px auto 0; max-width: 44ch; }
+.browser { margin: 40px auto 0; max-width: 1000px; border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 8px 0 rgba(0,0,0,.18), 0 30px 60px rgba(0,0,0,.2); text-align: left; }
+.browser .top { background: var(--b-top); display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.browser .lights { display: flex; gap: 7px; flex: none; }
+.browser .lights i { width: 12px; height: 12px; border-radius: 50%; }
+.browser .lights i:nth-child(1) { background: #ff5f57; } .browser .lights i:nth-child(2) { background: #febc2e; } .browser .lights i:nth-child(3) { background: #28c840; }
+.browser .url { display: flex; align-items: center; gap: 8px; background: var(--b-url); color: var(--ink-2); border-radius: 9px; padding: 6px 12px; font: 700 13.5px var(--f-body); min-width: 0; }
+.browser .url svg { flex: none; opacity: .6; }
+/* Chrome-style (also Arc, Edge, Firefox): a tab strip, then the address bar */
+.browser.chrome .top { flex-wrap: wrap; padding-bottom: 0; row-gap: 0; }
+.browser.chrome .tabstrip { display: flex; align-items: flex-end; gap: 6px; flex: 1; min-width: 0; padding-top: 2px; }
+.browser.chrome .tab { display: flex; align-items: center; gap: 8px; background: var(--b-bar); color: var(--ink); border-radius: 10px 10px 0 0; padding: 8px 14px; font: 800 13px var(--f-body); max-width: 220px; min-width: 0; }
+.browser.chrome .tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser.chrome .bar { flex-basis: calc(100% + 28px); background: var(--b-bar); margin: 0 -14px; padding: 8px 14px; display: flex; gap: 12px; align-items: center; }
+.browser .tab [data-char] svg { width: 18px; height: 18px; }
+.browser.chrome .bar .arrows { color: var(--ink-3); font: 900 16px var(--f-body); letter-spacing: 6px; flex: none; }
+.browser.chrome .url { flex: 1; border-radius: 999px; }
+/* Safari-style: one bar, address in the middle */
+.browser.safari .url { margin: 0 auto; width: min(420px, 60%); justify-content: center; }
+.browser.safari .tabstrip, .browser.safari .bar { display: none; }
+.browser.chrome .safari-url { display: none; }
+.browser .url { min-height: 28px; }
+.browser .shot { display: block; width: 100%; height: auto; }
+.browser .shot.night { display: none; }
+@media (max-width: 640px) { .browser .shot { height: 300px; object-fit: cover; object-position: 50% 52%; } .browser .shot.day, .browser .shot.night { width: 100%; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .browser .shot.day { display: none; } :root:not([data-theme="light"]) .browser .shot.night { display: block; } }
+:root[data-theme="dark"] .browser .shot.day { display: none; } :root[data-theme="dark"] .browser .shot.night { display: block; }
+
+/* trust: GitHub button, privacy row, open source strip */
+.gh-btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--ink); font: 800 14px var(--f-body); text-decoration: none; box-shadow: 0 3px 0 var(--line); }
+.gh-btn:hover { border-color: var(--ink-3); }
+.gh-btn:active { transform: translateY(3px); box-shadow: none; }
+.gh-btn:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+.gh-stars { font: 800 12.5px var(--f-body); background: var(--surface-2); color: var(--ink-2); border-radius: 999px; padding: 2px 8px; }
+.promises { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font: 800 14px var(--f-body); color: var(--ink-2); }
+.promises li { display: inline-flex; align-items: center; gap: 6px; }
+.promises svg { color: var(--t-teal); flex: none; }
+.way img, .tab img { width: 16px; height: 16px; flex: none; vertical-align: -3px; margin-right: 6px; }
+.oss { padding-block: 0 20px; }
+.oss-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 28px 32px; }
+.oss-card h2 { font-size: clamp(26px, 3.4vw, 34px); text-transform: lowercase; }
+.oss-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; color: var(--ink-2); font-size: 15px; }
+.oss-meta a { color: var(--btn2-ink); }
+.oss-card .btn svg { flex: none; }
+@media (max-width: 640px) { .gh-btn span:not(.gh-stars) { display: none; } .gh-btn { padding: 0 11px; } }
+
+/* how to get it */
+.get { background: var(--band); color: var(--band-ink); position: relative; padding-block: 110px 130px; }
+.get h2 { font-size: clamp(34px, 5vw, 50px); text-align: center; text-transform: lowercase; }
+.get .lead { text-align: center; font-size: 19px; opacity: .95; margin-top: 10px; }
+.tabs { display: flex; justify-content: center; gap: 8px; margin-top: 40px; flex-wrap: wrap; }
+.tab { border: 0; border-radius: 14px; padding: 12px 18px; font: 800 15px var(--f-body); cursor: pointer; background: #ffffff26; color: var(--band-ink); }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 4px 0 var(--band-edge); }
+.tab:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.tab small { font-weight: 700; opacity: .75; margin-left: 4px; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
+.steps[hidden] { display: none; }
+.step { background: var(--surface); color: var(--ink); border-radius: 24px; padding: 26px; box-shadow: 0 6px 0 var(--band-edge); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.step .num { width: 46px; height: 46px; border-radius: 50%; background: var(--band-soft); color: var(--cta-edge); display: grid; place-items: center; font: 700 24px var(--f-display); }
+:root[data-theme="dark"] .step .num { color: #9cc4ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step .num { color: #9cc4ff; } }
+.step h3 { font-size: 23px; }
+.step p { color: var(--ink-2); font-size: 16px; }
+.say { background: var(--say-bg); border: 2px solid var(--say-line); border-radius: 16px; padding: 12px 14px; font: 800 15px/1.45 var(--f-body); color: var(--ink); overflow-wrap: anywhere; }
+.say small { display: block; color: var(--ink-3); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.mini-chat { background: var(--surface-2); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.mini-chat .me { align-self: flex-end; background: var(--chat-me); color: #fff; border-radius: 14px 14px 4px 14px; padding: 8px 12px; max-width: 90%; }
+.mini-chat .typing { align-self: flex-start; display: flex; gap: 4px; padding: 10px 12px; background: var(--surface); border-radius: 14px 14px 14px 4px; }
+.mini-chat .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+.key { display: inline-block; border: 2px solid var(--line); border-bottom-width: 4px; border-radius: 8px; padding: 0 8px; font-size: 14px; color: var(--ink); background: var(--surface); }
+.allow { border: 2px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.allow .row { display: flex; gap: 8px; }
+.allow .row span { flex: 1; text-align: center; border-radius: 10px; padding: 8px; font-weight: 800; }
+.allow .yes { background: var(--cta); color: var(--cta-ink); box-shadow: 0 3px 0 var(--cta-edge); }
+.allow .no { background: var(--surface-2); color: var(--ink-2); }
+.cmd { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; font: 600 13.5px/1.5 ui-monospace, Menlo, monospace; overflow-wrap: anywhere; color: var(--ink); }
+.new-to-claude { text-align: center; margin-top: 30px; font-size: 16px; }
+.new-to-claude a { color: var(--band-ink); text-underline-offset: 4px; }
+.wave-top { position: absolute; left: 0; top: -39px; width: 100%; height: 40px; display: block; }
+.wave-top path { fill: var(--band); }
+
+/* feature rows */
+.features { padding-block: 70px 40px; }
+.feature { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; padding: 90px 0; border-bottom: 2px solid var(--line); }
+.feature:last-child { border-bottom: 0; }
+.feature.flip .art { order: 2; }
+.feature h2 { font-size: clamp(32px, 4.4vw, 44px); line-height: 1.08; text-transform: lowercase; }
+.feature p { color: var(--ink-2); font-size: 19px; margin-top: 14px; max-width: 34ch; }
+.art { position: relative; height: 290px; border-radius: 32px; display: grid; place-items: center; overflow: hidden; }
+.art .ground { position: absolute; left: -10%; right: -10%; bottom: -60px; height: 120px; border-radius: 50%; }
+.art.sky { background: var(--art-sky); } .art.sky .ground { background: var(--art-sky-g); }
+.art.sun { background: var(--art-sun); } .art.sun .ground { background: var(--art-sun-g); }
+.art.pink { background: var(--art-pink); } .art.pink .ground { background: var(--art-pink-g); }
+.art.green { background: var(--art-green); } .art.green .ground { background: var(--art-green-g); }
+.feature .tag { display: inline-block; font: 900 13px var(--f-body); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 10px; }
+.panel { position: relative; background: var(--surface); border-radius: 22px; padding: 18px; width: min(300px, 80%); box-shadow: 0 6px 0 #0000000f; display: grid; gap: 10px; }
+.panel .opt { border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 15px; }
+.panel .opt.on { border-color: var(--cta); background: var(--band-soft); }
+
+/* numbers band */
+.numbers { background: var(--sky-band); color: var(--num-ink); position: relative; padding-block: 90px; overflow: hidden; }
+.numbers .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; position: relative; }
+.numbers b { display: block; font: 700 clamp(48px, 7vw, 72px)/1 var(--f-display); }
+.numbers span { font-size: 18px; opacity: .95; }
+.cloud { position: absolute; background: var(--cloud); border-radius: 999px; }
+.cloud::before, .cloud::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
+.cloud::before { width: 55%; height: 140%; left: 14%; bottom: 20%; } .cloud::after { width: 40%; height: 110%; right: 14%; bottom: 25%; }
+
+/* promise cards */
+.promise { padding-block: 120px 60px; text-align: center; }
+.promise h2 { font-size: clamp(34px, 5vw, 50px); text-transform: lowercase; }
+.promise .lead { color: var(--ink-2); font-size: 19px; margin: 12px auto 0; max-width: 46ch; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-top: 90px; }
+.card { border: 2px solid var(--line); border-radius: 24px; padding: 70px 24px 28px; position: relative; text-align: left; background: var(--surface); }
+.card .badge { position: absolute; top: -52px; left: 50%; transform: translateX(-50%); width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; border: 4px solid var(--bg); }
+.card h3 { font-size: 24px; text-align: center; }
+.card p { color: var(--ink-2); font-size: 16px; margin-top: 10px; }
+
+/* questions */
+.faq { padding-block: 100px 120px; }
+.faq h2 { font-size: clamp(34px, 5vw, 48px); text-align: center; text-transform: lowercase; margin-bottom: 34px; }
+.faq details { border: 2px solid var(--line); border-radius: 18px; margin: 0 auto 14px; max-width: 760px; background: var(--surface); }
+.faq summary { list-style: none; cursor: pointer; padding: 20px 56px 20px 22px; font: 700 20px var(--f-display); position: relative; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: ""; position: absolute; right: 22px; top: 50%; width: 12px; height: 12px; margin-top: -9px; border-right: 3px solid var(--ink-3); border-bottom: 3px solid var(--ink-3); transform: rotate(45deg); transition: transform .2s; }
+.faq details[open] summary::after { transform: rotate(-135deg); margin-top: -3px; }
+.faq summary:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; border-radius: 16px; }
+.faq details p { padding: 0 22px 22px; color: var(--ink-2); font-size: 17px; }
+
+/* final */
+.final { background: var(--band); color: var(--band-ink); text-align: center; padding-block: 120px 0; position: relative; overflow: hidden; }
+.final h2 { font-size: clamp(40px, 6.5vw, 66px); text-transform: lowercase; line-height: 1.03; }
+.final p { font-size: 20px; margin-top: 14px; opacity: .95; }
+.final .btn { margin-top: 30px; }
+.final .crew-row { display: flex; justify-content: center; gap: 14px; margin-top: 50px; align-items: flex-end; }
+footer { background: var(--band-deep); color: var(--band-ink); padding-block: 30px calc(30px + env(safe-area-inset-bottom, 0px)); font-weight: 800; font-size: 14px; }
+footer .inner { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; text-transform: uppercase; letter-spacing: .08em; opacity: .9; }
+footer a { color: inherit; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight: 700; opacity: .7; text-transform: none; letter-spacing: 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 30px); opacity: 0; visibility: hidden; background: var(--ink); color: var(--bg); padding: 14px 22px; border-radius: 16px; font-weight: 800; z-index: 45; transition: transform .35s cubic-bezier(.2, 1.5, .4, 1), opacity .2s, visibility .2s; box-shadow: 0 10px 30px #0003; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+.confetti { position: fixed; z-index: 46; width: 10px; height: 14px; border-radius: 3px; pointer-events: none; }
+
+@media (max-width: 860px) {
+  .steps, .cards, .numbers .grid { grid-template-columns: 1fr; }
+  .cards { gap: 70px; }
+  .feature { grid-template-columns: 1fr; gap: 26px; padding: 48px 0; text-align: center; }
+  .feature.flip .art { order: 0; }
+  .feature p { margin-left: auto; margin-right: auto; }
+  .stage { height: 330px; }
+  .town, .beam { transform: translateX(-50%) scale(.78); transform-origin: bottom center; }
+  .moon { right: 20px; }
+  .hide-sm { display: none !important; }
+}
+
+/* motion */
+@media (prefers-reduced-motion: no-preference) {
+  .bob { animation: bob 3s ease-in-out infinite; }
+  .bob.d1 { animation-delay: -.6s; } .bob.d2 { animation-delay: -1.2s; } .bob.d3 { animation-delay: -1.8s; } .bob.d4 { animation-delay: -2.4s; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-14px) rotate(calc(var(--r, 0deg) * -1)); } }
+  .crew.talking .hop:not(.speaking) :is(.av-jump, .av-sh) { animation: none; }
+  .crew.talking .speaking .mouth { transform-box: fill-box; transform-origin: 50% 0; animation: talk-mouth .16s ease-in-out infinite alternate; }
+  @keyframes talk-mouth { from { transform: scaleY(.3); } to { transform: scaleY(1.1); } }
+  .hop .av-jump { animation: hop 1.8s cubic-bezier(.3, 0, .3, 1) infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  .hop .av-sh { animation: hop-shadow 1.8s cubic-bezier(.3, 0, .3, 1) infinite; transform-box: fill-box; transform-origin: center; }
+  .hop.d1 :is(.av-jump, .av-sh) { animation-delay: -.3s; } .hop.d2 :is(.av-jump, .av-sh) { animation-delay: -.7s; } .hop.d3 :is(.av-jump, .av-sh) { animation-delay: -1.1s; } .hop.d4 :is(.av-jump, .av-sh) { animation-delay: -1.5s; }
+  @keyframes hop-shadow { 0%, 60%, 100% { transform: scale(1); opacity: 1; } 70% { transform: scale(1.06, 1); } 80% { transform: scale(.72); opacity: .6; } 90% { transform: scale(1.04, 1); opacity: 1; } }
+  @keyframes hop { 0%, 60%, 100% { transform: translateY(0) scale(1, 1); } 70% { transform: translateY(0) scale(1.08, .9); } 80% { transform: translateY(-18px) scale(.95, 1.06); } 90% { transform: translateY(0) scale(1.05, .95); } }
+  .wobble { animation: wobble 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
+  @keyframes wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+  .eye { transform-box: fill-box; transform-origin: center; animation: blink 4.6s infinite; }
+  @keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+  .typing i { animation: dot 1.2s infinite; } .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-5px); opacity: 1; } }
+  .spark { animation: spark 2.2s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+  .spark.d1 { animation-delay: .7s; } .spark.d2 { animation-delay: 1.4s; }
+  @keyframes spark { 0% { transform: scale(0); opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.15); opacity: 0; } }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  .drift { animation: drift 40s linear infinite; }
+  @keyframes drift { from { transform: translateX(-10vw); } to { transform: translateX(110vw); } }
+  .wave-sound { animation: sound 1.2s ease-out infinite; transform-origin: left center; }
+  .wave-sound.d1 { animation-delay: .4s; }
+  @keyframes sound { 0% { opacity: 0; transform: scale(.6); } 40% { opacity: 1; } 100% { opacity: 0; transform: scale(1.2); } }
+  .stars i { animation: twinkle 3s ease-in-out infinite; }
+  @keyframes twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+  .beam { animation: beam 3s ease-in-out infinite; }
+  @keyframes beam { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+  .js .pop { transform: translateY(30px) scale(.94); opacity: 0; transition: transform .6s cubic-bezier(.2, 1.4, .4, 1), opacity .4s; }
+  .js .pop.in { transform: none; opacity: 1; }
+}
+
+/* setup page only */
+.setup-hero { padding-bottom: 10px; }
+.watch { max-width: 900px; margin: 40px auto 0; }
+.watch video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 24px; border: 4px solid var(--surface); background: #000; box-shadow: var(--shadow); }
+.watch .how { margin-top: 14px; font-size: 15px; color: var(--ink-2); }
+.promise .step { text-align: left; }
+.step code { font: 600 .9em ui-monospace, Menlo, monospace; }
+.faq code { font: 600 .9em ui-monospace, Menlo, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+.step .btn { align-self: flex-start; margin-top: auto; }
+@media (min-width: 861px) { .steps.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 780px; margin-left: auto; margin-right: auto; } }
+.final .crew-row img { display: block; max-width: 70vw; height: auto; }
+</style>
+</head>
+<body>
+
+<nav class="nav gutter" aria-label="Swarmville">
+  <div class="inner">
+    <a class="logo" href="./" aria-label="Swarmville home"><img src="brand/pip.svg" width="40" height="40" alt="">swarmville</a>
+    <div class="nav-right">
+      <a class="nav-link hide-sm" href="setup.html" aria-current="page">How to set up</a>
+      <button class="theme" id="theme" type="button" aria-label="Switch between day and night">
+        <svg class="sun-i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="#ffc93c"/><g stroke="#ffc93c" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>
+        <svg class="moon-i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="#ffd772"/></svg>
+      </button>
+      <a class="gh-btn" href="https://github.com/varunfrancis/swarmville" rel="noopener"><svg class="gh-mark" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      <a class="btn small hide-sm" href="#get">Set it up</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero setup-hero gutter" id="top">
+  <h1>how to set up swarmville</h1>
+  <p class="sub">About one minute on your Mac. Claude does the setup for you.</p>
+  <div class="watch">
+    <video controls preload="metadata" playsinline poster="setup-poster.jpg">
+      <source src="setup-video.mp4" type="video/mp4">
+      Your browser can't play this video. The steps below say the same thing.
+    </video>
+    <p class="how">A one-minute video with captions. The same steps are written out below.</p>
+  </div>
+</header>
+
+<section class="promise gutter" aria-labelledby="need-title">
+  <div class="inner">
+    <h2 id="need-title">before you start</h2>
+    <p class="lead">You need two things. That's all.</p>
+    <div class="steps">
+      <div class="step pop"><span class="num">✓</span><h3>A Mac</h3><p>Swarmville is made for Mac for now.</p></div>
+      <div class="step pop"><span class="num">✓</span><h3>The Claude app</h3><p>Signed in with your Claude account. <a href="https://claude.ai/download">Get the Claude app</a></p></div>
+      <div class="step pop"><span class="num">✓</span><h3>Nothing else</h3><p>No sign-up, no password, nothing to pay.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="get gutter" id="get" aria-labelledby="get-title">
+  <svg class="wave-top" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C 360 0, 1080 0, 1440 40 Z"/></svg>
+  <div class="inner">
+    <h2 id="get-title">three steps</h2>
+    <p class="lead">Click, press Enter, click Allow. Claude does the rest.</p>
+    <div class="steps">
+      <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>Claude opens with our message typed in. If your browser asks, click <b>Open</b>.</p><a class="btn" data-open="app" href="#">Set up with Claude</a></div>
+      <div class="step pop"><span class="num">2</span><h3>Press Enter</h3><p>Claude explains what it will do before it does anything.</p>
+        <div class="mini-chat" aria-hidden="true"><span class="me">Install Swarmville for me: https://raw.github…</span><span class="typing"><i></i><i></i><i></i></span></div></div>
+      <div class="step pop"><span class="num">3</span><h3>Click Allow</h3><p>Your town opens about a minute later, with a short welcome tour.</p>
+        <div class="allow" aria-hidden="true"><span>Allow Claude to install Swarmville?</span><div class="row"><span class="no">Deny</span><span class="yes">Allow</span></div></div></div>
+    </div>
+    <p class="new-to-claude">New to Claude Code? <a href="https://claude.ai/download">Get the Claude app first</a>.</p>
+  </div>
+</section>
+
+<section class="promise gutter" aria-labelledby="other-title">
+  <div class="inner">
+    <h2 id="other-title">other ways</h2>
+    <p class="lead">Use Claude in VS Code, or prefer Terminal? Both work the same.</p>
+    <div class="steps two">
+      <div class="step pop"><span class="num"><img src="brand/vscode.png" width="24" height="24" alt=""></span><h3>VS Code</h3><p>Needs the Claude Code extension. Click, press Enter, click Allow.</p><a class="btn" data-open="vscode" href="#">Open in VS Code</a></div>
+      <div class="step pop"><span class="num">⌘</span><h3>Terminal</h3><p>Press <span class="key">⌘</span> <span class="key">Space</span>, type <b>Terminal</b>, press <span class="key">Enter</span>. Paste this and press <span class="key">Enter</span>:</p><div class="cmd" id="term-line">curl -fsSL https://raw.githubusercontent.com/varunfrancis/swarmville/main/install.sh | bash</div><button class="btn" type="button" id="copy-term">Copy</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="faq gutter" aria-labelledby="faq-title">
+  <div class="inner">
+    <h2 id="faq-title">questions?</h2>
+    <details><summary>What does it do on my Mac?</summary><p>It puts Swarmville in a folder in your home folder (<code>~/.swarmville</code>), connects it to Claude so new chats show up live (your Claude settings are backed up first), starts it now and whenever your Mac starts, and opens your town at <a href="http://localhost:7777">localhost:7777</a>. Bookmark that page to come back.</p></details>
+    <details><summary>The button didn't open anything</summary><p>You probably need the Claude app: <a href="https://claude.ai/download">get it here</a>. Or <button class="inline-link" type="button" data-copy-msg>copy the message</button>, paste it into Claude and press Enter.</p></details>
+    <details><summary>Claude says something went wrong</summary><p>Ask Claude to fix it. It has the full instructions, including the usual problems. Running the setup again is always safe and keeps your town.</p></details>
+    <details><summary>I closed my town. How do I get back?</summary><p>Open <a href="http://localhost:7777">localhost:7777</a> in your browser. Swarmville keeps running in the background.</p></details>
+    <details><summary>How do I update or remove it?</summary><p>Ask Claude "update Swarmville" or "uninstall Swarmville".</p></details>
+    <details><summary>Is my work private?</summary><p>Yes. Everything stays on your Mac. Nothing is sent anywhere.</p></details>
+  </div>
+</section>
+
+<section class="final gutter" aria-labelledby="final-title">
+  <div class="inner">
+    <h2 id="final-title">ready to meet your crew?</h2>
+    <p>One click, one Enter, one Allow.</p>
+    <a class="btn on-band big" data-open="app" href="#">Set up with Claude</a>
+    <div class="crew-row" aria-hidden="true"><img src="brand/crew.svg" width="300" alt=""></div>
+  </div>
+</section>
+<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="./">Home</a><a href="#get">Set it up</a><a href="https://github.com/varunfrancis/swarmville">GitHub</a><a href="https://github.com/varunfrancis/swarmville/blob/main/LICENSE">MIT license</a><span>Mac only</span></div><p class="tm">Built with Claude Code. Not affiliated with Anthropic. Claude is a trademark of Anthropic, PBC.</p></footer>
+
+<div class="opening" id="opening" role="dialog" aria-labelledby="opening-title" aria-live="polite">
+  <div>
+    <h3 id="opening-title">Opening Claude…</h3>
+    <ol><li>If your browser asks, click <b>Open</b>.</li><li>Press <span class="key">Enter</span> in Claude.</li><li>Click <b>Allow</b> when Claude asks.</li></ol>
+    <p class="missing">Nothing opened? You may not have the <span id="missing-app">Claude app</span> yet. <a href="https://claude.ai/download">Get it here</a>, or <button class="inline-link" type="button" data-copy-msg>copy the message</button> and paste it into Claude Code.</p>
+  </div>
+  <button class="x" type="button" id="opening-close" aria-label="Close">×</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+document.documentElement.classList.add('js');
+const MESSAGE = 'Install Swarmville for me: https://raw.githubusercontent.com/varunfrancis/swarmville/main/INSTALL.md';
+// Links that open Claude Code with the message typed in (it never sends by itself: you press Enter). Same as index.html.
+const LINKS = {
+  app: 'claude://code/new?q=' + encodeURIComponent(MESSAGE),
+  vscode: 'vscode://anthropic.claude-code/open?prompt=' + encodeURIComponent(MESSAGE),
+};
+
+document.getElementById('theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('swarmville.site.theme', root.dataset.theme); } catch {}
+});
+
+// Toast + confetti
+const toast = document.getElementById('toast'); let toastTimer;
+function say(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600); }
+function confetti(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = el.getBoundingClientRect(), colors = ['#5ac33a', '#47b8f5', '#ffc93c', '#ff5a5f', '#a978ff', '#ff86c8'];
+  for (let i = 0; i < 26; i++) {
+    const c = document.createElement('i'); c.className = 'confetti'; c.style.background = colors[i % colors.length];
+    c.style.left = `${r.left + r.width / 2}px`; c.style.top = `${r.top + r.height / 2}px`; document.body.appendChild(c);
+    const a = Math.random() * Math.PI * 2, d = 80 + Math.random() * 120;
+    c.animate([{ transform: 'translate(0,0) rotate(0deg)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d - 60}px) rotate(${Math.random() * 720}deg)`, opacity: 0 }],
+      { duration: 900 + Math.random() * 400, easing: 'cubic-bezier(.2,.8,.4,1)' }).onfinish = () => c.remove();
+  }
+}
+async function copyText(text, el, done) {
+  try { await navigator.clipboard.writeText(text); confetti(el); say(done); }
+  catch { say('Copy didn’t work here. Select the text and press ⌘C.'); }
+}
+
+// Opening Claude: show what happens next; if the page never loses focus, the app probably isn't installed.
+const opening = document.getElementById('opening');
+let left = false;
+addEventListener('blur', () => { left = true; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) left = true; });
+function openIn(kind, el) {
+  left = false;
+  document.getElementById('opening-title').textContent = kind === 'vscode' ? 'Opening VS Code…' : 'Opening Claude…';
+  document.getElementById('missing-app').textContent = kind === 'vscode' ? 'Claude Code extension in VS Code' : 'Claude app';
+  opening.classList.remove('didnt'); opening.classList.add('show');
+  confetti(el);
+  location.href = LINKS[kind];
+  setTimeout(() => { if (!left) opening.classList.add('didnt'); }, 2200);
+}
+for (const b of document.querySelectorAll('[data-open]')) b.addEventListener('click', (e) => { e.preventDefault(); openIn(b.dataset.open, e.currentTarget); });
+document.getElementById('opening-close').addEventListener('click', () => opening.classList.remove('show'));
+for (const b of document.querySelectorAll('[data-copy-msg]')) b.addEventListener('click', (e) => copyText(MESSAGE, e.currentTarget, 'Copied! Paste it into Claude Code and press Enter.'));
+document.getElementById('copy-term').addEventListener('click', (e) => copyText(document.getElementById('term-line').textContent, e.currentTarget, 'Copied! Paste it into Terminal and press Enter.'));
+
+// Pop in on scroll; anything already on screen shows right away.
+const pops = [...document.querySelectorAll('.pop')];
+if ('IntersectionObserver' in window) {
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.15 });
+  pops.forEach((p, i) => { p.style.transitionDelay = `${(i % 3) * 90}ms`; if (p.getBoundingClientRect().top < innerHeight) p.classList.add('in'); else io.observe(p); });
+} else pops.forEach((p) => p.classList.add('in'));
+</script>
+</body>
+</html>
