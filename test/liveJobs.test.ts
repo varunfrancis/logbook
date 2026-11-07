@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jobWord, liveJobs } from '../web/src/city/liveJobs.ts';
+import { jobLabel, jobWord, liveJobs } from '../web/src/city/liveJobs.ts';
 
 const base = { status: 'running', stuck: null, actionKind: 'think', helperActive: false, filesChanged: 0 } as const;
 
@@ -34,4 +34,10 @@ test('live feed: only working or waiting jobs, hands up first, finished ones gon
   assert.equal(jobs[0].project, 'Logbook');
   assert.equal(jobs[3].job, 'Getting started'); // no machine-made names like a session hash
   assert.deepEqual(liveJobs(state, new Set(['p2'])).map((j) => j.id), ['e']);
+});
+
+test('job label (Town feed and Crew cards): live focus first, then a human session title', () => {
+  assert.equal(jobLabel({ focus: 'Fix login redirect', title: 'Build the landing page' }), 'Fix login redirect');
+  assert.equal(jobLabel({ focus: null, title: 'Build the landing page' }), 'Build the landing page');
+  assert.equal(jobLabel({ focus: null, title: 'a1b2c3d4' }), 'Getting started');
 });
