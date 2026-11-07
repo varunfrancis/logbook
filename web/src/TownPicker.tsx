@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { post } from './useLogbook.ts';
+import { setChime, setMusic, useSound } from './audio.ts';
 
 /** First launch: name your town. Also used from Settings to rename it. */
 export function TownPicker({ state, onDone }: { state: StateView; onDone: () => void }) {
@@ -30,6 +31,7 @@ export function TownPicker({ state, onDone }: { state: StateView; onDone: () => 
 export function Settings({ state, onClose, renameTown }: { state: StateView; onClose: () => void; renameTown: () => void }) {
   const [repo, setRepo] = useState(state.settings.skylineRepo ?? '');
   const [saved, setSaved] = useState(false);
+  const sound = useSound();
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={async (e) => { e.preventDefault(); await post('/api/settings', { skylineRepo: repo || null }); setSaved(true); }}>
@@ -40,6 +42,8 @@ export function Settings({ state, onClose, renameTown }: { state: StateView; onC
           <div className="muted">A local clone of your profile README repo (the one named after your username). "Update README skyline" saves the picture there, commits it and pushes.</div>
           <input id="skyline-repo" className="field" value={repo} onChange={(e) => { setRepo(e.target.value); setSaved(false); }} placeholder="/Users/you/Work/your-username" />
         </div>
+        <div className="setting"><div><b>Background music</b><div className="muted">A slow, calm loop that plays on every tab. It starts after your first click.</div></div><label className="toggle"><input type="checkbox" checked={sound.music} onChange={(e) => setMusic(e.target.checked)} /> {sound.music ? 'On' : 'Off'}</label></div>
+        <div className="setting"><div><b>Heads-up chime</b><div className="muted">A soft ding on the Town when two agents start changing the same file.</div></div><label className="toggle"><input type="checkbox" checked={sound.chime} onChange={(e) => setChime(e.target.checked)} /> {sound.chime ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `node bin/logbook.ts vscode` once, then reload VS Code.'}</div></div></div>
         <div className="row end">{saved ? <span className="muted">Saved</span> : null}<button type="button" className="ghost" onClick={onClose}>Close</button><button className="btn dark" type="submit">Save</button></div>
       </form>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../copy.ts';
@@ -24,24 +24,48 @@ function HandCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectVie
   );
 }
 
+/** Text that changes in place: a light sweeps the box, the old line slides up and out, the new one slides in.
+ *  Each line stays up at least a moment so a busy agent doesn't flicker. */
+function Swap({ text }: { text: string }) {
+  const [shown, setShown] = useState(text);
+  const [phase, setPhase] = useState<'idle' | 'out' | 'in'>('idle');
+  const last = useRef(0);
+  useEffect(() => {
+    if (text === shown) { setPhase((p) => (p === 'out' ? 'idle' : p)); return; } // changed back before the swap landed
+    const wait = Math.max(0, last.current + 1400 - Date.now());
+    const t0 = setTimeout(() => setPhase('out'), wait);
+    const t1 = setTimeout(() => { setShown(text); setPhase('in'); last.current = Date.now(); }, wait + 320);
+    return () => { clearTimeout(t0); clearTimeout(t1); };
+  }, [text, shown]);
+  useEffect(() => {
+    if (phase !== 'in') return;
+    const t = setTimeout(() => setPhase('idle'), 380);
+    return () => clearTimeout(t);
+  }, [phase, shown]);
+  return <span className={`swap s-${phase}`} title={shown}><span key={shown}>{shown}</span></span>;
+}
+
+/** Per-agent offset so the building cards don't all jiggle in unison. */
+const jiggleDelay = (id: string) => `${-([...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 5000)}ms`;
+
 function WorkCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectView; now: number; open: Open; focused: boolean }) {
   const voice = useVoice();
   const flag = s.stuck
-    ? { cls: 'bad', text: voice === 'plain' ? `Stuck: hit the same problem ${s.stuck.count} times` : `Looping: ${s.stuck.problem}` }
+    ? { cls: 'bad', label: voice === 'plain' ? 'Stuck' : 'Looping', text: voice === 'plain' ? `Stuck: hit the same problem ${s.stuck.count} times` : `Looping: ${s.stuck.problem}` }
     : s.collision
-    ? { cls: 'warn', text: voice === 'plain' ? `Bumping into ${s.collision.with}: both are changing ${s.collision.file}` : `Collision with ${s.collision.with} on ${s.collision.file}` }
+    ? { cls: 'warn', label: voice === 'plain' ? 'Bumping into someone' : 'Collision', text: voice === 'plain' ? `Bumping into ${s.collision.with}: both are changing ${s.collision.file}` : `Collision with ${s.collision.with} on ${s.collision.file}` }
     : s.lastCheck && !s.lastCheck.ok && now - s.lastCheck.at < 10 * 60_000
-    ? { cls: 'bad', text: voice === 'plain' ? 'Its last check failed. Fixing it.' : 'Last test run failed' }
+    ? { cls: 'bad', label: voice === 'plain' ? 'Check failed' : 'Tests failed', text: voice === 'plain' ? 'Its last check failed. Fixing it.' : 'Last test run failed' }
     : null;
   return (
-    <article className={`work${flag ? ' f-' + flag.cls : ''}${focused ? ' focused' : ''}`} onClick={() => open.agent(s.id)}>
+    <article className={`work${flag ? ' f-' + flag.cls : ''}${focused ? ' focused' : ''}`} style={{ animationDelay: jiggleDelay(s.id) }} onClick={() => open.agent(s.id)}>
       <div className="work-head">
         <AgentAvatar agent={s.agent} mood={moodFor(s)} size={60} />
-        <div><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
+        <div className="work-who"><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
+        {flag ? <span className={`flag ${flag.cls}`} title={flag.text}>{flag.label}</span> : null}
       </div>
-      <div className="task">{s.title}</div>
-      <div className="now">Right now: {plainAction(s.action, voice) ?? 'thinking'}</div>
-      {flag ? <div className={`flag ${flag.cls}`}>{flag.text}</div> : null}
+      <div className="task" title={s.title}>{s.title}</div>
+      <div className="now">Right now: <Swap text={plainAction(s.action, voice) ?? 'thinking'} /></div>
       <div className="meta"><span>{duration(s.startedAt, now)}</span><span>{voice === 'plain' ? bricks(s.bricks) : `${compact(s.tokens)} tok`}</span>{s.helperActive ? <span>+ helper</span> : null}<GoTo s={s} /></div>
     </article>
   );
@@ -57,12 +81,15 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
   const idle = state.sessions.filter((s) => s.status === 'idle');
   const closed = state.sessions.filter((s) => s.status === 'ended' && (s.endedAt ?? 0) >= today.getTime());
   const order = [...needs, ...working];
-  const [focus, setFocus] = useState(0);
+  // Keyboard focus sticks to an agent (not a slot in the list) and only shows once you start using j/k.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const focus = order.findIndex((s) => s.id === focusId);
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest('input, textarea, [contenteditable]')) return;
-      if (e.key === 'j') setFocus((i) => Math.min(order.length - 1, i + 1));
-      if (e.key === 'k') setFocus((i) => Math.max(0, i - 1));
+      if (e.key === 'j') setFocusId(order[focus < 0 ? 0 : Math.min(order.length - 1, focus + 1)]?.id ?? null);
+      if (e.key === 'k') setFocusId(order[focus < 0 ? 0 : Math.max(0, focus - 1)]?.id ?? null);
+      if (e.key === 'Escape') setFocusId(null);
       const s = order[focus];
       if (!s) return;
       if (e.key === 'Enter') fetch(`/api/jump/${encodeURIComponent(s.id)}`, { method: 'POST' });
@@ -71,18 +98,23 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
     addEventListener('keydown', f);
     return () => removeEventListener('keydown', f);
   }, [order, focus, open]);
+  useEffect(() => { // using the mouse puts the keyboard highlight away
+    const clear = () => setFocusId(null);
+    addEventListener('pointerdown', clear);
+    return () => removeEventListener('pointerdown', clear);
+  }, []);
   const town = state.projects.filter((p) => p.state !== 'lot').sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
 
   return (
     <div className="crew">
       <section>
         <h2>Raised a hand <small>they can't continue without you</small></h2>
-        {needs.length ? <div className="grid hands">{needs.map((s, i) => <HandCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={focus === i} />)}</div>
+        {needs.length ? <div className="grid hands">{needs.map((s) => <HandCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={s.id === focusId} />)}</div>
           : <Empty title="Nobody is waiting on you." />}
       </section>
       <section>
         <h2>Building <small>{working.length} at work</small></h2>
-        {working.length ? <div className="grid works">{working.map((s, i) => <WorkCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={focus === needs.length + i} />)}</div>
+        {working.length ? <div className="grid works">{working.map((s) => <WorkCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={s.id === focusId} />)}</div>
           : <Empty title="Nobody is building right now.">Start <code>claude</code> in any project and they'll clock in here within a couple of seconds.</Empty>}
       </section>
       {idle.length ? (

@@ -22,11 +22,14 @@ const LIFT = 1.6;
 type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
 type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'district'; pid: string };
+type Slot = { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] };
 
 /** Nearest isometric corner view: π/4 + k·π/2. */
 function snapCorner(az: number) { return Math.PI / 4 + Math.round((az - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2); }
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+/** On a coffee break: done for now, waiting on you, not long enough to count as away. They spend it at the café. */
+export const onBreak = (s: SessionView) => s.status === 'idle' && !s.away;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 function modeFor(s: SessionView): Mode {
@@ -87,6 +90,8 @@ export class CityScene {
   private graveLabels: Label[] = [];
   private graveKey = '';
   private elapsed = 0;
+  private cafe: { group: THREE.Group; updaters: Updater[]; labels: Label[]; key: string } | null = null;
+  private cafeHover = false;
 
   private container: HTMLElement;
   private labelLayer: HTMLElement;
@@ -174,31 +179,42 @@ export class CityScene {
     this.last = { data, showLots };
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
+    const breaks = new Map<string, number>();
+    const cafeCrew: SessionView[] = [];
     for (const s of data.sessions) if (s.status !== 'ended' && s.projectId) {
+      // agents on a coffee break leave their building for the café
+      if (onBreak(s)) { cafeCrew.push(s); breaks.set(s.projectId, (breaks.get(s.projectId) ?? 0) + 1); continue; }
       if (!byProject.has(s.projectId)) byProject.set(s.projectId, []);
       byProject.get(s.projectId)!.push(s);
     }
     // ground
     const xs = visible.map((p) => p.lot[0]), zs = visible.map((p) => p.lot[1]);
     const b = xs.length ? { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) } : { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
-    if (data.graveyard?.length) b.minX -= 1; // room for the graveyard at the edge of town
+    // An extra column at the edge of town: the café at its far end, the graveyard at its near end.
+    b.minX -= 1;
+    if (data.graveyard?.length && b.minZ === b.maxZ) b.minZ -= 1;
     const gk = JSON.stringify(b) + this.dark;
     if (gk !== this.groundKey) { this.groundKey = gk; this.bounds = b; this.buildGround(); this.graveKey = ''; }
     const pk = JSON.stringify([data.districts ?? [], visible.map((p) => p.lot), !!data.graveyard?.length]) + this.groundKey;
     if (pk !== this.parkKey) { this.parkKey = pk; this.buildParks(data.districts ?? [], visible, !!data.graveyard?.length); }
     const grk = JSON.stringify((data.graveyard ?? []).map((e) => e.sessionId)) + this.groundKey;
     if (grk !== this.graveKey) { this.graveKey = grk; this.buildGraveyard(data.graveyard ?? []); }
+    const visiblePids = new Set(visible.map((p) => p.id));
+    const regulars = cafeCrew.filter((s) => visiblePids.has(s.projectId!)).sort((a, c) => a.id.localeCompare(c.id));
+    const ck = JSON.stringify(regulars.map((s) => [s.id, s.agent.title, s.helperActive, !!s.chatter])) + this.groundKey;
+    if (!this.cafe || this.cafe.key !== ck) this.buildCafe(regulars, ck);
     // buildings
     const seen = new Set<string>();
     for (const p of visible) {
       seen.add(p.id);
       const sessions = (byProject.get(p.id) ?? []).sort((a, c) => a.id.localeCompare(c.id));
-      const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
+      const away = breaks.get(p.id) ?? 0;
+      const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, away, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
       if (prev) this.removeBuilding(p.id);
-      this.addBuilding(p, sessions, key);
+      this.addBuilding(p, sessions, key, away);
       if (celebrate) this.confetti(p);
     }
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
@@ -234,11 +250,17 @@ export class CityScene {
   focus(id: string) {
     const b = this.buildings.get(id);
     if (!b) return;
-    b.group.getWorldPosition(this.v);
+    this.flyToObject(b.group);
+  }
+  /** Fly over to the café. */
+  focusCafe() { if (this.cafe) this.flyToObject(this.cafe.group, false); }
+
+  private flyToObject(o: THREE.Object3D, besidePanel = true) {
+    o.getWorldPosition(this.v);
     const zoom = Math.max(this.zoom, 1.8);
     // Center the building in the part of the town the side panel doesn't cover.
     const W = this.container.clientWidth || 1, H = this.container.clientHeight || 1, a = W / H;
-    const panel = W > 720 ? Math.min(380, W - 24) + 12 : 0;
+    const panel = besidePanel && W > 720 ? Math.min(380, W - 24) + 12 : 0;
     const vh = Math.max(this.viewSize / Math.max(a, 1) * 0.9, this.viewSize / a * 0.9, 24) / zoom;
     const shift = (panel / 2) * (vh / H);
     const { right, fwd } = this.axes();
@@ -250,6 +272,7 @@ export class CityScene {
     cancelAnimationFrame(this.raf);
     this.disposeFns.forEach((f) => f());
     for (const id of [...this.buildings.keys()]) this.removeBuilding(id);
+    if (this.cafe) { this.freeObject(this.cafe.group); this.dropLabels(this.cafe.labels); this.cafe = null; }
     this.labelLayer.innerHTML = '';
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -276,16 +299,20 @@ export class CityScene {
     this.sun.target.position.copy(this.target);
   }
 
-  private pickAny(clientX: number, clientY: number): { kind: 'project' | 'agent' | 'grave'; id: string } | null {
+  private pickAny(clientX: number, clientY: number): { kind: 'project' | 'agent' | 'grave' | 'cafe'; id: string; cafe?: boolean } | null {
     const r = this.renderer.domElement.getBoundingClientRect();
     this.ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(this.ndc, this.cam);
     const roots = [...this.buildings.values()].map((b) => b.group as THREE.Object3D);
     if (this.graveGroup) roots.push(this.graveGroup);
+    if (this.cafe) roots.push(this.cafe.group);
     const hit = this.ray.intersectObjects(roots, true)[0];
     let o: THREE.Object3D | null = hit?.object ?? null;
-    while (o && !o.userData.pid && !o.userData.sid && !o.userData.grave) o = o.parent;
-    if (o?.userData.sid) return { kind: 'agent', id: o.userData.sid };
+    let inCafe = false;
+    for (let q: THREE.Object3D | null = o; q; q = q.parent) if (q.userData.cafe) inCafe = true;
+    while (o && !o.userData.pid && !o.userData.sid && !o.userData.grave && !o.userData.cafe) o = o.parent;
+    if (o?.userData.sid) return { kind: 'agent', id: o.userData.sid, cafe: inCafe };
+    if (o?.userData.cafe) return { kind: 'cafe', id: '__cafe', cafe: true };
     if (o?.userData.pid) return { kind: 'project', id: o.userData.pid };
     if (o?.userData.grave) return { kind: 'grave', id: '__grave' };
     return null;
@@ -323,6 +350,7 @@ export class CityScene {
         const h = this.pickAny(e.clientX, e.clientY);
         const id = h?.kind === 'project' ? h.id : null;
         el.style.cursor = h ? 'pointer' : 'grab';
+        this.cafeHover = !!h?.cafe;
         if (id !== this.hovered) { this.hovered = id; this.opts.onHover?.(id); }
         return;
       }
@@ -351,6 +379,7 @@ export class CityScene {
         const h = this.pickAny(e.clientX, e.clientY);
         if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id);
         else if (h?.kind === 'grave' && this.opts.onGraveyard) this.opts.onGraveyard();
+        else if (h?.kind === 'cafe') this.focusCafe();
         else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
       }
       // Settle on the nearest of the four isometric corners: in-between angles shear the grid and look off.
@@ -484,12 +513,16 @@ export class CityScene {
     const b = this.buildings.get(id);
     if (!b) return;
     this.freeObject(b.group);
-    for (const l of b.labels) { l.el.remove(); if (l.kind === 'chat') for (const [k, v] of this.chatEls) if (v === l.el) this.chatEls.delete(k); if (l.el.dataset.sid && this.doingEls.get(l.el.dataset.sid) === l.el) this.doingEls.delete(l.el.dataset.sid); }
-    this.labels = this.labels.filter((l) => !b.labels.includes(l));
+    this.dropLabels(b.labels);
     this.buildings.delete(id);
   }
 
-  private addBuilding(p: ProjectView, sessions: SessionView[], key: string) {
+  private dropLabels(list: Label[]) {
+    for (const l of list) { l.el.remove(); if (l.kind === 'chat') for (const [k, v] of this.chatEls) if (v === l.el) this.chatEls.delete(k); if (l.el.dataset.sid && this.doingEls.get(l.el.dataset.sid) === l.el) this.doingEls.delete(l.el.dataset.sid); }
+    this.labels = this.labels.filter((l) => !list.includes(l));
+  }
+
+  private addBuilding(p: ProjectView, sessions: SessionView[], key: string, onBreakCount = 0) {
     const outer = new THREE.Group();
     outer.position.set(p.lot[0] * PITCH, 0, p.lot[1] * PITCH);
     outer.userData.pid = p.id;
@@ -581,7 +614,7 @@ export class CityScene {
     const used = new Set<number>();
     sessions.forEach((s, i) => {
       const mode = modeFor(s);
-      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6], stuck: [0, 4, 6] };
+      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6], stuck: [0, 4, 6], stand: [8, 9, 5] };
       let idx = pref[mode].find((k) => !used.has(k) && slots[k]);
       if (idx === undefined) idx = slots.findIndex((sl, k) => sl && !used.has(k));
       if (idx === -1 || idx === undefined) idx = 9 + i;
@@ -597,7 +630,10 @@ export class CityScene {
 
     // billboard
     const pr = p.prState === 'merged' ? '<span class="pr merged">merged</span>' : p.prState === 'open' ? '<span class="pr open">PR open</span>' : '';
-    const crew = live ? `<span class="crew">${p.state === 'needs' ? 'hand raised' : `${sessions.length} on site`}</span>` : '';
+    const crewText = p.state === 'needs' ? 'hand raised'
+      : !sessions.length && onBreakCount ? 'all at the café'
+      : `${sessions.length + onBreakCount} on site${onBreakCount ? ` · ${onBreakCount} at the café` : ''}`;
+    const crew = live ? `<span class="crew">${crewText}</span>` : '';
     const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.bricks ? `<span class="tok">${compact(p.bricks)} bricks</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
     if (live) { const leader = document.createElement('i'); leader.className = 'leader'; bb.appendChild(leader); }
@@ -720,10 +756,9 @@ export class CityScene {
   }
 
   private slots(w: number, d: number, roofY: number, levels: number) {
-    type Slot = { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] } | null;
     const L1 = levels >= 1 ? FH : 0, L2 = levels >= 2 ? 2 * FH : L1;
     const sx = w / 2 + (levels ? 0.85 : 1.4), sz = d / 2 + (levels ? 0.85 : 1.4);
-    const s: Slot[] = [
+    const s: (Slot | null)[] = [
       { pos: [sx, L1, 0.6], face: -Math.PI / 2 },                                                  // 0 wall, +x face
       { pos: [0, L2, sz], face: 0, walk: [[-w / 2 + 0.6, L2, sz], [w / 2 - 0.6, L2, sz]] },          // 1 plank walk, +z face
       roofY > 0.5 ? { pos: [0.6, roofY, 0.4], face: 0.6 } : { pos: [-1.2, 0, d / 2 + 2], face: 0.6 }, // 2 roof / blueprint
@@ -738,13 +773,13 @@ export class CityScene {
     return s;
   }
 
-  private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] }, updaters: Updater[], labels: Label[]) {
+  private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: Slot, updaters: Updater[], labels: Label[]) {
     if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
     const a = s.agent;
     const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
     const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c), { dark: this.dark, glow: s.status === 'needs_input' ? '#e5484d' : s.status === 'running' ? '#17c3c3' : undefined });
     const g = crew.root;
-    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
+    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' || mode === 'stand' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
     parent.add(g);
     this.crewFigures.push({ g, base: g.scale.x, h: crew.height, pid });
@@ -837,6 +872,7 @@ export class CityScene {
     const { minX, maxX, minZ, maxZ } = this.bounds;
     const used = new Set(visible.map((p) => `${p.lot[0]},${p.lot[1]}`));
     if (graves) used.add(`${minX},${maxZ}`);
+    used.add(`${minX},${minZ}`); // the café
     for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
       if (used.has(`${x},${z}`)) continue;
       const r = rand(hash(`${x},${z}`));
@@ -853,6 +889,149 @@ export class CityScene {
       g.add(anchor);
       this.label(this.parkLabels, this.div('district', esc(d.name)), anchor, 0, 'district', '');
     }
+  }
+
+  /**
+   * The café: a coffee kiosk with tables where every agent on a coffee break goes to sit, with a steaming mug, until you're back.
+   * It sits at the far end of the extra column at the edge of town. Everything on the patio turns with the camera (like the crew
+   * on a building), so the kiosk is always at the back and the tables always face you.
+   */
+  private buildCafe(crew: SessionView[], key: string) {
+    if (this.cafe) { this.freeObject(this.cafe.group); this.dropLabels(this.cafe.labels); }
+    const { minX, minZ } = this.bounds;
+    const outer = new THREE.Group(); outer.position.set(minX * PITCH, 0, minZ * PITCH); outer.userData.cafe = true; this.scene.add(outer);
+    const updaters: Updater[] = [], labels: Label[] = [];
+    this.cafe = { group: outer, updaters, labels, key };
+    const dk = this.dark;
+    // lot and a checkered terracotta patio (square, so it can stay put while the rest turns)
+    this.bx(8.4, 0.18, 8.4, dk ? '#a8a294' : '#ece5d4', 0, 0, 0, outer);
+    const tileA = dk ? '#9a7458' : '#e8c39a', tileB = dk ? '#86634a' : '#dcae80';
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+      const t = this.bx(0.95, 0.05, 0.95, (i + j) % 2 ? tileA : tileB, -3.325 + i * 0.95, 0.18, -3.325 + j * 0.95, outer); t.castShadow = false;
+    }
+    const g = new THREE.Group(); g.position.y = BASE; outer.add(g);
+    const ring = new THREE.Group(); ring.userData.crewRing = true; ring.rotation.y = this.az - Math.PI / 4; g.add(ring); this.crewRings.push(ring);
+    // patio coordinates: u = screen-right, v = toward the camera (the ring keeps them that way at every corner view)
+    const P = (u: number, v: number, y = 0): [number, number, number] => [Math.SQRT1_2 * (u + v), y, Math.SQRT1_2 * (v - u)];
+
+    // ---- the kiosk, in the back corner, open on the two sides facing you
+    const K = new THREE.Group(); K.position.set(-2, 0, -2); ring.add(K);
+    const cream = dk ? '#d9ccb6' : '#f6ead4', wood = '#7a4e2d';
+    this.bx(3, 0.9, 3, cream, 0, 0, 0, K);
+    this.bx(3.14, 0.08, 3.14, '#c99257', 0, 0.9, 0, K);                    // counter top
+    this.bx(2.7, 0.95, 2.7, dk ? '#2f241d' : '#4a3426', -0.1, 0.98, -0.1, K); // dark interior
+    for (const [x, z] of [[-1.45, -1.45], [1.45, -1.45], [-1.45, 1.45], [1.45, 1.45]]) this.bx(0.14, 0.95, 0.14, wood, x, 0.98, z, K);
+    this.bx(3.3, 0.22, 3.3, wood, 0, 1.93, 0, K);                           // roof
+    this.bx(3.36, 0.06, 3.36, cream, 0, 2.15, 0, K);
+    // espresso machine, cups and pastries on the counter
+    this.bx(0.75, 0.55, 0.45, '#c9ccd1', -0.5, 0.98, 0.9, K);
+    this.bx(0.75, 0.08, 0.45, '#8f959c', -0.5, 1.53, 0.9, K);
+    this.bx(0.12, 0.12, 0.02, this.winMat('#ffe7a8'), -0.3, 1.3, 1.13, K);
+    for (let i = 0; i < 4; i++) this.mesh(new THREE.CylinderGeometry(0.08, 0.065, 0.16, 10), i % 2 ? '#ffffff' : '#e5484d', 0.5 + i * 0.22, 1.06, 1.25, K);
+    this.mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.04, 14), '#e9d3a8', 1.1, 1.0, 0.5, K);
+    for (let i = 0; i < 3; i++) this.mesh(new THREE.SphereGeometry(0.08, 8, 6), '#c98a3e', 1.02 + i * 0.08, 1.08, 0.45 + (i % 2) * 0.1, K);
+    // striped awnings over both open sides
+    for (let i = 0; i < 6; i++) {
+      const c = i % 2 ? '#fff6e8' : '#e5484d';
+      const a = this.bx(0.5, 0.06, 0.9, c, -1.25 + i * 0.5, 1.72, 1.85, K); a.rotation.x = 0.38;
+      const b = this.bx(0.9, 0.06, 0.5, c, 1.85, 1.72, -1.25 + i * 0.5, K); b.rotation.z = -0.38;
+    }
+    // a giant mug on the roof, steaming
+    const mug = new THREE.Group(); mug.position.set(0, 2.18, 0); K.add(mug);
+    this.mesh(new THREE.CylinderGeometry(0.62, 0.52, 1, 20), '#ffffff', 0, 0.5, 0, mug);
+    this.mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.04, 20), '#6b3f22', 0, 0.98, 0, mug);
+    this.mesh(new THREE.CylinderGeometry(0.6, 0.57, 0.16, 20), '#e5484d', 0, 0.55, 0, mug);
+    const handle = this.mesh(new THREE.TorusGeometry(0.28, 0.08, 8, 16), '#ffffff', 0.62, 0.5, 0, mug); handle.rotation.y = Math.PI / 4;
+    this.steam(mug, 0, 1.05, 0, 1.4, updaters, 4);
+    // chalkboard A-frame by the counter
+    const board = new THREE.Group(); board.position.set(...P(-2.9, -0.4)); board.rotation.y = Math.PI / 4; ring.add(board);
+    const f1 = this.bx(0.62, 0.8, 0.05, '#2f3b33', 0, 0, 0.12, board); f1.rotation.x = -0.25;
+    const f2 = this.bx(0.62, 0.8, 0.05, '#2f3b33', 0, 0, -0.12, board); f2.rotation.x = 0.25;
+    for (let i = 0; i < 3; i++) { const l = this.bx(0.38 - i * 0.08, 0.04, 0.01, '#f4f1e6', 0, 0.55 - i * 0.16, 0.16 + i * 0.04, board); l.rotation.x = -0.25; l.castShadow = false; }
+
+    // ---- string lights along the two back edges, from the kiosk roof out to two posts
+    const bulbCols = ['#ffd84d', '#ff9f6b', '#fff3c2', '#9fe3d0'];
+    for (const [px, pz] of [[-3.6, 3.6], [3.6, -3.6]]) {
+      this.bx(0.1, 2.5, 0.1, '#5b4632', px, 0, pz, ring);
+      const from = new THREE.Vector3(px, 2.45, pz), to = new THREE.Vector3(-3.4, 2.2, -3.4);
+      for (let i = 1; i < 10; i++) {
+        const u = i / 10;
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), this.winMat(bulbCols[i % bulbCols.length]));
+        bulb.position.lerpVectors(from, to, u); bulb.position.y -= Math.sin(u * Math.PI) * 0.35; ring.add(bulb);
+      }
+    }
+    // potted shrubs on the patio corners
+    for (const [u, v] of [[-4.3, 0.6], [4.3, 0.6], [0, 4.6]]) {
+      const [x, , z] = P(u, v);
+      this.mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.42, 10), '#c0583d', x, 0.21, z, ring);
+      this.mesh(new THREE.IcosahedronGeometry(0.42, 0), dk ? '#3f7d45' : '#5fae5b', x, 0.72, z, ring);
+    }
+    if (dk) { const pl = new THREE.PointLight('#ffcf8a', 40, 12, 1.6); pl.position.set(...P(0, 0.8, 4)); ring.add(pl); }
+
+    // ---- tables: a seat either side of each round table; the middle rows fill first, then the queue at the counter
+    const tables: [number, number][] = [[-1.7, 1.0], [1.7, 1.0], [0, 3.1], [-2.9, -1.2], [2.9, -1.2]];
+    const seats: { u: number; v: number; table: number; side: number }[] = [];
+    tables.forEach(([u, v], t) => { seats.push({ u: u - 0.95, v, table: t, side: -1 }, { u: u + 0.95, v, table: t, side: 1 }); });
+    for (const [u, v] of tables) {
+      const tg = new THREE.Group(); tg.position.set(...P(u, v)); ring.add(tg);
+      this.mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.06, 18), '#fffaf0', 0, 0.74, 0, tg);
+      this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.72, 8), '#59616b', 0, 0.37, 0, tg);
+      this.mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), '#59616b', 0, 0.02, 0, tg);
+    }
+    seats.forEach((st, i) => {
+      const [tu, tv] = tables[st.table];
+      if (crew[i]) {
+        // their mug on the table, on their side, steaming
+        const m = new THREE.Group(); m.position.set(...P(tu + st.side * 0.22, tv + 0.1, 0.77)); ring.add(m);
+        this.mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.18, 10), ['#ffffff', '#9fd9c6', '#f6d36b'][i % 3], 0, 0.09, 0, m);
+        this.mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.01, 10), '#6b3f22', 0, 0.18, 0, m);
+        this.steam(m, 0, 0.2, 0, 0.7, updaters, 2);
+        return;
+      }
+      // an empty chair, backrest away from the table (screen-right in ring space is (√½, -√½))
+      const chair = new THREE.Group(); chair.position.set(...P(st.u, st.v)); ring.add(chair);
+      chair.rotation.y = Math.atan2(st.side * Math.SQRT1_2, -st.side * Math.SQRT1_2);
+      this.bx(0.42, 0.05, 0.42, '#a0703f', 0, 0.4, 0, chair);
+      this.bx(0.06, 0.4, 0.06, '#5b4632', 0, 0, 0, chair);
+      this.bx(0.06, 0.5, 0.42, '#a0703f', -0.2, 0.45, 0, chair);
+    });
+    crew.forEach((s, i) => {
+      let slot: Slot = { pos: [0, 0, 0], face: Math.PI / 4 }, mode: Mode = 'sit';
+      if (i < seats.length) slot.pos = P(seats[i].u, seats[i].v);
+      else {
+        // everyone else waits in line at the counter, then mills about the front of the patio
+        const q = i - seats.length, k = q - 3, u = ((k % 5) - 2) * 1.1;
+        mode = 'stand';
+        slot.pos = q < 3 ? P(0.2 + q * 0.9, -0.2 + q * 0.5) : P(u, 4.3 - Math.abs(u) * 0.5 - Math.floor(k / 5) * 0.6);
+      }
+      this.builder(ring, s.projectId ?? '__cafe', s, mode, slot, updaters, labels);
+      // everyone here is on a break, so their tag says who they are (shown when you're close or pointing at the café)
+      const tag = this.doingEls.get(s.id);
+      if (tag) { tag.dataset.cafe = '1'; tag.innerHTML = `<span class="doing">${esc(s.agent.name)}</span>`; this.doingEls.delete(s.id); }
+    });
+
+    // the sign: always on, like the graveyard's
+    const sign = new THREE.Object3D(); sign.position.set(-2, 4.1, -2); ring.add(sign);
+    const el = this.div('cafe-sign', `Café <small>${crew.length ? `${crew.length} on a break` : 'quiet'}</small>`);
+    el.onclick = () => this.focusCafe();
+    el.onpointerenter = () => { this.cafeHover = true; };
+    el.onpointerleave = () => { this.cafeHover = false; };
+    this.label(labels, el, sign, 0, 'fx', '__cafe');
+  }
+
+  /** Little puffs of steam rising and fading above a cup. */
+  private steam(parent: THREE.Object3D, x: number, y: number, z: number, rise: number, updaters: Updater[], n: number) {
+    const puffs = Array.from({ length: n }, () => {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(rise * 0.09, 0), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
+      parent.add(m); return m;
+    });
+    const ph = Math.random() * 10;
+    updaters.push((t) => puffs.forEach((m, i) => {
+      const k = (t * 0.45 + ph + i / n) % 1;
+      m.position.set(x + Math.sin((t + i) * 2) * rise * 0.06, y + k * rise, z + Math.cos((t + i) * 1.7) * rise * 0.04);
+      m.scale.setScalar(0.6 + k * 1.2);
+      (m.material as THREE.MeshBasicMaterial).opacity = 0.75 * Math.sin(k * Math.PI);
+    }));
   }
 
   private buildGraveyard(graves: GraveEntry[]) {
@@ -924,6 +1103,7 @@ export class CityScene {
     this.stepAnim();
     for (const f of this.globalUpdaters) f(t, dt);
     for (const b of this.buildings.values()) for (const f of b.updaters) f(t, dt);
+    if (this.cafe) for (const f of this.cafe.updaters) f(t, dt);
     // Keep every character at least ~30px tall on screen, however far out you zoom.
     const unitsPerPx = (this.cam.top - this.cam.bottom) / Math.max(1, this.renderer.domElement.clientHeight);
     this.crewFigures = this.crewFigures.filter((c) => c.g.parent);
@@ -943,8 +1123,9 @@ export class CityScene {
       if (L.kind === 'tag') {
         const ds = L.el.dataset.status;
         // working / waiting crew always show what they're doing; resting crew only when you're close or looking at their building
-        show = ds === 'running' || ds === 'needs_input' || zoomedIn || L.pid === this.selected || L.pid === this.hovered || !!F.sessions?.has(L.el.dataset.sid ?? '');
-        L.el.classList.toggle('named', L.pid === this.selected || L.pid === this.hovered);
+        const atCafe = L.el.dataset.cafe === '1';
+        show = ds === 'running' || ds === 'needs_input' || zoomedIn || L.pid === this.selected || L.pid === this.hovered || !!F.sessions?.has(L.el.dataset.sid ?? '') || (atCafe && this.cafeHover);
+        L.el.classList.toggle('named', L.pid === this.selected || L.pid === this.hovered || (atCafe && this.cafeHover));
       }
       if (L.kind === 'chat') { const seed = Number(L.el.dataset.seed ?? 0); show = L.pid === this.selected || (this.zoom > 1.05 && Math.floor((this.elapsed + seed) / 6) % 3 === 0); }
       if (L.kind === 'bb') {

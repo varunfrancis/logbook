@@ -11,6 +11,7 @@ import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
 import { bricks, money, VoiceContext, type Voice } from './copy.ts';
 import { compact } from './format.ts';
+import { setMusic, useSound } from './audio.ts';
 
 type View = 'town' | 'crew' | 'day';
 const readView = (): View => (location.hash === '#crew' ? 'crew' : location.hash === '#day' ? 'day' : 'town');
@@ -39,6 +40,7 @@ export function App() {
   const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const theme = useTheme();
+  const sound = useSound();
   // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
   const [only, setOnly] = useState<'needs' | 'building' | 'break' | 'shipped' | null>(null);
   const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('logbook.hiddenProjects') || '[]')); } catch { return new Set(); } });
@@ -102,6 +104,8 @@ export function App() {
               <button className={voice === 'plain' ? 'on' : ''} onClick={() => setVoice('plain')}>Plain</button>
               <button className={voice === 'technical' ? 'on' : ''} onClick={() => setVoice('technical')}>Technical</button>
             </div>
+            <button className={`ghost small music${sound.music ? ' on' : ''}`} onClick={() => setMusic(!sound.music)} aria-pressed={sound.music}
+              title={sound.music ? 'Background music is on. Click to turn it off' : 'Background music is off. Click to turn it on'}>{sound.music ? '♪ Music on' : '♪ Music off'}</button>
             <button className="ghost small" onClick={theme.cycle} aria-label="Toggle day and night">{theme.dark ? 'Day' : 'Night'}</button>
             <button className="ghost small" onClick={() => setModal('settings')} aria-label="Settings">Settings</button>
             <span className={`conn c-${conn}`} title={conn === 'live' ? 'Connected' : conn === 'offline' ? 'Logbook isn’t running. Start it with `npm start`.' : 'Connecting'} />

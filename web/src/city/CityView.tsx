@@ -4,6 +4,7 @@ import { CityScene } from './scene.ts';
 import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.ts';
 import { isoDate, post, useDay } from '../useLogbook.ts';
 import { PROJECT, useVoice } from '../copy.ts';
+import { BumpToasts } from './BumpToasts.tsx';
 
 export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, dark, onShare }: {
   state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
@@ -78,6 +79,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     <div className="city">
       <div className="city-canvas" ref={host} />
       <div className="city-labels" ref={labels} />
+      <BumpToasts state={state} onAgent={onAgent} offset={!!replay} />
       {replay ? (
         <div className="replay-clock" aria-live="off">
           <b>{new Date(replay.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</b>
