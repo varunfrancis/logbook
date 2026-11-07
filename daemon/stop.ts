@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import type { LiveEntry } from './live.ts';
 
 /*
- * Clocking an agent out from Logbook: the VS Code helper closes its terminal tab (which ends Claude with it),
+ * Clocking an agent out from Swarmville: the VS Code helper closes its terminal tab (which ends Claude with it),
  * and the daemon makes sure the Claude process itself stops: SIGTERM, then SIGKILL if it hangs on.
  * Claude writes its transcript as it goes, so the conversation can be resumed later.
  */

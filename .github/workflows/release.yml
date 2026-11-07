@@ -1,6 +1,6 @@
 name: Release
 
-# Tag a version (git tag v0.1.0 && git push origin v0.1.0) to publish logbook.tar.gz, which install.sh downloads.
+# Tag a version (git tag v0.1.0 && git push origin v0.1.0) to publish swarmville.tar.gz, which install.sh downloads.
 on:
   push:
     tags: ['v*']
@@ -27,12 +27,12 @@ jobs:
       - name: Pack
         # The daemon only uses Node's built-in modules, so the app is its source plus the built web UI. No node_modules.
         run: |
-          mkdir -p out/logbook
-          cp -R daemon bin hook vscode package.json README.md LICENSE INSTALL.md out/logbook/
-          mkdir -p out/logbook/web && cp -R web/dist out/logbook/web/dist
-          tar -czf logbook.tar.gz -C out logbook
-          tar -tzf logbook.tar.gz | head -20
+          mkdir -p out/swarmville
+          cp -R daemon bin hook vscode package.json README.md LICENSE INSTALL.md out/swarmville/
+          mkdir -p out/swarmville/web && cp -R web/dist out/swarmville/web/dist
+          tar -czf swarmville.tar.gz -C out swarmville
+          tar -tzf swarmville.tar.gz | head -20
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" logbook.tar.gz --title "Logbook $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" swarmville.tar.gz --title "Swarmville $GITHUB_REF_NAME" --generate-notes

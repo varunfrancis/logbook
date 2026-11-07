@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
-import { CLAUDE_DIR, DATA_DIR, PORT, WEB_DIST } from './config.ts';
+import { CLAUDE_DIR, DATA_DIR, DEFAULT_DATA_DIR, LEGACY_DATA_DIR, PORT, WEB_DIST } from './config.ts';
 import { kvGet, kvSet, openDb, type Row } from './db.ts';
 import { purgeOwnRuns, scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { backfillEntrypoints } from './routines.ts';
@@ -23,7 +23,11 @@ import { addNote, dismissFlag, letGo, noteContext, notesPending, removeNote, wri
 import type { Setup, StateView, Welcome } from './types.ts';
 import { NEW_WELCOME } from './state.ts';
 import { addAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
+import { adoptLegacyData, env } from './legacy.ts';
 
+// Before the rename to Swarmville, the town lived in ~/.logbook: move it across before opening it (only the daemon does this, never on import).
+adoptLegacyData(DATA_DIR, DATA_DIR === DEFAULT_DATA_DIR ? LEGACY_DATA_DIR : null);
+fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = openDb();
 let live = new Map<string, LiveEntry>();
 let state!: StateView;
@@ -63,7 +67,7 @@ function tick() {
     if (ticks++ % 15 === 0) { db.prepare("UPDATE sessions SET stamp = NULL WHERE stamp IS NOT NULL AND id IN (" + ([...live.keys()].map(() => '?').join(',') || "''") + ")").run(...live.keys()); stampClosed(db, new Set(live.keys()), ticks === 1 ? 400 : 25); }
     refresh();
   } catch (e) {
-    console.error('[logbook] tick failed', e);
+    console.error('[swarmville] tick failed', e);
   } finally {
     ticking = false;
   }
@@ -177,7 +181,7 @@ function launch(projectId: string, prompt: string, plan: boolean): Opened {
   };
 }
 
-/** Only Logbook's own pages (and local tools like the VS Code helper) may change things: other websites can't poke the local server. */
+/** Only Swarmville's own pages (and local tools like the VS Code helper) may change things: other websites can't poke the local server. */
 function sameSite(req: http.IncomingMessage): boolean {
   const origin = req.headers.origin; // browsers always send it on a POST; local tools don't
   if (!origin) return true;
@@ -322,12 +326,13 @@ const server = http.createServer(async (req, res) => {
       const repo = kvGet<string | null>(db, 'settings.skylineRepo', null);
       if (body.push && repo) {
         try {
-          const dest = path.join(repo, 'logbook-skyline.png');
-          fs.copyFileSync(file, dest);
-          execFileSync('git', ['-C', repo, 'add', 'logbook-skyline.png'], { timeout: 10000 });
+          // A profile repo set up before the rename to Swarmville keeps its file name, so the README image doesn't go stale.
+          const name = fs.existsSync(path.join(repo, 'logbook-skyline.png')) ? 'logbook-skyline.png' : 'swarmville-skyline.png';
+          fs.copyFileSync(file, path.join(repo, name));
+          execFileSync('git', ['-C', repo, 'add', name], { timeout: 10000 });
           try { execFileSync('git', ['-C', repo, 'commit', '-m', 'Update Swarmville skyline'], { timeout: 10000 }); } catch {}
           execFileSync('git', ['-C', repo, 'push'], { timeout: 30000 });
-          return json(res, 200, { ok: true, file, pushed: true, markdown: '![My agent town](logbook-skyline.png)' });
+          return json(res, 200, { ok: true, file, pushed: true, markdown: `![My agent town](${name})` });
         } catch (e: any) {
           return json(res, 200, { ok: false, file, pushed: false, error: `Saved locally, but pushing to ${repo} failed: ${String(e?.message ?? e).slice(0, 200)}` });
         }
@@ -354,20 +359,20 @@ const server = http.createServer(async (req, res) => {
  * "Setting up your town" with real counts instead of a page that won't load.
  */
 refreshHookScript();
-addPermissionHook();
-try { const n = purgeOwnRuns(db); if (n) console.log(`[logbook] removed ${n} of Logbook's own background runs from the town`); } catch (e) { console.error('[logbook] cleanup failed', e); }
-try { backfillEntrypoints(db); } catch (e) { console.error('[logbook] entrypoint backfill failed', e); }
-console.log('[logbook] indexing transcripts…');
+updateHookSettings();
+try { const n = purgeOwnRuns(db); if (n) console.log(`[swarmville] removed ${n} of Swarmville's own background runs from the town`); } catch (e) { console.error('[swarmville] cleanup failed', e); }
+try { backfillEntrypoints(db); } catch (e) { console.error('[swarmville] entrypoint backfill failed', e); }
+console.log('[swarmville] indexing transcripts…');
 const t0 = Date.now();
 scanTranscripts(db, Date.now() + 300);
 refresh();
-server.listen(PORT, '127.0.0.1', () => console.log(`[logbook] http://localhost:${PORT}`));
+server.listen(PORT, '127.0.0.1', () => console.log(`[swarmville] http://localhost:${PORT}`));
 function bootStep() {
-  try { scanTranscripts(db, Date.now() + 400); } catch (e) { console.error('[logbook] reading transcripts failed', e); }
+  try { scanTranscripts(db, Date.now() + 400); } catch (e) { console.error('[swarmville] reading transcripts failed', e); }
   if (transcriptsLeft() > 0) { refresh(); setTimeout(bootStep, 15); return; }
-  try { consolidateProjects(db); } catch (e) { console.error('[logbook] joining duplicate projects failed', e); }
+  try { consolidateProjects(db); } catch (e) { console.error('[swarmville] joining duplicate projects failed', e); }
   tick(); // first full pass: characters, outcomes
-  console.log(`[logbook] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
+  console.log(`[swarmville] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
   setInterval(tick, 2000);
   firstNames().finally(() => { setup.phase = 'ready'; refresh(); startLoops(); });
 }
@@ -375,7 +380,7 @@ setTimeout(bootStep, 15);
 
 /** Name every building in one go before the town is revealed (capped, so a slow model never holds up the welcome). */
 async function firstNames() {
-  if (process.env.LOGBOOK_NO_NAMING) return;
+  if (env('NO_NAMING')) return;
   setup.phase = 'naming'; refresh();
   const cap = new Promise((r) => setTimeout(r, 30_000));
   await Promise.race([(async () => { while (await nameProjectsBatch(db) > 0) refresh(); })().catch(() => {}), cap]);
@@ -383,51 +388,67 @@ async function firstNames() {
 }
 
 /**
- * Installs from before raised hands could be answered in the town have every Logbook hook except PermissionRequest:
- * add that one next to them (same command, settings backed up first) so upgrading doesn't need a reinstall.
+ * Keeps Claude Code's hooks pointing at this install without a reinstall (settings backed up first):
+ * - hooks set up before Swarmville was renamed from Logbook point at ~/.logbook/hook.sh: they move to the new folder
+ *   (the old path still works through a link, so this is tidying, not a fix);
+ * - installs from before raised hands could be answered in the town have every hook except PermissionRequest: it's added.
  */
-function addPermissionHook() {
+function updateHookSettings() {
   const file = path.join(CLAUDE_DIR, 'settings.json');
   try {
     const s = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const ours = (h: any) => typeof h?.command === 'string' && h.command.includes(path.join(DATA_DIR, 'hook.sh'));
-    const mine = Object.values(s.hooks ?? {}).flat().flatMap((g: any) => g?.hooks ?? []).find(ours) as { command: string } | undefined;
-    if (!mine || (s.hooks.PermissionRequest ?? []).some((g: any) => (g?.hooks ?? []).some(ours))) return;
-    (s.hooks.PermissionRequest ??= []).push({ matcher: '*', hooks: [{ type: 'command', command: mine.command, timeout: 600 }] });
-    fs.copyFileSync(file, `${file}.logbook-backup-${Date.now()}`);
+    const hookPath = path.join(DATA_DIR, 'hook.sh'), legacyPath = path.join(LEGACY_DATA_DIR, 'hook.sh');
+    const all = () => Object.values(s.hooks ?? {}).flat().flatMap((g: any) => g?.hooks ?? []) as any[];
+    let moved = false, added = false;
+    if (DATA_DIR === DEFAULT_DATA_DIR) {
+      for (const h of all()) {
+        if (typeof h?.command !== 'string' || !h.command.includes(legacyPath)) continue;
+        h.command = h.command.split(legacyPath).join(hookPath).replace(/\bLOGBOOK_PORT=/g, 'SWARMVILLE_PORT=');
+        moved = true;
+      }
+    }
+    const ours = (h: any) => typeof h?.command === 'string' && h.command.includes(hookPath);
+    const mine = all().find(ours) as { command: string } | undefined;
+    if (mine && !(s.hooks.PermissionRequest ?? []).some((g: any) => (g?.hooks ?? []).some(ours))) {
+      (s.hooks.PermissionRequest ??= []).push({ matcher: '*', hooks: [{ type: 'command', command: mine.command, timeout: 600 }] });
+      added = true;
+    }
+    if (!moved && !added) return;
+    fs.copyFileSync(file, `${file}.swarmville-backup-${Date.now()}`);
     fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
-    console.log('[logbook] added the PermissionRequest hook so raised hands can be answered from the town');
+    if (moved) console.log(`[swarmville] pointed the Claude Code hooks at ${hookPath} (they used the old ~/.logbook path)`);
+    if (added) console.log('[swarmville] added the PermissionRequest hook so raised hands can be answered from the town');
   } catch {}
 }
 
-/** Keeps ~/.logbook/hook.sh in step with this version, so hook changes don't need a reinstall. */
+/** Keeps <data dir>/hook.sh in step with this version, so hook changes don't need a reinstall. */
 function refreshHookScript() {
   try {
-    const dst = path.join(DATA_DIR, 'hook.sh'), src = path.join(import.meta.dirname, '..', 'hook', 'logbook-hook.sh');
+    const dst = path.join(DATA_DIR, 'hook.sh'), src = path.join(import.meta.dirname, '..', 'hook', 'swarmville-hook.sh');
     if (fs.existsSync(dst) && fs.readFileSync(dst, 'utf8') !== fs.readFileSync(src, 'utf8')) { fs.copyFileSync(src, dst); fs.chmodSync(dst, 0o755); }
   } catch {}
 }
 
 async function githubLoop() {
-  try { const m = await syncGithub(db); console.log('[logbook] github', m.accounts.map((a) => `${a.login}:${a.ok ? a.repos : a.error}`).join(' ')); soon(); }
-  catch (e) { console.error('[logbook] github sync failed', e); }
+  try { const m = await syncGithub(db); console.log('[swarmville] github', m.accounts.map((a) => `${a.login}:${a.ok ? a.repos : a.error}`).join(' ')); soon(); }
+  catch (e) { console.error('[swarmville] github sync failed', e); }
 }
 async function prLoop() {
-  try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[logbook] PR check failed', e); }
+  try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[swarmville] PR check failed', e); }
 }
 /** Keeps each live agent's "current job" label in step with your newest instruction. */
 async function focusLoop() {
-  try { if (await labelNextFocus(db)) soon(); } catch (e) { console.error('[logbook] job label failed', e); }
+  try { if (await labelNextFocus(db)) soon(); } catch (e) { console.error('[swarmville] job label failed', e); }
 }
 async function nameLoop() {
-  try { if (await nameProjectsBatch(db) > 0 || await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
+  try { if (await nameProjectsBatch(db) > 0 || await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[swarmville] naming failed', e); }
 }
 githubLoop();
 setInterval(githubLoop, 10 * 60_000);
 function startLoops() {
   setTimeout(prLoop, 5000);
   setInterval(prLoop, 2 * 60_000);
-  if (!process.env.LOGBOOK_NO_NAMING) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); }
+  if (!env('NO_NAMING')) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); }
 }
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { server.close(); db.close(); process.exit(0); });

@@ -178,7 +178,7 @@ test('status rules', () => {
 });
 
 test('hooks drive a session from start to needs-you to closed', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const base = { session_id: 'sess-1', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
   const t0 = Date.now();
@@ -202,14 +202,14 @@ test('hooks drive a session from start to needs-you to closed', () => {
 });
 
 test('a background job asking for input does not raise the hand of the terminal that launched it', () => {
-  assert.equal(isJobNotice(undefined, 'logbook brand logo redesign needs your input: Pick amber Pip or blue Pip'), true);
+  assert.equal(isJobNotice(undefined, 'swarmville brand logo redesign needs your input: Pick amber Pip or blue Pip'), true);
   assert.equal(isJobNotice(undefined, 'just-finished-section-reorder finished'), true);
   assert.equal(isJobNotice('permission_prompt', 'deploy needs your input: ok?'), false);
   assert.equal(isJobNotice(undefined, 'Claude needs your permission to use Bash'), false);
   assert.equal(isJobNotice(undefined, 'Claude is waiting for your input'), false);
   assert.equal(isJobNotice(undefined, null), false);
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const base = { session_id: 'parent', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
   const t0 = Date.now();
@@ -232,7 +232,7 @@ test('a background job asking for input does not raise the hand of the terminal 
 });
 
 test('a permission prompt raises a hand at once and can be answered from the town', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const base = { session_id: 'ask-1', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
   const t0 = Date.now();
@@ -277,7 +277,7 @@ test('a permission prompt raises a hand at once and can be answered from the tow
 
 test('one resident per project on main, helpers for parallel windows, own characters for worktrees', async () => {
   const { refreshAgents, agentOf } = await import('../daemon/state.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const now = Date.now();
   const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at) VALUES(?, ?, ?, ?, ?, ?)');
@@ -305,7 +305,7 @@ test('one resident per project on main, helpers for parallel windows, own charac
 
 test("today's cost breaks down by project, then by agent, and adds up to the total", async () => {
   const { refreshAgents, buildState } = await import('../daemon/state.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const now = Date.now();
   db.prepare("INSERT INTO projects(id, name) VALUES('gh:a/cat', 'Cat'), ('gh:a/dog', 'Dog')").run();
@@ -328,7 +328,7 @@ test("today's cost breaks down by project, then by agent, and adds up to the tot
 
 test('a character keeps one job: the one they do most', async () => {
   const { refreshAgents, agentOf } = await import('../daemon/state.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, started_at, last_event_at, first_prompt) VALUES(?, ?, ?, ?, ?, ?)');
   ins.run('a', 'gh:a/bot', 'main', 1, 2, 'fix the broken login');
@@ -410,7 +410,7 @@ test('intros: an instant template from real facts; model lines must sound like t
 test('terminal intros: off by default; when on, a starting session is told who it is in the town', async () => {
   const { terminalIntro } = await import('../daemon/intros.ts');
   const { kvSet } = await import('../daemon/db.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const p = { session_id: 'intro-1', cwd: dir, hook_event_name: 'SessionStart', source: 'startup' };
   handleHook(db, p);
@@ -430,7 +430,7 @@ test('terminal intros: off by default; when on, a starting session is told who i
 });
 
 test('welcome state starts fresh and setup counts come from what was read', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   handleHook(db, { session_id: 'w1', cwd: dir, hook_event_name: 'SessionStart' });
   const st = buildState(db, new Map(), Date.now(), false, { phase: 'reading', read: 3, total: 10, projects: 0, shifts: 0, crew: 0 });
@@ -448,7 +448,7 @@ test('scheduled jobs: every headless run of the same job is one character, apart
   const { refreshAgents, agentOf } = await import('../daemon/state.ts');
   const { promptFingerprint } = await import('../daemon/identity.ts');
   assert.equal(promptFingerprint('Post the 3.0.75 release note for 4 Nov'), promptFingerprint('Post the 3.0.76 release note for 11 Nov'));
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, started_at, last_event_at, first_prompt, entrypoint) VALUES(?, ?, ?, ?, ?, ?, ?)');
   ins.run('r1', 'gh:a/bot', 'main', 1, 2, 'Check the nightly export for 2026-11-01 and fix it', 'sdk-cli');
@@ -481,7 +481,7 @@ test('scheduled jobs: retries collapse into one wake-up, a regular gap predicts 
 
 test('scheduled jobs: asleep between runs, awake while one is going', async () => {
   const { refreshAgents } = await import('../daemon/state.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const now = Date.now(), H = 3600_000;
   db.prepare("INSERT INTO projects(id, name, root, lot) VALUES('local:/w/bot', 'bot', '/w/bot', 0)").run();
@@ -512,7 +512,7 @@ test('scheduled jobs: asleep between runs, awake while one is going', async () =
 test("today's crews: a project's agents judged together; a rough day raises 'needs a word'", async () => {
   const { crewsToday, dismissFlag, addNote } = await import('../daemon/crews.ts');
   const { refreshAgents } = await import('../daemon/state.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const now = Date.now();
   db.prepare("INSERT INTO projects(id, name, remote) VALUES('gh:a/cat', 'Cat', 'x'), ('gh:a/dog', 'Dog', 'x')").run();
@@ -549,7 +549,7 @@ test("today's crews: a project's agents judged together; a rough day raises 'nee
 
 test('notes from you: every new session on the project gets them; working agents get new ones on their next prompt', async () => {
   const { addNote, removeNote, noteContext, notesPending, notesView } = await import('../daemon/crews.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const start = { session_id: 'n-1', cwd: dir, hook_event_name: 'SessionStart', source: 'startup' };
   handleHook(db, start);
@@ -605,7 +605,7 @@ test('medals: one crew per category, minimums before a rate counts, ties to whoe
 
 test('one project, one building: sub-folders of a plain folder, and repos that gain a GitHub remote', async () => {
   const { addNote } = await import('../daemon/crews.ts');
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-')));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-')));
   const db = openDb(path.join(dir, 'db.sqlite'));
   const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { stdio: 'ignore' });
   const one = (sql: string, ...args: any[]) => ({ ...(db.prepare(sql).get(...args) as any) });
@@ -660,10 +660,10 @@ test('current job label: follow-ups keep the label, real replies are tidied, jun
   assert.equal(parseFocusReply(null), null);
 });
 
-test("Logbook's own background runs never become projects, even after a test folder is gone", async () => {
+test("Swarmville's own background runs never become projects, even after a test folder is gone", async () => {
   const { purgeOwnRuns } = await import('../daemon/transcripts.ts');
   const { OWN_MARK } = await import('../daemon/config.ts');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
   const db = openDb(path.join(dir, 'db.sqlite'));
   db.prepare('INSERT INTO projects(id, name, root) VALUES(?, ?, ?)').run('local:/gone/tmp/lbdata/namer', 'namer', '/gone/tmp/lbdata/namer');
   db.prepare('INSERT INTO projects(id, name, root) VALUES(?, ?, ?)').run('local:/w/app', 'app', '/w/app');
@@ -690,4 +690,28 @@ test('no agent looks like Pip the foreman (the logo): never a blue capsule', asy
     assert.ok(!(id.shape === FOREMAN_LOOK.shape && id.color === FOREMAN_LOOK.color), `agent ${i} got Pip's look`);
   }
   assert.ok(capsules > 0, 'capsules are still handed out in other colors');
+});
+
+test('an install from before the rename (~/.logbook) moves to the new folder, leaving a link, and its history is renamed', async () => {
+  const { adoptLegacyData } = await import('../daemon/legacy.ts');
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-')));
+  const legacy = path.join(home, '.logbook'), data = path.join(home, '.swarmville');
+  fs.mkdirSync(legacy);
+  for (const f of ['logbook.db', 'logbook.db-wal', 'hook.sh']) fs.writeFileSync(path.join(legacy, f), f);
+  fs.mkdirSync(data); // an empty folder made before the move doesn't block it
+  adoptLegacyData(data, legacy);
+  assert.equal(fs.lstatSync(legacy).isSymbolicLink(), true);
+  assert.equal(fs.readFileSync(path.join(data, 'swarmville.db'), 'utf8'), 'logbook.db');
+  assert.equal(fs.readFileSync(path.join(data, 'swarmville.db-wal'), 'utf8'), 'logbook.db-wal');
+  assert.equal(fs.existsSync(path.join(legacy, 'hook.sh')), true, 'the old hook path still works through the link');
+  adoptLegacyData(data, legacy); // a second start changes nothing
+  assert.deepEqual(fs.readdirSync(data).sort(), ['hook.sh', 'swarmville.db', 'swarmville.db-wal']);
+  // A folder that already has a town is never overwritten by an old one.
+  const other = path.join(home, 'old2'), kept = path.join(home, 'kept');
+  fs.mkdirSync(other); fs.writeFileSync(path.join(other, 'logbook.db'), 'old');
+  fs.mkdirSync(kept); fs.writeFileSync(path.join(kept, 'swarmville.db'), 'new');
+  adoptLegacyData(kept, other);
+  assert.equal(fs.readFileSync(path.join(kept, 'swarmville.db'), 'utf8'), 'new');
+  assert.equal(fs.lstatSync(other).isDirectory(), true);
+  fs.rmSync(home, { recursive: true, force: true });
 });

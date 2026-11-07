@@ -6,6 +6,7 @@ import { agentOf, profileFor, projectNames } from './state.ts';
 import { askClaude } from './naming.ts';
 import { agentKey, allocateIdentities, helperKey, isHelperKey, isResidentKey } from './identity.ts';
 import type { Agent, AgentProfile, Job } from './types.ts';
+import { env } from './legacy.ts';
 
 /*
  * Agents introducing themselves on the welcome tour.
@@ -100,7 +101,7 @@ export function cleanIntro(raw: unknown, name: string): string | null {
 let writing = false;
 /** Writes today's lines for the roll call in one small-model call. Returns how many it wrote. */
 export async function writeIntros(db: Db, live: Map<string, LiveEntry>, owner: string, n = 3): Promise<number> {
-  if (writing || process.env.LOGBOOK_NO_NAMING) return 0;
+  if (writing || env('NO_NAMING')) return 0;
   const todo = introCandidates(db, live, n).map((r) => ({ r, ...factsFor(db, r, live, owner) }))
     .filter((x) => kvGet<{ day: string } | null>(db, `intro.${x.agent.key}`, null)?.day !== today());
   if (!todo.length) return 0;
@@ -146,7 +147,7 @@ const COLOR_NAME: Record<string, string> = {
 const WEARING: Record<string, string> = { bow: ' with a bow tie', glasses: ' with glasses', headphones: ' with headphones', beanie: ' in a beanie', scarf: ' with a scarf', freckles: ' with freckles' };
 
 /**
- * When "Agents say hi in the terminal" is on, a starting session is told who it is in Logbook,
+ * When "Agents say hi in the terminal" is on, a starting session is told who it is in Swarmville,
  * so the terminal and the town agree on names. Returns the SessionStart hook output, or null.
  */
 export function terminalIntro(db: Db, p: any, live: Map<string, LiveEntry>, townName: string): object | null {

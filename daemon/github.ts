@@ -30,7 +30,7 @@ function tokenFor(login: string): string | null {
 
 async function gh(token: string, url: string): Promise<{ status: number; body: any; next: string | null }> {
   const res = await fetch(url.startsWith('http') ? url : API + url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'logbook-local', 'X-GitHub-Api-Version': '2022-11-28' },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'swarmville-local', 'X-GitHub-Api-Version': '2022-11-28' },
     signal: AbortSignal.timeout(15000),
   });
   const next = res.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1] ?? null;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLogbook } from './useLogbook.ts';
+import { useSwarmville } from './useSwarmville.ts';
 import { CrewView } from './views/CrewView.tsx';
 import { MedalToasts } from './crew/Leaderboard.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
@@ -29,12 +29,12 @@ const store = { get: (k: string) => { try { return localStorage.getItem(k); } ca
 
 function useTheme() {
   const media = matchMedia('(prefers-color-scheme: dark)');
-  const [pref, setPref] = useState<'system' | 'light' | 'dark'>((store.get('logbook.theme') as any) || 'system');
+  const [pref, setPref] = useState<'system' | 'light' | 'dark'>((store.get('swarmville.theme') as any) || 'system');
   const [sysDark, setSysDark] = useState(media.matches);
   useEffect(() => { const f = () => setSysDark(media.matches); media.addEventListener('change', f); return () => media.removeEventListener('change', f); }, []);
   useEffect(() => {
     if (pref === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = pref;
-    store.set('logbook.theme', pref);
+    store.set('swarmville.theme', pref);
   }, [pref]);
   const dark = pref === 'dark' || (pref === 'system' && sysDark);
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
@@ -43,13 +43,13 @@ function useTheme() {
 type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped'; id: string } | null;
 
 export function App() {
-  const { state, conn } = useLogbook();
+  const { state, conn } = useSwarmville();
   const stateRef = useRef(state); stateRef.current = state;
   const [view, setView] = useState<View>(readView);
   const [sel, setSel] = useState<Sel>(null);
-  const [showLots, setShowLots] = useState(store.get('logbook.lots') !== '0');
-  const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
-  const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('logbook.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
+  const [showLots, setShowLots] = useState(store.get('swarmville.lots') !== '0');
+  const [voice, setVoice] = useState<Voice>((store.get('swarmville.voice') as Voice) || 'plain');
+  const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('swarmville.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const theme = useTheme();
@@ -58,17 +58,17 @@ export function App() {
   const sound = useSound();
   // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
   const [only, setOnly] = useState<'needs' | 'building' | 'break' | 'shipped' | null>(null);
-  const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('logbook.hiddenProjects') || '[]')); } catch { return new Set(); } });
-  const setHidden = (s: Set<string>) => { setHiddenRaw(s); store.set('logbook.hiddenProjects', JSON.stringify([...s])); };
+  const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('swarmville.hiddenProjects') || '[]')); } catch { return new Set(); } });
+  const setHidden = (s: Set<string>) => { setHiddenRaw(s); store.set('swarmville.hiddenProjects', JSON.stringify([...s])); };
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { // an old #day bookmark: show Crew scrolled to Today
     if (location.hash !== '#day' || !state) return;
     history.replaceState(null, '', '#crew');
     requestAnimationFrame(() => document.getElementById('today')?.scrollIntoView({ block: 'start' }));
   }, [!!state]);
-  useEffect(() => { store.set('logbook.lots', showLots ? '1' : '0'); }, [showLots]);
-  useEffect(() => { store.set('logbook.voice', voice); }, [voice]);
-  useEffect(() => { store.set('logbook.bubbleMode', bubble); }, [bubble]);
+  useEffect(() => { store.set('swarmville.lots', showLots ? '1' : '0'); }, [showLots]);
+  useEffect(() => { store.set('swarmville.voice', voice); }, [voice]);
+  useEffect(() => { store.set('swarmville.bubbleMode', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
     document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Swarmville'}`;
@@ -137,7 +137,7 @@ export function App() {
         </header>
         <main className="main">
           {!state ? (
-            <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
+            <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `swarmville start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
             <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
           ) : (

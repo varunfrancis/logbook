@@ -1,10 +1,10 @@
-// Logbook Jump: listens to the local Logbook daemon and, when asked, shows the terminal running that agent.
+// Swarmville Jump: listens to the local Swarmville daemon and, when asked, shows the terminal running that agent.
 const vscode = require('vscode');
 const http = require('http');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const PORT = Number(process.env.LOGBOOK_PORT || 7777);
+const PORT = Number(process.env.SWARMVILLE_PORT || process.env.LOGBOOK_PORT || 7777);
 let req = null;
 let timer = null;
 let stopped = false;
@@ -42,7 +42,7 @@ async function handle(block) {
   for (const t of vscode.window.terminals) {
     const pid = await t.processId;
     if (pid && (pid === j.shellPid || pid === j.pid)) {
-      if (ev === 'close') { t.dispose(); return; } // "Clock out" in Logbook: close the agent's terminal tab
+      if (ev === 'close') { t.dispose(); return; } // "Clock out" in Swarmville: close the agent's terminal tab
       t.show(false);
       raiseWindow();
       return;

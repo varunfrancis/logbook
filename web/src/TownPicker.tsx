@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
-import { post } from './useLogbook.ts';
+import { post } from './useSwarmville.ts';
 import { setChime, setMusic, setVoices, useSound } from './audio.ts';
 import type { Bubble, Voice } from './copy.ts';
 
@@ -69,7 +69,7 @@ export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWel
         <div className="setting"><div><b>Heads-up chime</b><div className="muted">A soft ding on the Town when two agents start changing the same file.</div></div><label className="toggle"><input type="checkbox" checked={sound.chime} onChange={(e) => setChime(e.target.checked)} /> {sound.chime ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Agents say hi in the terminal</b><div className="muted">New Claude Code sessions open with their name and where to find them in {state.town.name}, so the terminal and the town match.</div></div><label className="toggle"><input type="checkbox" id="terminal-intros" checked={intros} onChange={(e) => { setIntros(e.target.checked); post('/api/settings', { terminalIntros: e.target.checked }); }} /> {intros ? 'On' : 'Off'}</label></div>
         <div className="setting"><div><b>Welcome tour</b><div className="muted">Meet the crew again and see how the town works. About two minutes.</div></div><button type="button" className="ghost" onClick={replayWelcome}>Replay the welcome</button></div>
-        <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `node bin/logbook.ts vscode` once, then restart VS Code.'}</div></div></div>
+        <div className="setting"><div><b>VS Code helper</b><div className="muted">{state.settings.vscodeConnected ? 'Connected. "Go to" opens the right terminal.' : 'Not connected. Run `~/.swarmville/bin/swarmville vscode` (or `node bin/swarmville.ts vscode` in a developer copy) once, then restart VS Code.'}</div></div></div>
         <div className="row end"><button type="button" className="ghost" onClick={onClose}>Close</button><button className="btn dark" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button></div>
       </form>
     </div>

@@ -30,7 +30,7 @@ function findClaude(): string | null {
   claudeBin = candidates.find((c) => fs.existsSync(c)) ?? null;
   if (!claudeBin) { try { claudeBin = execFileSync('/bin/sh', ['-lc', 'command -v claude'], { encoding: 'utf8', timeout: 5000 }).trim() || null; } catch { claudeBin = null; } }
   if (!claudeBin) claudeBin = desktopClaude();
-  if (!claudeBin) console.error('[logbook] naming: could not find the claude CLI; using folder names');
+  if (!claudeBin) console.error('[swarmville] naming: could not find the claude CLI; using folder names');
   return claudeBin;
 }
 
@@ -58,9 +58,9 @@ export function askClaude(prompt: string): Promise<string | null> {
   fs.mkdirSync(cwd, { recursive: true });
   return new Promise((resolve) => {
     execFile(bin, ['-p', '--model', 'haiku', '--no-session-persistence', '--output-format', 'text', `${OWN_MARK}\n${prompt}`], {
-      cwd, timeout: 90_000, env: { ...process.env, LOGBOOK_DISABLE: '1' }, maxBuffer: 1 << 20,
+      cwd, timeout: 90_000, env: { ...process.env, SWARMVILLE_DISABLE: '1', LOGBOOK_DISABLE: '1' }, maxBuffer: 1 << 20,
     }, (err, stdout, stderr) => {
-      if (err) console.error('[logbook] naming: claude failed:', String(err.message).slice(0, 200), String(stderr).slice(0, 300));
+      if (err) console.error('[swarmville] naming: claude failed:', String(err.message).slice(0, 200), String(stderr).slice(0, 300));
       resolve(err ? null : String(stdout).trim());
     });
   });
@@ -95,7 +95,7 @@ export async function nameNextProject(db: Db): Promise<boolean> {
     ].filter(Boolean).join('\n');
     const raw = await askClaude(prompt);
     const name = cleanName(raw);
-    if (raw != null && !name) console.error('[logbook] naming: unusable reply:', raw.slice(0, 120));
+    if (raw != null && !name) console.error('[swarmville] naming: unusable reply:', raw.slice(0, 120));
     db.prepare('UPDATE projects SET naming_tried_at = ?, display_name = COALESCE(?, display_name), display_source = CASE WHEN ? IS NOT NULL THEN ? ELSE display_source END WHERE id = ? AND (display_source IS NULL OR display_source != ?)')
       .run(Date.now(), name, name, 'ai', p.id, 'user');
     return !!name;

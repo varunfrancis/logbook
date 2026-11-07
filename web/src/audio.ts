@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
  */
 
 type Prefs = { music: boolean; chime: boolean; voices: boolean };
-const KEY = 'logbook.sound';
+const KEY = 'swarmville.sound';
 const read = (): Prefs => {
   try { return { music: true, chime: true, voices: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { music: true, chime: true, voices: true }; }
 };
@@ -127,7 +127,7 @@ function schedule() {
 }
 
 // ---------- carrying on through a reload ----------
-const POS_KEY = 'logbook.musicPos';
+const POS_KEY = 'swarmville.musicPos';
 type Pos = { step: number; lastNote: number; at: number }; // `at`: wall-clock ms when `step` plays
 function savePos() {
   if (!ctx || !timer) return;

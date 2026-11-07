@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, FOREMAN } from '../crew/Avatar.tsx';
-import { post } from '../useLogbook.ts';
+import { post } from '../useSwarmville.ts';
 
 /*
  * After the welcome, Pip explains the rest the first time it actually happens, pointing at the real thing.

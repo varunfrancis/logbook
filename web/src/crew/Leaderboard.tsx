@@ -4,7 +4,7 @@ import { AgentAvatar } from './Avatar.tsx';
 import { chime } from '../audio.ts';
 import { mins, money } from '../copy.ts';
 import { ago } from '../format.ts';
-import { post } from '../useLogbook.ts';
+import { post } from '../useSwarmville.ts';
 import { handovers, jobsText, medals, type MedalId } from './medals.ts';
 
 const rate = (r: { finished: number; delivered: number }) => (r.finished ? `${r.delivered} of ${r.finished}` : 'no jobs');

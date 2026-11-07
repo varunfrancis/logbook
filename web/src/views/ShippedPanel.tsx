@@ -3,7 +3,7 @@ import type { StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from '../crew/Avatar.tsx';
 import { finishedAt, prNum, todayView } from '../crew/today.ts';
 import { ago, firstLine } from '../format.ts';
-import { useNow } from '../useLogbook.ts';
+import { useNow } from '../useSwarmville.ts';
 
 const NONE = new Set<string>();
 

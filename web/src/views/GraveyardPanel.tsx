@@ -3,7 +3,7 @@ import { AgentAvatar } from '../crew/Avatar.tsx';
 import { bricks } from '../copy.ts';
 import { ago } from '../format.ts';
 import { Empty } from '../components.tsx';
-import { useNow } from '../useLogbook.ts';
+import { useNow } from '../useSwarmville.ts';
 
 /** Every shift from the last 30 days that was scrapped or left unfinished. Click one for the full story. */
 export function GraveyardPanel({ state, onClose, openAgent }: { state: StateView; onClose: () => void; openAgent: (id: string) => void }) {

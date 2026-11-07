@@ -3,7 +3,7 @@ import type { StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { liveJobs, type JobWord } from './liveJobs.ts';
 
-const KEY = 'logbook.liveFeed';
+const KEY = 'swarmville.liveFeed';
 const readOpen = () => {
   try { const v = localStorage.getItem(KEY); if (v) return v === 'open'; } catch {}
   return !matchMedia('(max-width: 720px)').matches; // phones start folded

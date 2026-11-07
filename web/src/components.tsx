@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SessionView } from '../../daemon/types.ts';
 import { plainAction, STAMP, STATUS, useVoice } from './copy.ts';
-import { post } from './useLogbook.ts';
+import { post } from './useSwarmville.ts';
 
 export function StatusDot({ status }: { status: string }) {
   return <span className={`dot s-${status}`} aria-hidden="true" />;
