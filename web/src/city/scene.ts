@@ -25,6 +25,7 @@ type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 't
 type Slot = { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] };
 
 /** Nearest isometric corner view: π/4 + k·π/2. */
+const PAN_KEYS: Record<string, 'left' | 'right' | 'up' | 'down'> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down' };
 function snapCorner(az: number) { return Math.PI / 4 + Math.round((az - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2); }
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
@@ -72,6 +73,8 @@ export class CityScene {
   private az = Math.PI / 4; // camera bearing around the town; π/4 is the classic isometric corner
   private anim: { t0: number; dur: number; from: { x: number; z: number; az: number; zoom: number }; to: { x: number; z: number; az: number; zoom: number } } | null = null;
   private zoom = 1;
+  /** Pan directions whose keys are held down (arrows / WASD). */
+  private held = new Set<'left' | 'right' | 'up' | 'down'>();
   private viewSize = 40;
   private hemi = new THREE.HemisphereLight('#ffffff', '#9cc483', 0.62);
   private sun = new THREE.DirectionalLight('#fff1dc', 0.85);
@@ -316,6 +319,55 @@ export class CityScene {
     this.zoom = Math.max(0.35, Math.min(4, this.zoom * f)); this.resize();
   }
 
+  /** Slide the view: `right`/`fwd` are in screen-heights (positive = right / up the screen). */
+  panBy(right: number, fwd: number) {
+    const vh = this.cam.top - this.cam.bottom;
+    this.panWorld(right * vh, -fwd * vh);
+  }
+  /** dx, dy in world units along screen-right and screen-down; kept inside the town's edges. */
+  private panWorld(dx: number, dy: number) {
+    const { right, fwd } = this.axes();
+    // the view looks down at ~31°, so screen-vertical moves cover more ground
+    const mx = right.x * dx - fwd.x * dy * 1.9, mz = right.z * dx - fwd.z * dy * 1.9;
+    const { minX, maxX, minZ, maxZ } = this.bounds;
+    const clampX = (x: number) => Math.max((minX - 1) * PITCH, Math.min((maxX + 1) * PITCH, x));
+    const clampZ = (z: number) => Math.max((minZ - 1) * PITCH, Math.min((maxZ + 1) * PITCH, z));
+    // mid-flight, shift where the flight lands too, so the two don't fight
+    if (this.anim) { this.anim.to.x = clampX(this.anim.to.x + mx); this.anim.to.z = clampZ(this.anim.to.z + mz); }
+    this.target.x = clampX(this.target.x + mx); this.target.z = clampZ(this.target.z + mz);
+    this.placeCam();
+  }
+
+  /** Projects with crew on site right now (working, or waiting on you). */
+  activeProjects(): string[] {
+    return (this.last?.data.projects ?? []).filter((p) => (p.state === 'site' || p.state === 'needs') && this.buildings.has(p.id)).map((p) => p.id);
+  }
+
+  /** Fly in close enough that every active project fills the view. Returns false when nobody is working. */
+  focusActive(): boolean {
+    const ids = this.activeProjects();
+    if (!ids.length) return false;
+    const box = new THREE.Box3();
+    for (const id of ids) box.expandByObject(this.buildings.get(id)!.group);
+    box.min.y = 0; box.max.y = Math.max(box.max.y, 4) + 2; // room for the name tags above the roofs
+    const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
+    // Measure the box in screen axes for the bearing we'll end on.
+    const az = this.anim ? this.anim.to.az : this.az;
+    const right = new THREE.Vector3(Math.cos(az), 0, -Math.sin(az));
+    const back = new THREE.Vector3(Math.sin(az) * 42.43, 26, Math.cos(az) * 42.43).normalize();
+    const up = new THREE.Vector3().crossVectors(back, right);
+    let hw = 0, hh = 0;
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+      this.v.set(x - cx, y - 2, z - cz);
+      hw = Math.max(hw, Math.abs(this.v.dot(right))); hh = Math.max(hh, Math.abs(this.v.dot(up)));
+    }
+    const W = this.container.clientWidth || 1, H = this.container.clientHeight || 1, a = W / H;
+    const base = Math.max(this.viewSize / Math.max(a, 1) * 0.9, this.viewSize / a * 0.9, 24);
+    const vh = Math.max((2 * hh) / 0.8, (2 * hw) / (0.85 * a), 10);
+    this.flyTo({ x: cx, z: cz, az, zoom: Math.max(0.35, Math.min(2.4, base / vh)) });
+    return true;
+  }
+
   /** side: where the UI covers the view (a panel on the right by default; the welcome cards sit on the left). */
   focus(id: string, side: 'right' | 'left' = 'right') {
     const b = this.buildings.get(id);
@@ -431,16 +483,9 @@ export class CityScene {
         return;
       }
       const upp = (this.cam.top - this.cam.bottom) / (el.clientHeight || 1);
-      const dx = (e.clientX - drag.x) * upp, dy = (e.clientY - drag.y) * upp;
-      const { right, fwd } = this.axes();
-      // the view looks down at ~31°, so screen-vertical drags cover more ground
-      this.target.x += -right.x * dx + fwd.x * dy * 1.9;
-      this.target.z += -right.z * dx + fwd.z * dy * 1.9;
-      const { minX, maxX, minZ, maxZ } = this.bounds;
-      this.target.x = Math.max((minX - 1) * PITCH, Math.min((maxX + 1) * PITCH, this.target.x));
-      this.target.z = Math.max((minZ - 1) * PITCH, Math.min((maxZ + 1) * PITCH, this.target.z));
+      // dragging moves the ground with the pointer, so the view slides the other way
+      this.panWorld(-(e.clientX - drag.x) * upp, -(e.clientY - drag.y) * upp);
       drag.x = e.clientX; drag.y = e.clientY;
-      this.placeCam();
     };
     const up = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
@@ -458,13 +503,28 @@ export class CityScene {
       el.style.cursor = this.hovered ? 'pointer' : 'grab';
     };
     const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey) return;
+      if ((e.target as HTMLElement)?.closest?.('input, textarea, select, [contenteditable], [role="dialog"]') || e.metaKey || e.ctrlKey || e.altKey) return;
       if (!this.container.isConnected || !this.container.offsetParent) return;
-      if (e.key === 'q' || e.key === 'Q') this.rotateBy(-90);
-      if (e.key === 'e' || e.key === 'E') this.rotateBy(90);
+      const pan = PAN_KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      if (pan) { this.held.add(pan); e.preventDefault(); return; }
+      if (e.repeat && !'+=-_'.includes(e.key)) return;
+      switch (e.key) {
+        case 'q': case 'Q': this.rotateBy(-90); break;
+        case 'e': case 'E': this.rotateBy(90); break;
+        case '+': case '=': this.zoomBy(1.25); break;
+        case '-': case '_': this.zoomBy(0.8); break;
+        case 'f': case 'F': case '0': this.fit(); break;
+        case 'g': case 'G': this.focusActive(); break;
+        default: return;
+      }
+      e.preventDefault();
     };
+    const keyUp = (e: KeyboardEvent) => { const pan = PAN_KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key]; if (pan) this.held.delete(pan); };
+    const blur = () => this.held.clear();
     addEventListener('keydown', key);
-    this.disposeFns.push(() => removeEventListener('keydown', key));
+    addEventListener('keyup', keyUp);
+    addEventListener('blur', blur);
+    this.disposeFns.push(() => { removeEventListener('keydown', key); removeEventListener('keyup', keyUp); removeEventListener('blur', blur); });
     const wheel = (e: WheelEvent) => { e.preventDefault(); this.zoomBy(e.deltaY > 0 ? 0.9 : 1.1); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
@@ -1203,6 +1263,11 @@ export class CityScene {
     const t = this.reduce ? 0 : this.clock.elapsedTime;
     this.elapsed = this.clock.elapsedTime;
     this.stepAnim();
+    if (this.held.size) {
+      // about half a screen per second, whatever the zoom
+      const v = 0.55 * dt, h = this.held;
+      this.panBy(((h.has('right') ? 1 : 0) - (h.has('left') ? 1 : 0)) * v, ((h.has('up') ? 1 : 0) - (h.has('down') ? 1 : 0)) * v);
+    }
     for (const f of this.globalUpdaters) f(t, dt);
     for (const b of this.buildings.values()) for (const f of b.updaters) f(t, dt);
     if (this.cafe) for (const f of this.cafe.updaters) f(t, dt);

@@ -220,6 +220,15 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .city-tools { position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 6px; z-index: 5; }
 
 .tool { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); font-size: 17px; font-weight: 800; cursor: pointer; color: var(--ink); }
+.tool { display: grid; place-items: center; padding: 0; }
+.tool:disabled { opacity: .45; cursor: default; }
+.tool.on { background: var(--ink); color: var(--surface); }
+.keys-card { position: absolute; right: 64px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6; width: 310px; max-width: calc(100% - 96px); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px 12px; font-size: 13px; }
+.keys-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.keys-card dl { margin: 0; display: grid; gap: 6px; }
+.keys-card dl > div { display: flex; align-items: center; gap: 10px; }
+.keys-card dt { display: flex; gap: 3px; min-width: 96px; }
+.keys-card dd { margin: 0; color: var(--ink-2); }
 .legend { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 12px; font-weight: 700; box-shadow: var(--shadow); max-width: calc(100% - 100px); }
 .legend small { font-weight: 600; color: var(--ink-3); margin-left: 2px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
@@ -516,6 +525,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .view-town .main:has(.panel) .city-actions { right: 408px; }
 .action-msg { flex-basis: 100%; text-align: right; font-size: 13px; color: var(--ink); background: var(--surface); padding: 6px 10px; border-radius: 10px; box-shadow: var(--shadow); }
 .view-town .main:has(.panel) .city-tools { right: 408px; }
+.view-town .main:has(.panel) .keys-card { right: 456px; }
 
 /* ---------- sound toggle + "bumping into each other" heads-ups ---------- */
 .ghost.music { min-width: 92px; }
