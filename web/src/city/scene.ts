@@ -27,6 +27,8 @@ type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 't
 function snapCorner(az: number) { return Math.PI / 4 + Math.round((az - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2); }
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+/** Chat bubbles are a glance, not a log: paths become just the file name and long lines are cut. */
+const chatText = (s: string) => { const t = s.replace(/\S*\/(\S+)/g, '$1').replace(/\s+/g, ' ').trim(); return t.length > 64 ? t.slice(0, 62).trimEnd() + '…' : t; };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 function modeFor(s: SessionView): Mode {
@@ -203,7 +205,7 @@ export class CityScene {
     }
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
     for (const s of data.sessions) {
-      const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== s.chatter) el.textContent = s.chatter;
+      const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== chatText(s.chatter)) el.textContent = chatText(s.chatter);
       const d = this.doingEls.get(s.id)?.querySelector('.doing'); const txt = shortDoing(s); if (d && d.textContent !== txt) d.textContent = txt;
     }
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
@@ -752,13 +754,13 @@ export class CityScene {
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
     // Always-on label: what they're doing in 2–3 words; their name appears when you hover or select the building.
-    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(shortDoing(s))}</span><span class="who">${esc(a.name)}</span>`);
+    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(shortDoing(s))}</span><span class="grp"></span><span class="who">${esc(a.name)}</span>`);
     tag.dataset.sid = s.id; tag.dataset.status = s.away ? 'away' : s.status;
     this.label(labels, tag, anchor, 0.42, 'tag', pid);
     this.doingEls.set(s.id, tag);
     if (s.away) { const z = this.div('zzz', 'z<small>z</small><small>z</small>'); z.dataset.sid = s.id; this.label(labels, z, anchor, 0.1, 'fx', pid); }
     if (s.chatter) {
-      const chat = this.div('chat', esc(s.chatter));
+      const chat = this.div('chat', esc(chatText(s.chatter)));
       chat.dataset.seed = String(hash(s.id) % 997); chat.dataset.sid = s.id;
       this.label(labels, chat, anchor, 0.95, 'chat', pid);
       this.chatEls.set(s.id, chat);
@@ -933,6 +935,8 @@ export class CityScene {
     const zoomedIn = this.zoom > 1.4;
     const raised: { L: Label; x: number; y: number }[] = [];
     const tags: { L: Label; x: number; y: number }[] = [];
+    const chats: { L: Label; x: number; y: number }[] = [];
+    const plainNames: { L: Label; x: number; y: number }[] = [];
     for (const L of this.labels) {
       const st = L.el.dataset.state;
       let show = true;
@@ -963,21 +967,48 @@ export class CityScene {
       const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
       if (L.kind === 'bb' && (st === 'site' || st === 'needs')) { raised.push({ L, x, y }); continue; }
       if (L.kind === 'tag') { tags.push({ L, x, y }); continue; }
+      if (L.kind === 'chat') { chats.push({ L, x, y }); continue; }
       L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       L.el.style.transform = L.kind === 'district' ? `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)` : L.el.style.transform;
       L.el.style.zIndex = L.kind === 'district' ? '1' : String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
+      if (L.kind === 'bb' && L.pid !== this.selected && L.pid !== this.hovered) plainNames.push({ L, x, y });
+    }
+    // Resting crew at one site share a single tag ("4 on coffee break") instead of a pile of identical pills.
+    // Hover or select the building to see each of them by name again.
+    const restGroups = new Map<string, { L: Label; x: number; y: number }[]>();
+    for (const r of tags) {
+      const ds = r.L.el.dataset.status;
+      const open = r.L.pid === this.selected || r.L.pid === this.hovered;
+      if (ds === 'running' || ds === 'needs_input' || open) { r.L.el.classList.remove('grouped'); continue; }
+      const g = restGroups.get(r.L.pid) ?? []; g.push(r); restGroups.set(r.L.pid, g);
+    }
+    const hiddenTags = new Set<Label>();
+    for (const g of restGroups.values()) {
+      if (g.length < 2) { g[0].L.el.classList.remove('grouped'); continue; }
+      const lead = g.reduce((a, b) => (b.y > a.y ? b : a)); // the lowest one, nearest the crew
+      const doings = new Set(g.map((r) => r.L.el.querySelector('.doing')?.textContent ?? ''));
+      const grp = lead.L.el.querySelector('.grp') as HTMLElement | null;
+      const text = doings.size === 1 ? `${g.length} on ${[...doings][0]}` : `${g.length} resting`;
+      if (grp && grp.textContent !== text) grp.textContent = text;
+      lead.L.el.classList.add('grouped');
+      lead.x = g.reduce((s, r) => s + r.x, 0) / g.length;
+      for (const r of g) if (r !== lead) { r.L.el.classList.remove('grouped'); r.L.el.style.display = 'none'; hiddenTags.add(r.L); }
     }
     // Crew labels: several agents at one site would stack on top of each other, so nudge them apart.
     tags.sort((a, b) => b.y - a.y);
     const tagBoxes: { x: number; y: number; w: number; h: number }[] = [];
+    const tagBySid = new Map<string, { x: number; y: number; w: number; h: number }>();
     for (const r of tags) {
+      if (hiddenTags.has(r.L)) continue;
       const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight + 2;
       let y = r.y;
       for (let guard = 0, moved = true; moved && guard < 12; guard++) {
         moved = false;
         for (const q of tagBoxes) if (Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && y > q.y - q.h && y - h < q.y) { y = q.y - q.h; moved = true; }
       }
-      tagBoxes.push({ x: r.x, y, w, h });
+      const box = { x: r.x, y, w, h };
+      tagBoxes.push(box);
+      if (r.L.el.dataset.sid) tagBySid.set(r.L.el.dataset.sid, box);
       r.L.el.style.transform = `translate(${r.x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       r.L.el.style.zIndex = String(3000 + Math.round(y));
     }
@@ -998,6 +1029,36 @@ export class CityScene {
       r.L.el.style.zIndex = String(5000 + Math.round(y));
       const leader = r.L.el.querySelector('.leader') as HTMLElement | null;
       if (leader) leader.style.height = `${Math.max(0, r.y - y - 6).toFixed(1)}px`;
+    }
+    // Chat bubbles: one per site at a time, sitting just above the speaker's tag. A bubble that can't find clear
+    // space is skipped this time rather than drawn over other labels. It gets another turn on its next cycle.
+    const blockers = [...tagBoxes, ...placed];
+    const chatSites = new Set<string>();
+    chats.sort((a, b) => (a.L.pid === this.selected ? -1 : 0) - (b.L.pid === this.selected ? -1 : 0));
+    for (const r of chats) {
+      const el = r.L.el;
+      if (chatSites.has(r.L.pid)) { el.style.display = 'none'; continue; }
+      const own = tagBySid.get(el.dataset.sid ?? '');
+      const x = own ? own.x : r.x;
+      const w = el.offsetWidth, h = el.offsetHeight + 8;
+      const start = own ? own.y - own.h - 4 : r.y;
+      let y = start, ok = false;
+      for (let guard = 0; guard < 8; guard++) {
+        const hit = blockers.find((q) => Math.abs(x - q.x) < (w + q.w) / 2 + 6 && y > q.y - q.h && y - h < q.y);
+        if (!hit) { ok = true; break; }
+        y = hit.y - hit.h - 4;
+        if (start - y > 90) break; // drifting too far from the speaker: not worth it
+      }
+      if (!ok || y - h < 0) { el.style.display = 'none'; continue; }
+      chatSites.add(r.L.pid);
+      blockers.push({ x, y, w, h });
+      el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      el.style.zIndex = String(6000 + Math.round(y));
+    }
+    // A quiet building's name that sits under crew labels or a bubble steps aside (hover or select brings it back).
+    for (const r of plainNames) {
+      const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight;
+      if (blockers.some((q) => Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && r.y > q.y - q.h && r.y - h < q.y)) r.L.el.style.display = 'none';
     }
   };
 }
