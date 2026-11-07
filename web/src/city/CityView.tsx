@@ -5,15 +5,15 @@ import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.
 import { isoDate, post, useDay } from '../useLogbook.ts';
 import { PROJECT, useVoice } from '../copy.ts';
 
-export function CityView({ state, selected, onSelect, onAgent, showLots, dark, onShare }: {
-  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; showLots: boolean; dark: boolean; onShare: () => void;
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, showLots, dark, onShare }: {
+  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void; showLots: boolean; dark: boolean; onShare: () => void;
 }) {
   const voice = useVoice();
   const host = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   const scene = useRef<CityScene | null>(null);
-  const cb = useRef({ onSelect, onAgent });
-  cb.current = { onSelect, onAgent };
+  const cb = useRef({ onSelect, onAgent, onGraveyard });
+  cb.current = { onSelect, onAgent, onGraveyard };
   const day = useDay(isoDate(), state.generatedAt);
   const [replay, setReplay] = useState<Replay | null>(null);
   const [busy, setBusy] = useState<'preview' | 'record' | 'skyline' | null>(null);
@@ -21,7 +21,7 @@ export function CityView({ state, selected, onSelect, onAgent, showLots, dark, o
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id) });
+    const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id), onGraveyard: () => cb.current.onGraveyard() });
     scene.current = s;
     return () => { s.dispose(); scene.current = null; };
   }, []);

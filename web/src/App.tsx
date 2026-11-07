@@ -4,6 +4,7 @@ import { CrewView } from './views/CrewView.tsx';
 import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
+import { GraveyardPanel } from './views/GraveyardPanel.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
@@ -27,7 +28,7 @@ function useTheme() {
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
 }
 
-type Sel = { kind: 'project' | 'agent'; id: string } | null;
+type Sel = { kind: 'project' | 'agent' | 'graveyard'; id: string } | null;
 
 export function App() {
   const { state, conn } = useLogbook();
@@ -89,13 +90,14 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Logbook on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} showLots={showLots} dark={theme.dark} onShare={() => setModal('share')} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} showLots={showLots} dark={theme.dark} onShare={() => setModal('share')} />
           ) : view === 'crew' ? (
             <CrewView state={state} open={open} />
           ) : (
             <DayView state={state} openAgent={open.agent} />
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} /> : null}
         </main>
         {state && (firstLaunch || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}

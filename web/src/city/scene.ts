@@ -40,7 +40,7 @@ function modeFor(s: SessionView): Mode {
   }
 }
 
-export type CityOptions = { onSelect: (id: string | null) => void; onAgent?: (sessionId: string) => void; onHover?: (id: string | null) => void };
+export type CityOptions = { onSelect: (id: string | null) => void; onAgent?: (sessionId: string) => void; onHover?: (id: string | null) => void; onGraveyard?: () => void };
 
 export class CityScene {
   private renderer: THREE.WebGLRenderer;
@@ -259,7 +259,7 @@ export class CityScene {
     this.sun.target.position.copy(this.target);
   }
 
-  private pickAny(clientX: number, clientY: number): { kind: 'project' | 'agent'; id: string } | null {
+  private pickAny(clientX: number, clientY: number): { kind: 'project' | 'agent' | 'grave'; id: string } | null {
     const r = this.renderer.domElement.getBoundingClientRect();
     this.ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(this.ndc, this.cam);
@@ -267,9 +267,10 @@ export class CityScene {
     if (this.graveGroup) roots.push(this.graveGroup);
     const hit = this.ray.intersectObjects(roots, true)[0];
     let o: THREE.Object3D | null = hit?.object ?? null;
-    while (o && !o.userData.pid && !o.userData.sid) o = o.parent;
+    while (o && !o.userData.pid && !o.userData.sid && !o.userData.grave) o = o.parent;
     if (o?.userData.sid) return { kind: 'agent', id: o.userData.sid };
     if (o?.userData.pid) return { kind: 'project', id: o.userData.pid };
+    if (o?.userData.grave) return { kind: 'grave', id: '__grave' };
     return null;
   }
   private pick(clientX: number, clientY: number): string | null {
@@ -302,8 +303,10 @@ export class CityScene {
         return;
       }
       if (!drag) {
-        const id = this.pick(e.clientX, e.clientY);
-        if (id !== this.hovered) { this.hovered = id; el.style.cursor = id ? 'pointer' : 'grab'; this.opts.onHover?.(id); }
+        const h = this.pickAny(e.clientX, e.clientY);
+        const id = h?.kind === 'project' ? h.id : null;
+        el.style.cursor = h ? 'pointer' : 'grab';
+        if (id !== this.hovered) { this.hovered = id; this.opts.onHover?.(id); }
         return;
       }
       if (drag.rotate) {
@@ -329,7 +332,9 @@ export class CityScene {
       if (pointers.size < 2) pinch = 0;
       if (drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) {
         const h = this.pickAny(e.clientX, e.clientY);
-        if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id); else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
+        if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id);
+        else if (h?.kind === 'grave' && this.opts.onGraveyard) this.opts.onGraveyard();
+        else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
       }
       // Settle on the nearest of the four isometric corners: in-between angles shear the grid and look off.
       if (drag?.rotate) this.flyTo({ x: this.target.x, z: this.target.z, az: snapCorner(this.az), zoom: this.zoom }, 350);
@@ -834,7 +839,10 @@ export class CityScene {
     for (const x of [-3.75, 3.75]) this.bx(0.06, 0.06, 7.6, '#e8e4dc', x, 0.6, 0, g);
     this.tree(-2.9, -2.9, g, 0.8);
     const sign = new THREE.Object3D(); sign.position.set(0, 2.2, 3.4); g.add(sign);
-    this.label(this.graveLabels, this.div('grave-sign', 'Graveyard'), sign, 0, 'fx', '__grave');
+    g.userData.grave = true;
+    const signEl = this.div('grave-sign', `Graveyard <small>${graves.length}</small>`);
+    signEl.onclick = () => this.opts.onGraveyard?.();
+    this.label(this.graveLabels, signEl, sign, 0, 'fx', '__grave');
     graves.slice(0, 12).forEach((e, i) => {
       const x = -2.4 + (i % 4) * 1.6, z = -2 + Math.floor(i / 4) * 1.8;
       const st = new THREE.Group(); st.position.set(x, 0.24, z); st.userData.sid = e.sessionId; g.add(st);
@@ -842,7 +850,9 @@ export class CityScene {
       const top = this.mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.22, 14, 1, false, 0, Math.PI), '#b8bec7', 0, 0.7, 0, st); top.rotation.set(Math.PI / 2, 0, Math.PI / 2);
       this.bx(0.9, 0.06, 0.5, '#6f8f5f', 0, 0, 0.25, st);
       const a = new THREE.Object3D(); a.position.y = 1.4; st.add(a);
-      this.label(this.graveLabels, this.div('rip hidden-until-zoom', `<b>RIP ${esc(e.agent.name)}</b><span>${esc(e.epitaph)}</span>`), a, 0, 'fx', '__grave');
+      const rip = this.div('rip hidden-until-zoom', `<b>RIP ${esc(e.agent.name)}</b><span>${esc(e.epitaph)}</span>`);
+      rip.onclick = () => this.opts.onAgent?.(e.sessionId);
+      this.label(this.graveLabels, rip, a, 0, 'fx', '__grave');
     });
   }
 
