@@ -40,7 +40,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  */
 function sleeperView(r: RoutineView): SessionView {
   return {
-    id: r.lastSessionId, projectId: r.projectId, agent: r.agent, title: r.title, status: 'ended', away: true, scheduled: true,
+    id: r.lastSessionId, projectId: r.projectId, agent: r.agent, title: r.title, focus: null, status: 'ended', away: true, scheduled: true,
     action: null, actionKind: null, needsMessage: null, branch: null, worktree: null, cwd: null, kind: null,
     startedAt: r.lastRunAt, lastEventAt: r.lastEndedAt, endedAt: r.lastEndedAt, endReason: null,
     tokens: 0, bricks: 0, tokensBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0 }, model: null, costUsd: 0, costEstimated: true,
@@ -285,7 +285,7 @@ export class CityScene {
     if (this.bubble === 'task') return shortDoing(s);
     const project = this.projectNames.get(s.projectId ?? '');
     if (this.bubble === 'project') return project ?? shortDoing(s);
-    return shortJob(s.title) ?? project ?? shortDoing(s);
+    return shortJob(s.focus) ?? shortJob(s.title) ?? project ?? shortDoing(s);
   }
 
   private refreshBubbles(data: StateView) {

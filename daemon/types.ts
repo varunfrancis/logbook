@@ -23,6 +23,8 @@ export type SessionView = {
   projectId: string | null;
   agent: Agent;
   title: string;
+  /** The job they're on right now ("Extend the offer"), relabelled as new instructions come in; null until there's one. */
+  focus: string | null;
   status: SessionStatus;
   away: boolean; // idle so long it no longer counts as on site
   action: string | null;

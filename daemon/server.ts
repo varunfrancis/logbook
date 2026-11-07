@@ -15,6 +15,7 @@ import { stopProcess, systemDeps } from './stop.ts';
 import { checkPullRequests, syncGithub } from './github.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
+import { labelNextFocus } from './focus.ts';
 import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
@@ -362,6 +363,10 @@ async function githubLoop() {
 async function prLoop() {
   try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[logbook] PR check failed', e); }
 }
+/** Keeps each live agent's "current job" label in step with your newest instruction. */
+async function focusLoop() {
+  try { if (await labelNextFocus(db)) soon(); } catch (e) { console.error('[logbook] job label failed', e); }
+}
 async function nameLoop() {
   try { if (await nameProjectsBatch(db) > 0 || await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[logbook] naming failed', e); }
 }
@@ -370,7 +375,7 @@ setInterval(githubLoop, 10 * 60_000);
 function startLoops() {
   setTimeout(prLoop, 5000);
   setInterval(prLoop, 2 * 60_000);
-  if (!process.env.LOGBOOK_NO_NAMING) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); }
+  if (!process.env.LOGBOOK_NO_NAMING) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); }
 }
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { server.close(); db.close(); process.exit(0); });
