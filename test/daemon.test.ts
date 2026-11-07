@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
 import { handleHook, isJobNotice } from '../daemon/hooks.ts';
+import { addAsk, answerAsk, asksBySession, describeAsk, dropAsk, settleSession } from '../daemon/asks.ts';
 import { buildState } from '../daemon/state.ts';
 import { isClaude, stopProcess } from '../daemon/stop.ts';
 
@@ -192,6 +193,50 @@ test('a background job asking for input does not raise the hand of the terminal 
   db.prepare("UPDATE sessions SET hook_state = 'needs_input', needs_message = 'logo redesign needs your input: pick a face' WHERE id = 'parent'").run();
   handleHook(db, { ...base, hook_event_name: 'Notification', message: 'music finished' }, t0 + 60);
   assert.equal(status(t0 + 70), 'idle');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a permission prompt raises a hand at once and can be answered from the town', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const base = { session_id: 'ask-1', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
+  const t0 = Date.now();
+  handleHook(db, { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'clean up' }, t0);
+  const req = { ...base, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'rm -rf node_modules', description: 'Remove node_modules' },
+    permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'rm -rf node_modules' }], behavior: 'allow', destination: 'localSettings' }] };
+  handleHook(db, req, t0 + 10);
+  const s = buildState(db, new Map(), t0 + 20).sessions[0];
+  assert.equal(s.status, 'needs_input');
+  assert.match(s.needsMessage ?? '', /permission to use Bash/);
+
+  const replies: any[] = [];
+  const ask = addAsk(req, (o) => replies.push(o), t0 + 10)!;
+  assert.equal(ask.title, 'Wants to run: Remove node_modules');
+  assert.equal(ask.detail, 'rm -rf node_modules');
+  assert.equal(ask.canAlways, true);
+  assert.equal(asksBySession().get('ask-1')?.id, ask.id);
+  assert.equal(answerAsk(ask.id, 'always'), true);
+  assert.deepEqual(replies[0].hookSpecificOutput.decision, { behavior: 'allow', updatedPermissions: req.permission_suggestions });
+  assert.equal(answerAsk(ask.id, 'allow'), false); // already answered
+  assert.equal(asksBySession().size, 0);
+
+  const deny = addAsk(req, (o) => replies.push(o))!;
+  answerAsk(deny.id, 'deny');
+  assert.equal(replies[1].hookSpecificOutput.decision.behavior, 'deny');
+
+  // Answered in the terminal: the hook's request closes, or the turn moves on.
+  const gone = addAsk(req, (o) => replies.push(o))!;
+  assert.equal(dropAsk(gone.id), true);
+  addAsk(req, (o) => replies.push(o));
+  assert.equal(settleSession('ask-1'), true);
+  assert.equal(replies.at(-1), null);
+  assert.equal(asksBySession().size, 0);
+
+  // Questions are answered in the terminal, not with a yes/no.
+  assert.equal(addAsk({ ...req, tool_name: 'AskUserQuestion' }, () => {}), null);
+  assert.equal(describeAsk('Edit', { file_path: '/x/y/scene.ts' }).title, 'Wants to edit scene.ts');
+  assert.equal(describeAsk('mcp__claude_ai_Slack__slack_send_message', {}).title, 'Wants to use Slack · slack send message');
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

@@ -16,6 +16,12 @@ case "$payload" in
       exit 0
     fi
     ;;
+  *'"hook_event_name":"PermissionRequest"'*|*'"hook_event_name": "PermissionRequest"'*)
+    # A permission prompt: wait for an answer from the town (the terminal prompt shows meanwhile; whichever answers first wins).
+    # No answer, or Logbook isn't running: print nothing and the terminal prompt carries on as usual.
+    printf '%s' "$payload" | curl -s -m 590 -X POST -H 'content-type: application/json' --data-binary @- "$url?wait=1" 2>/dev/null
+    exit 0
+    ;;
 esac
 # Everything else is fire-and-forget.
 (

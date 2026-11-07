@@ -114,6 +114,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     action: status === 'ended' ? null : status === 'idle' ? 'Waiting for your next message' : s.current_action,
     actionKind: status === 'running' ? (s.action_kind ?? 'think') : null,
     needsMessage: status === 'needs_input' ? (s.needs_message || 'Waiting for your OK') : null,
+    ask: null, // filled in by the server from the hooks that are waiting
     branch: s.branch,
     worktree: s.worktree,
     cwd: s.cwd ?? live?.cwd ?? null,

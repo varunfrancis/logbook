@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
-import { DATA_DIR, PORT, WEB_DIST } from './config.ts';
+import { CLAUDE_DIR, DATA_DIR, PORT, WEB_DIST } from './config.ts';
 import { kvGet, kvSet, openDb, type Row } from './db.ts';
 import { purgeOwnRuns, scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { backfillEntrypoints } from './routines.ts';
@@ -22,6 +22,7 @@ import { groupDistricts } from './districts.ts';
 import { addNote, dismissFlag, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
 import type { Setup, StateView, Welcome } from './types.ts';
 import { NEW_WELCOME } from './state.ts';
+import { addAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
 
 const db = openDb();
 let live = new Map<string, LiveEntry>();
@@ -36,6 +37,8 @@ function refresh() {
   live = readLive();
   adoptLive(db, live);
   state = buildState(db, live, Date.now(), vscodeClients.size > 0, { ...setup, read: scanProgress.read, total: scanProgress.total });
+  const asks = asksBySession();
+  if (asks.size) for (const s of state.sessions) s.ask = s.status === 'needs_input' ? asks.get(s.id) ?? null : null;
   const { generatedAt, ...rest } = state;
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
@@ -181,6 +184,11 @@ function sameSite(req: http.IncomingMessage): boolean {
   try { const u = new URL(origin); return u.hostname === 'localhost' || u.hostname === '127.0.0.1'; } catch { return false; }
 }
 
+/** A new prompt or the end of a turn means any permission prompt still open was settled in the terminal. */
+function settleAfter(payload: any) {
+  if (['Stop', 'SessionEnd', 'UserPromptSubmit'].includes(payload?.hook_event_name) && typeof payload.session_id === 'string') settleSession(payload.session_id);
+}
+
 /** What a hook that waits gets back: the opt-in intro, then the project's notes from you. */
 function hookReply(payload: any): object | null {
   const intro = terminalIntro(db, payload, live, state.town.name) as { hookSpecificOutput: { additionalContext: string } } | null;
@@ -197,14 +205,27 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'POST' && p === '/hook') {
       const body = await readBody(req, 8 * 1024 * 1024);
+      if (url.searchParams.get('wait')) {
+        // A permission prompt: hold the request open until you answer in the town, or the terminal answers first and Claude stops the hook.
+        let payload: any = null;
+        try { payload = JSON.parse(body); handleHook(db, payload); } catch {}
+        const ask = payload?.hook_event_name === 'PermissionRequest' ? addAsk(payload, (out) => {
+          if (res.writableEnded) return;
+          if (out) json(res, 200, out); else res.writeHead(204).end();
+        }) : null;
+        if (!ask) { soon(); return void res.writeHead(204).end(); }
+        res.on('close', () => { if (dropAsk(ask.id)) soon(); });
+        soon();
+        return;
+      }
       if (url.searchParams.get('reply')) {
         // Session start (and a prompt while a note is waiting): the hook waits briefly for context to hand Claude.
         let out: object | null = null;
-        try { const payload = JSON.parse(body); handleHook(db, payload); out = hookReply(payload); soon(); } catch {}
+        try { const payload = JSON.parse(body); handleHook(db, payload); settleAfter(payload); out = hookReply(payload); soon(); } catch {}
         return out ? json(res, 200, out) : void res.writeHead(204).end();
       }
       res.writeHead(204).end();
-      try { handleHook(db, JSON.parse(body)); soon(); } catch {}
+      try { const payload = JSON.parse(body); handleHook(db, payload); settleAfter(payload); soon(); } catch {}
       return;
     }
     if (req.method === 'POST' && p.startsWith('/api/') && !sameSite(req)) return json(res, 403, { error: 'Not allowed' });
@@ -253,6 +274,15 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
+    if (req.method === 'POST' && p.startsWith('/api/ask/')) {
+      // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), or deny.
+      const body = await readJson(req);
+      const decision = (['allow', 'always', 'deny'] as const).find((d) => d === body.decision) as Decision | undefined;
+      if (!decision) return json(res, 400, { ok: false, message: 'Unknown answer' });
+      const ok = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision);
+      soon();
+      return json(res, 200, ok ? { ok: true } : { ok: false, message: 'Already answered, probably in the terminal.' });
+    }
     if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, jump(decodeURIComponent(p.slice('/api/jump/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/resume/claim/')) {
       const r = pendingResumes.get(decodeURIComponent(p.slice('/api/resume/claim/'.length)));
@@ -323,6 +353,7 @@ const server = http.createServer(async (req, res) => {
  * "Setting up your town" with real counts instead of a page that won't load.
  */
 refreshHookScript();
+addPermissionHook();
 try { const n = purgeOwnRuns(db); if (n) console.log(`[logbook] removed ${n} of Logbook's own background runs from the town`); } catch (e) { console.error('[logbook] cleanup failed', e); }
 try { backfillEntrypoints(db); } catch (e) { console.error('[logbook] entrypoint backfill failed', e); }
 console.log('[logbook] indexing transcripts…');
@@ -348,6 +379,24 @@ async function firstNames() {
   const cap = new Promise((r) => setTimeout(r, 30_000));
   await Promise.race([(async () => { while (await nameProjectsBatch(db) > 0) refresh(); })().catch(() => {}), cap]);
   writeIntros(db, live, state.town.owner).catch(() => {}); // ready for the roll call by the time the town has a name
+}
+
+/**
+ * Installs from before raised hands could be answered in the town have every Logbook hook except PermissionRequest:
+ * add that one next to them (same command, settings backed up first) so upgrading doesn't need a reinstall.
+ */
+function addPermissionHook() {
+  const file = path.join(CLAUDE_DIR, 'settings.json');
+  try {
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const ours = (h: any) => typeof h?.command === 'string' && h.command.includes(path.join(DATA_DIR, 'hook.sh'));
+    const mine = Object.values(s.hooks ?? {}).flat().flatMap((g: any) => g?.hooks ?? []).find(ours) as { command: string } | undefined;
+    if (!mine || (s.hooks.PermissionRequest ?? []).some((g: any) => (g?.hooks ?? []).some(ours))) return;
+    (s.hooks.PermissionRequest ??= []).push({ matcher: '*', hooks: [{ type: 'command', command: mine.command, timeout: 600 }] });
+    fs.copyFileSync(file, `${file}.logbook-backup-${Date.now()}`);
+    fs.writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+    console.log('[logbook] added the PermissionRequest hook so raised hands can be answered from the town');
+  } catch {}
 }
 
 /** Keeps ~/.logbook/hook.sh in step with this version, so hook changes don't need a reinstall. */

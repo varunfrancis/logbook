@@ -5,6 +5,13 @@ import { ensureProjectForCwd, touchProject } from './projects.ts';
 import { cleanPrompt } from './transcripts.ts';
 import { isOwnRun } from './config.ts';
 
+/** The raised-hand line for a permission prompt, in the same words the terminal would use. */
+export function permissionMessage(tool: string, input: any): string {
+  if (tool === 'AskUserQuestion') return 'Has a question for you';
+  if (tool === 'ExitPlanMode') return 'Has a plan ready for your OK';
+  return `Claude needs your permission to use ${tool.startsWith('mcp__') ? describeTool(tool, input).text.replace(/^Using /, '') : tool}`;
+}
+
 const PR_RE = /https:\/\/github\.com\/[^/\s"]+\/[^/\s"]+\/pull\/\d+/;
 
 /**
@@ -71,6 +78,14 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
         if (m) { set({ pr_url: m[0], pr_checked_at: null }); logEvent(db, sid, now, 'pr', `Opened ${m[0]}`); }
       }
       if (/\bgit\s+commit\b/.test(cmd)) logEvent(db, sid, now, 'commit', 'Committed changes');
+      break;
+    }
+    case 'PermissionRequest': {
+      // Fires the moment Claude asks (the Notification for it only comes ~6s later, and not at all if you answer first).
+      if (s.hook_state === 'needs_input') break;
+      const msg = permissionMessage(String(p.tool_name ?? ''), p.tool_input);
+      set({ hook_state: 'needs_input', hook_state_at: now, needs_message: msg });
+      logEvent(db, sid, now, 'needs', msg);
       break;
     }
     case 'Notification': {
