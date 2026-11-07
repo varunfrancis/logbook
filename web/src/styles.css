@@ -415,6 +415,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .field-label { font-weight: 800; font-size: 13px; }
 .setting { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 .setting.col { flex-direction: column; align-items: stretch; }
+.setting:not(.col) > :nth-child(2) { flex-shrink: 0; white-space: nowrap; } /* the control keeps its size; the description wraps instead */
 .modal.share { width: min(640px, 100%); }
 .tabs-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs-row button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 800 13px var(--f-body); cursor: pointer; }

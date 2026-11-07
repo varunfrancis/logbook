@@ -54,7 +54,7 @@ export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWel
         <div className="setting"><div><b>Language</b><div className="muted">Plain talks in bricks and buildings; Technical shows tokens and tool calls.</div></div>
           <Seg label="Language" value={prefs.voice} set={prefs.setVoice} options={[['plain', 'Plain'], ['technical', 'Technical']]} /></div>
         <div className="setting"><div><b>Cost</b><div className="muted">Claude Code runs on your Claude plan, so Swarmville shows $0 spent. API prices shows what the same work would cost if you paid per token.</div></div>
-          <Seg label="Cost" value={prefs.costView} set={prefs.setCostView} options={[['plan', 'My plan ($0)'], ['api', 'API prices']]} /></div>
+          <Seg label="Cost" value={prefs.costView} set={prefs.setCostView} options={[['plan', 'My plan'], ['api', 'API prices']]} /></div>
         <div className="setting"><div><b>Agent bubbles</b><div className="muted">What the bubble over each agent in Town says: the job they're on (“Extend the offer”), the project, or the step they're on right now.</div></div>
           <Seg label="Agent bubbles" value={prefs.bubble} set={prefs.setBubble} options={[['job', 'Job'], ['project', 'Project'], ['task', 'Step']]} /></div>
         <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Swarmville knows about but hasn't seen any work on yet.</div></div>
