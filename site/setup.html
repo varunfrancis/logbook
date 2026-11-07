@@ -381,10 +381,23 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   .js .pop.in { transform: none; opacity: 1; }
 }
 
+/* iOS-style continuous corners on every rounded box: the curve eases into the straight edge instead of meeting it at a
+ * sharp tangent. superellipse(1.4) keeps the same overall roundness (a full squircle reads boxy at these radii).
+ * Circles (50%) and pills (999px) stay as they are. Browsers without corner-shape keep plain rounded corners. */
+@supports (corner-shape: superellipse(1.4)) {
+  .btn, .way, .gh-btn, .theme, .tab, .key, .cmd, .browser, .browser .url, .mini-chat, .mini-chat .me, .mini-chat .typing,
+  .panel, .panel .opt, .allow, .allow .row span, .bubble, .not-mac, .say, .toast, .opening, .faq details, .faq summary:focus-visible,
+  .talk, .card, .oss-card, .step, .art, .frame, .frame .clip { corner-shape: superellipse(1.4); }
+}
+
 /* setup page only */
 .setup-hero { padding-bottom: 10px; }
 .watch { max-width: 900px; margin: 40px auto 0; }
-.watch video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 24px; border: 4px solid var(--surface); background: #000; box-shadow: var(--shadow); }
+/* The video sits in a card like the step cards; .clip rounds the video itself (overflow + mask, so Safari clips it too). */
+.frame { padding: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 30px; box-shadow: 0 6px 0 var(--line), var(--shadow); }
+.frame .clip { border-radius: 22px; overflow: hidden; isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); background: #000; }
+.watch video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+@media (max-width: 640px) { .frame { padding: 5px; border-radius: 22px; } .frame .clip { border-radius: 16px; } }
 .watch .how { margin-top: 14px; font-size: 15px; color: var(--ink-2); }
 .promise .step { text-align: left; }
 .step code { font: 600 .9em ui-monospace, Menlo, monospace; }
@@ -415,10 +428,12 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   <h1>how to set up swarmville</h1>
   <p class="sub">About one minute on your Mac. Claude does the setup for you.</p>
   <div class="watch">
-    <video controls preload="metadata" playsinline poster="setup-poster.jpg">
-      <source src="setup-video.mp4" type="video/mp4">
-      Your browser can't play this video. The steps below say the same thing.
-    </video>
+    <div class="frame"><div class="clip">
+      <video controls preload="metadata" playsinline poster="setup-poster.jpg">
+        <source src="setup-video.mp4" type="video/mp4">
+        Your browser can't play this video. The steps below say the same thing.
+      </video>
+    </div></div>
     <p class="how">A one-minute video with captions. The same steps are written out below.</p>
   </div>
 </header>
