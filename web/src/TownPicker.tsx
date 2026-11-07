@@ -56,7 +56,7 @@ export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWel
           <Seg label="Language" value={prefs.voice} set={prefs.setVoice} options={[['plain', 'Plain'], ['technical', 'Technical']]} /></div>
         <div className="setting"><div><b>Agent bubbles</b><div className="muted">What the bubble over each agent in Town says: the job they're on (“Extend the offer”), the project, or the step they're on right now.</div></div>
           <Seg label="Agent bubbles" value={prefs.bubble} set={prefs.setBubble} options={[['job', 'Job'], ['project', 'Project'], ['task', 'Step']]} /></div>
-        <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Logbook knows about but hasn't seen any work on yet.</div></div>
+        <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Swarmville knows about but hasn't seen any work on yet.</div></div>
           <label className="toggle"><input type="checkbox" id="show-lots" checked={prefs.showLots} onChange={(e) => prefs.setShowLots(e.target.checked)} /> Show</label></div>
         <div className="setting"><div><b>Town name</b><div className="muted">{state.town.name}</div></div><button type="button" className="ghost" onClick={renameTown}>Rename</button></div>
         <div className="setting col">

@@ -571,3 +571,14 @@ test("Logbook's own background runs never become projects, even after a test fol
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('no agent looks like Pip the foreman (the logo): never a blue capsule', async () => {
+  const { identityFor, FOREMAN_LOOK } = await import('../daemon/identity.ts');
+  let capsules = 0;
+  for (let i = 0; i < 20000; i++) {
+    const id = identityFor(`proj-${i}#feat/x${i}`);
+    if (id.shape === FOREMAN_LOOK.shape) capsules++;
+    assert.ok(!(id.shape === FOREMAN_LOOK.shape && id.color === FOREMAN_LOOK.color), `agent ${i} got Pip's look`);
+  }
+  assert.ok(capsules > 0, 'capsules are still handed out in other colors');
+});

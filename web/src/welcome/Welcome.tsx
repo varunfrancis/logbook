@@ -247,7 +247,7 @@ function RollCall({ state, setTourFocus, onDone, onSkip }: { state: StateView; s
 
 type Sign = { id: string; title: string; body: string; mood: Mood; find: (s: StateView) => { session?: SessionView; projectId: string | null } | null };
 const SIGNS: Sign[] = [
-  { id: 'needs', title: 'A raised hand means they need you', body: 'They’re waiting for a yes, a no, or an answer. Click them and Logbook jumps straight to their terminal. Your Mac will ping you too.', mood: 'needs',
+  { id: 'needs', title: 'A raised hand means they need you', body: 'They’re waiting for a yes, a no, or an answer. Click them and Swarmville jumps straight to their terminal. Your Mac will ping you too.', mood: 'needs',
     find: (st) => { const s = st.sessions.find((x) => x.status === 'needs_input'); return s ? { session: s, projectId: s.projectId } : null; } },
   { id: 'stuck', title: 'A rain cloud means someone’s stuck', body: 'They’ve hit the same problem again and again. A quick nudge from you usually gets them going.', mood: 'stuck',
     find: (st) => { const s = st.sessions.find((x) => x.stuck && x.status !== 'ended'); return s ? { session: s, projectId: s.projectId } : null; } },
@@ -325,7 +325,7 @@ function Handoff({ state, started, onNext }: { state: StateView; started: Starte
           <button type="button" className="ghost small" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
         </div>
       ) : null}
-      {started?.via === 'terminal' && !state.settings.vscodeConnected ? <p className="sw-note">Use VS Code? Restart it once and Logbook will open agents right inside it.</p> : null}
+      {started?.via === 'terminal' && !state.settings.vscodeConnected ? <p className="sw-note">Use VS Code? Restart it once and Swarmville will open agents right inside it.</p> : null}
       <label className="wel-toggle">
         <input type="checkbox" id="wel-terminal-intros" checked={intros} onChange={(e) => toggle(e.target.checked)} />
         <span className="wel-switch" aria-hidden="true" />

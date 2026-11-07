@@ -158,7 +158,7 @@ export function noteContext(db: Db, p: any, owner: string, now = Date.now()): { 
   for (const n of notes) db.prepare('INSERT OR IGNORE INTO note_reach(note_id, session_id, at) VALUES(?, ?, ?)').run(n.id, p.session_id, now);
   const fresh = event === 'UserPromptSubmit';
   const text = [
-    `${fresh ? 'New note' : 'Standing notes'} from ${owner}, the person you work for, about how work on this project should go (sent through Logbook, their dashboard).`,
+    `${fresh ? 'New note' : 'Standing notes'} from ${owner}, the person you work for, about how work on this project should go (sent through Swarmville, their dashboard).`,
     'Follow these for the rest of this session; they apply to every task here:',
     ...notes.map((n) => `- ${n.text}`),
     fresh ? 'Briefly acknowledge the note in one line, then carry on.' : 'No need to mention these unless they are relevant.',

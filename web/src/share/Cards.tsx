@@ -40,7 +40,7 @@ export function WaitedCard({ state, day }: { state: StateView; day: DayView; pri
         )) : <div className="note">Nobody waited today. Suspicious.</div>}
         {per[0] ? <div className="note">{per[0].s.agent.title} waited {mins(per[0].ms)} for an answer.</div> : null}
       </div>
-      <footer><span>{state.town.name} · {dateLabel(day.start)} · a crew of {day.stats.crew} · {day.stats.projects} project{day.stats.projects === 1 ? '' : 's'}</span><b>logbook</b></footer>
+      <footer><span>{state.town.name} · {dateLabel(day.start)} · a crew of {day.stats.crew} · {day.stats.projects} project{day.stats.projects === 1 ? '' : 's'}</span><b>swarmville</b></footer>
     </div>
   );
 }
@@ -64,7 +64,7 @@ export function GraveyardCard({ state, graves, privacy }: { state: StateView; gr
           </div>
         )) : <div className="stone empty-stone"><b>Nobody here yet</b><span>Every agent kept their work this month.</span></div>}
       </div>
-      <footer><span>{graves.length} crew lost · {graves.reduce((n, g) => n + g.bricks, 0)} bricks</span><b>logbook</b></footer>
+      <footer><span>{graves.length} crew lost · {graves.reduce((n, g) => n + g.bricks, 0)} bricks</span><b>swarmville</b></footer>
     </div>
   );
 }
@@ -137,7 +137,7 @@ export function WrappedCards({ state, w }: { state: StateView; w: WrappedView })
         {[['Shifts worked', w.stats.shifts], ['Things shipped', w.stats.shipped], ['In the graveyard', w.stats.graveyard], ['Hands raised, waiting on you', mins(w.stats.waitedMs)], ['Busiest hour', hour], ['Bricks laid', w.stats.bricks.toLocaleString()], ['New buildings', w.stats.newBuildings]].map(([k, v]) => (
           <div className="kv" key={String(k)}><span>{k}</span><b>{v}</b></div>
         ))}
-        <footer><span /><b>logbook</b></footer>
+        <footer><span /><b>swarmville</b></footer>
       </div>
     </div>
   );

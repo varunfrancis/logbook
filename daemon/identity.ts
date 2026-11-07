@@ -119,13 +119,19 @@ export function identityFor(key: string): Identity {
   return registry.get(key) ?? hashIdentity(key);
 }
 
+/** Pip the foreman's look (FOREMAN in web/src/crew/Avatar.tsx), which is also the logo: no agent gets it. */
+export const FOREMAN_LOOK = { shape: 'capsule', color: '#3f8efc' } as const;
+
 function hashIdentity(key: string): Identity {
   const h = hash(key);
+  const shape = SHAPES[(h >>> 7) % SHAPES.length];
+  let c = (h >>> 11) % COLORS.length;
+  if (shape === FOREMAN_LOOK.shape && COLORS[c] === FOREMAN_LOOK.color) c = (c + 1) % COLORS.length;
   return {
     key,
     name: NAMES[h % NAMES.length],
-    shape: SHAPES[(h >>> 7) % SHAPES.length],
-    color: COLORS[(h >>> 11) % COLORS.length],
+    shape,
+    color: COLORS[c],
     accessory: ACCESSORIES[(h >>> 17) % ACCESSORIES.length],
   };
 }

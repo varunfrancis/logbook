@@ -100,7 +100,7 @@ function jump(sessionId: string): { ok: boolean; via: string; message: string } 
   for (const c of vscodeClients) c.write(`event: jump\ndata: ${payload}\n\n`);
   if (vscodeClients.size) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' };
   execFile('open', ['-a', 'Visual Studio Code'], () => {});
-  return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Logbook VS Code helper to jump straight to the terminal.' };
+  return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Swarmville VS Code helper to jump straight to the terminal.' };
 }
 
 /** "Clock out": the VS Code helper closes the agent's terminal tab, and the daemon makes sure Claude itself stops. */
@@ -170,7 +170,7 @@ function launch(projectId: string, prompt: string, plan: boolean): Opened {
   const via = openInTerminal(`launch-${crypto.randomUUID()}`, p.root, p.root, command, plan ? 'Claude (planning)' : 'Claude');
   return {
     ok: true, via, command: `cd ${shq(p.root)} && ${command}`,
-    message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening a new Terminal window. If your Mac asks whether Logbook may control Terminal, click OK.',
+    message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening a new Terminal window. If your Mac asks whether Swarmville may control Terminal, click OK.',
   };
 }
 
@@ -294,7 +294,7 @@ const server = http.createServer(async (req, res) => {
           const dest = path.join(repo, 'logbook-skyline.png');
           fs.copyFileSync(file, dest);
           execFileSync('git', ['-C', repo, 'add', 'logbook-skyline.png'], { timeout: 10000 });
-          try { execFileSync('git', ['-C', repo, 'commit', '-m', 'Update Logbook skyline'], { timeout: 10000 }); } catch {}
+          try { execFileSync('git', ['-C', repo, 'commit', '-m', 'Update Swarmville skyline'], { timeout: 10000 }); } catch {}
           execFileSync('git', ['-C', repo, 'push'], { timeout: 30000 });
           return json(res, 200, { ok: true, file, pushed: true, markdown: '![My agent town](logbook-skyline.png)' });
         } catch (e: any) {
@@ -309,7 +309,7 @@ const server = http.createServer(async (req, res) => {
     if (!file.startsWith(WEB_DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(WEB_DIST, 'index.html');
     if (!fs.existsSync(file)) {
       res.writeHead(200, { 'content-type': 'text/plain' });
-      return res.end('Logbook daemon is running. Build the web UI with `npm run build`, or run `npm run dev` for the dev server.');
+      return res.end('Swarmville is running. Build the web UI with `npm run build`, or run `npm run dev` for the dev server.');
     }
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
