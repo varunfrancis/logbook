@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { CrewDay, CrewNote, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from './Avatar.tsx';
 import { chime } from '../audio.ts';
@@ -7,17 +7,6 @@ import { ago } from '../format.ts';
 import { post } from '../useLogbook.ts';
 import { handovers, jobsText, medals, type MedalId } from './medals.ts';
 
-function CrewFaces({ c, size = 26 }: { c: CrewDay; size?: number }) {
-  const shown = c.agents.slice(0, 4);
-  return (
-    <span className="crew-faces" title={c.agents.map((a) => a.title).join(', ')}>
-      {shown.map((a) => <AgentAvatar key={a.key} agent={a} mood="working" size={size} />)}
-      {c.agents.length > shown.length ? <small>+{c.agents.length - shown.length}</small> : null}
-    </span>
-  );
-}
-
-const crewName = (c: CrewDay) => `${c.name} crew`;
 const rate = (r: { finished: number; delivered: number }) => (r.finished ? `${r.delivered} of ${r.finished}` : 'no jobs');
 
 /** "Have a word": a short note to the whole crew, starting from a suggested draft. */
@@ -33,7 +22,7 @@ function Word({ c, onDone }: { c: CrewDay; onDone: () => void }) {
   };
   return (
     <form className="word" onSubmit={(e) => { e.preventDefault(); send(); }} onClick={(e) => e.stopPropagation()}>
-      <label htmlFor={`word-${c.projectId}`}>To the {crewName(c)}:</label>
+      <label htmlFor={`word-${c.projectId}`}>To everyone on {c.name}:</label>
       <textarea id={`word-${c.projectId}`} value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1200} autoFocus />
       <p className="sub">Every agent on {c.name} is told this: new sessions when they start, and agents already working on their next turn. It stays until you remove it.</p>
       <div className="row">
@@ -45,24 +34,6 @@ function Word({ c, onDone }: { c: CrewDay; onDone: () => void }) {
   );
 }
 
-function NeedsWord({ c, openProject }: { c: CrewDay; openProject: (id: string) => void }) {
-  const [writing, setWriting] = useState(false);
-  return (
-    <li className="medal-row needs-word" onClick={() => openProject(c.projectId)}>
-      <span className="medal-icon" aria-hidden="true">🗣</span>
-      <span className="medal-label">Needs a word</span>
-      <span className="medal-who"><CrewFaces c={c} /><b>{crewName(c)}</b></span>
-      <span className="medal-val">{c.flag!.reasons.join(' · ')}</span>
-      {writing ? <Word c={c} onDone={() => setWriting(false)} /> : (
-        <span className="row word-actions" onClick={(e) => e.stopPropagation()}>
-          <button className="btn dark small" onClick={() => setWriting(true)}>Have a word</button>
-          <button className="ghost small" onClick={() => post('/api/crews/dismiss', { projectId: c.projectId })}>It’s fine</button>
-        </span>
-      )}
-    </li>
-  );
-}
-
 function Notes({ notes, now, openProject }: { notes: CrewNote[]; now: number; openProject: (id: string) => void }) {
   return (
     <div className="notes">
@@ -71,7 +42,7 @@ function Notes({ notes, now, openProject }: { notes: CrewNote[]; now: number; op
         {notes.map((n) => (
           <li key={n.id}>
             <div className="note-body">
-              <div><button className="link" onClick={() => openProject(n.projectId)}><b>{n.projectName} crew</b></button> <span className="sub">· sent {ago(n.createdAt, now)} · reached {n.reached} session{n.reached === 1 ? '' : 's'}</span></div>
+              <div><button className="link" onClick={() => openProject(n.projectId)}><b>{n.projectName}</b></button> <span className="sub">· sent {ago(n.createdAt, now)} · reached {n.reached} session{n.reached === 1 ? '' : 's'}</span></div>
               <div className="note-text">{n.text}</div>
               <div className="sub">Delivered: {rate(n.before)} in the week before → {rate(n.since)} since</div>
             </div>
@@ -83,75 +54,89 @@ function Notes({ notes, now, openProject }: { notes: CrewNote[]; now: number; op
   );
 }
 
-type Col = { key: string; label: string; get: (c: CrewDay) => number; show: (c: CrewDay) => string };
+type Col = { key: string; label: string; get: (c: CrewDay) => number; show: (c: CrewDay) => string; tip?: (c: CrewDay) => string };
 const COLS: Col[] = [
-  { key: 'points', label: 'Delivered', get: (c) => c.points, show: (c) => (c.delivered ? jobsText(c) : '—') },
+  { key: 'delivered', label: 'Delivered', get: (c) => c.delivered + c.points / 1000, show: (c) => (c.delivered ? String(c.delivered) : '—'), tip: (c) => (c.delivered ? jobsText(c) : '') },
   { key: 'rate', label: 'Hit rate', get: (c) => (c.finished ? c.delivered / c.finished : -1), show: (c) => (c.finished ? `${c.delivered}/${c.finished}` : '—') },
-  { key: 'lost', label: 'Scrapped', get: (c) => c.lost, show: (c) => String(c.lost || '') },
+  { key: 'lost', label: 'Scrapped', get: (c) => c.lost, show: (c) => String(c.lost || '—') },
   { key: 'work', label: 'Worked', get: (c) => c.workMs, show: (c) => (c.workMs ? mins(c.workMs) : '—') },
   { key: 'asks', label: 'Questions', get: (c) => c.interruptions, show: (c) => String(c.interruptions) },
   { key: 'cost', label: 'Cost', get: (c) => c.costUsd, show: (c) => money(c.costUsd) },
   { key: 'checks', label: 'Checks', get: (c) => c.checksOk - c.checksFail, show: (c) => (c.checksOk + c.checksFail ? `${c.checksOk}✓ ${c.checksFail}✕` : '—') },
 ];
 
-function FullTable({ crews, openProject }: { crews: CrewDay[]; openProject: (id: string) => void }) {
-  const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: 'points', desc: true });
-  const col = COLS.find((c) => c.key === sort.key) ?? COLS[0];
-  const rows = [...crews].sort((a, b) => (sort.desc ? -1 : 1) * (col.get(a) - col.get(b)) || a.name.localeCompare(b.name));
+function Agents({ c }: { c: CrewDay }) {
+  const names = c.agents.map((a) => a.name);
   return (
-    <div className="ptable-wrap">
-      <table className="ptable crew-table">
-        <thead><tr><th>Crew</th>{COLS.map((c) => (
-          <th key={c.key} className="r" aria-sort={sort.key === c.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
-            <button className="sort" onClick={() => setSort({ key: c.key, desc: sort.key === c.key ? !sort.desc : true })}>{c.label}{sort.key === c.key ? (sort.desc ? ' ↓' : ' ↑') : ''}</button>
-          </th>
-        ))}</tr></thead>
-        <tbody>
-          {rows.map((c) => (
-            <tr key={c.projectId} onClick={() => openProject(c.projectId)}>
-              <td><span className="medal-who"><CrewFaces c={c} size={22} /><b>{c.name}</b></span></td>
-              {COLS.map((col) => <td key={col.key} className="r num">{col.show(c)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <span className="lb-agents" title={c.agents.map((a) => a.title).join(', ')}>
+      <span className="crew-faces">{c.agents.slice(0, 4).map((a) => <AgentAvatar key={a.key} agent={a} mood="working" size={22} />)}</span>
+      <span>{names.slice(0, 2).join(', ')}{names.length > 2 ? ` +${names.length - 2}` : ''}</span>
+    </span>
   );
 }
 
-/** Today's medals on the Crew tab: one crew per category, plus a gentle "needs a word" for a crew having a rough day. */
+/** Today's crews as one table: the project, its agents, the numbers, and whatever awards it holds. */
 export function Leaderboard({ state, now, openProject }: { state: StateView; now: number; openProject: (id: string) => void }) {
   const crews = state.crews ?? [];
   const board = useMemo(() => medals(crews), [crews]);
   const fresh = useFreshMedals(board);
-  const flagged = crews.filter((c) => c.flag);
   const notes = state.notes ?? [];
-  const finished = crews.filter((c) => c.finished).length;
+  const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: 'awards', desc: true });
+  const [writing, setWriting] = useState<string | null>(null);
+  const won = (c: CrewDay) => board.filter((m) => m.holder?.projectId === c.projectId);
+  // Default order: most awards first, then most delivered.
+  const get = sort.key === 'awards' ? (c: CrewDay) => won(c).length * 1000 + c.delivered + c.points / 1000 : (COLS.find((c) => c.key === sort.key) ?? COLS[0]).get;
+  const rows = [...crews].sort((a, b) => (sort.desc ? -1 : 1) * (get(a) - get(b)) || a.name.localeCompare(b.name));
+  const sortBy = (key: string) => setSort({ key, desc: sort.key === key ? !sort.desc : true });
+  const arrow = (key: string) => (sort.key === key ? (sort.desc ? ' ↓' : ' ↑') : '');
   return (
     <section className="leaderboard">
-      <h2>Today’s medals <small>resets at midnight · {finished ? `${finished} crew${finished === 1 ? ' has' : 's have'} finished work today` : 'whole crews per project, judged together'}</small></h2>
+      <h2>Leaderboard <small>today · resets at midnight</small></h2>
       {crews.length ? (
-        <ul className="medals">
-          {board.map((m) => (
-            <li key={m.id} className={`medal-row${m.holder ? '' : ' empty'}${fresh.has(m.id) ? ' fresh' : ''}`} onClick={() => m.holder && openProject(m.holder.projectId)} title={m.help}>
-              <span className="medal-icon" aria-hidden="true">{m.icon}</span>
-              <span className="medal-label">{m.label}</span>
-              {m.holder ? <>
-                <span className="medal-who"><CrewFaces c={m.holder} /><b>{crewName(m.holder)}</b></span>
-                <span className="medal-val">{m.value}{m.runnerUp ? <small>runner-up: {m.runnerUp.crew.name}, {m.runnerUp.value}</small> : null}</span>
-              </> : <span className="medal-val muted">Nobody yet</span>}
-            </li>
-          ))}
-          {flagged.map((c) => <NeedsWord key={c.projectId} c={c} openProject={openProject} />)}
-        </ul>
-      ) : <div className="empty"><b>No medals yet today.</b> They’re handed out as crews finish jobs.</div>}
+        <div className="ptable-wrap">
+          <table className="ptable crew-table">
+            <thead><tr>
+              <th>Project</th><th>Agents</th>
+              <th aria-sort={sort.key === 'awards' ? (sort.desc ? 'descending' : 'ascending') : 'none'}><button className="sort" onClick={() => sortBy('awards')}>Awards{arrow('awards')}</button></th>
+              {COLS.map((c) => (
+                <th key={c.key} className="r" aria-sort={sort.key === c.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
+                  <button className="sort" onClick={() => sortBy(c.key)}>{c.label}{arrow(c.key)}</button>
+                </th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {rows.map((c) => (
+                <Fragment key={c.projectId}>
+                  <tr onClick={() => openProject(c.projectId)} className={c.flag ? 'flagged' : ''}>
+                    <td><b>{c.name}</b></td>
+                    <td><Agents c={c} /></td>
+                    <td className="awards" onClick={(e) => e.stopPropagation()}>
+                      {won(c).map((m) => <span key={m.id} className={`award${fresh.has(m.id) ? ' fresh' : ''}`} title={`${m.label}: ${m.value}`} aria-label={m.label}>{m.icon}</span>)}
+                      {c.flag ? (
+                        <span className="award-word">
+                          <span className="award" title={`Needs a word: ${c.flag.reasons.join(' · ')}`} aria-label="Needs a word">🗣</span>
+                          {writing !== c.projectId ? <>
+                            <button className="ghost small" onClick={() => setWriting(c.projectId)} title={c.flag.reasons.join(' · ')}>Have a word</button>
+                            <button className="ghost small" onClick={() => post('/api/crews/dismiss', { projectId: c.projectId })}>It’s fine</button>
+                          </> : null}
+                        </span>
+                      ) : null}
+                    </td>
+                    {COLS.map((col) => <td key={col.key} className="r num" title={col.tip?.(c) || undefined}>{col.show(c)}</td>)}
+                  </tr>
+                  {writing === c.projectId && c.flag ? (
+                    <tr className="word-row"><td colSpan={COLS.length + 3}>
+                      <div className="sub">Needs a word: {c.flag.reasons.join(' · ')}</div>
+                      <Word c={c} onDone={() => setWriting(null)} />
+                    </td></tr>
+                  ) : null}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <div className="empty"><b>Nobody has worked yet today.</b></div>}
       {notes.length ? <Notes notes={notes} now={now} openProject={openProject} /> : null}
-      {crews.length ? (
-        <details className="fold crew-full">
-          <summary><h3>Full table <small>every crew, every column</small></h3></summary>
-          <FullTable crews={crews} openProject={openProject} />
-        </details>
-      ) : null}
     </section>
   );
 }
@@ -174,8 +159,8 @@ function track(state: StateView): number {
   const names = new Map((state.crews ?? []).map((c) => [c.projectId, c.name]));
   for (const { medal, from } of moved) {
     changedAt.set(medal.id, Date.now());
-    const who = `${medal.holder!.name} crew`;
-    toastQueue = [...toastQueue, { key: `${medal.id}-${Date.now()}`, projectId: medal.holder!.projectId, text: from ? `${medal.icon} ${who} took ${medal.label} from ${names.get(from) ?? 'another crew'}` : `${medal.icon} ${who} won ${medal.label}` }].slice(-3);
+    const who = medal.holder!.name;
+    toastQueue = [...toastQueue, { key: `${medal.id}-${Date.now()}`, projectId: medal.holder!.projectId, text: from ? `${medal.icon} ${who} took ${medal.label} from ${names.get(from) ?? 'another project'}` : `${medal.icon} ${who} won ${medal.label}` }].slice(-3);
   }
   for (const m of board) holders.set(m.id, m.holder?.projectId ?? null);
   if (moved.length) listeners.forEach((f) => f());
