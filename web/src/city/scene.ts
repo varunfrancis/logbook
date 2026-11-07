@@ -14,7 +14,7 @@ THREE.ColorManagement.enabled = false;
 const LOT = 8, ROAD = 3, PITCH = LOT + ROAD, FH = 1.1, BASE = 0.24;
 const PALETTE = ['#f4b183', '#9fd9c6', '#b8a7e8', '#f6d36b', '#9cc7f0', '#f5a3b5', '#a8d8a0', '#f2c38b', '#c6b8f0', '#8fd3d9'];
 const VEST = ['#ff7a45', '#3f8efc', '#9b6bff', '#14b8a6', '#f472b6', '#f5b301', '#ef4444', '#22c55e'];
-const STATE_DOT: Record<string, string> = { site: '#3f8efc', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
+const STATE_DOT: Record<string, string> = { site: '#17c3c3', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
 const LIFT = 1.6;
 
 type Mode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit';
@@ -383,7 +383,7 @@ export class CityScene {
     const live = p.state === 'site' || p.state === 'needs';
     const building = live || p.state === 'construction';
     const quiet = p.state === 'done';
-    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#3f8efc', updaters);
+    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#17c3c3', updaters);
     let color = PALETTE[h % PALETTE.length];
     if (quiet) color = this.desat(color);
     const recent = p.state === 'recent';
@@ -735,7 +735,7 @@ export class CityScene {
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     for (const r of raised) {
       const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight + 8;
-      let y = r.y - 46;
+      let y = r.y - 96;
       for (let guard = 0, moved = true; moved && guard < 24; guard++) {
         moved = false;
         for (const q of placed) {
