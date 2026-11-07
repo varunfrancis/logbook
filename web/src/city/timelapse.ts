@@ -17,7 +17,7 @@ export function frameState(base: StateView, day: DayView, t: number): StateView 
     if (!seg) continue;
     const status: SessionView['status'] = seg.kind === 'work' ? 'running' : seg.kind === 'wait' ? 'needs_input' : 'idle';
     const kind = KINDS[Math.floor(t / 600_000 + s.id.charCodeAt(2)) % KINDS.length];
-    live.push({ ...s, status, away: false, actionKind: status === 'running' ? kind : null, needsMessage: status === 'needs_input' ? 'Waiting for your OK' : null, stuck: null, collision: null, helperActive: false, chatter: null });
+    live.push({ ...s, status, away: false, actionKind: status === 'running' ? kind : null, needsMessage: status === 'needs_input' ? 'Waiting for your OK' : null, ask: null, stuck: null, collision: null, helperActive: false, chatter: null });
   }
   const crew = new Map<string, SessionView[]>();
   for (const s of live) { const list = crew.get(s.projectId!) ?? []; list.push(s); crew.set(s.projectId!, list); }

@@ -46,7 +46,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 function sleeperView(r: RoutineView): SessionView {
   return {
     id: r.lastSessionId, projectId: r.projectId, agent: r.agent, title: r.title, focus: null, status: 'ended', away: true, scheduled: true,
-    action: null, actionKind: null, needsMessage: null, branch: null, worktree: null, cwd: null, kind: null,
+    action: null, actionKind: null, needsMessage: null, ask: null, branch: null, worktree: null, cwd: null, kind: null,
     startedAt: r.lastRunAt, lastEventAt: r.lastEndedAt, endedAt: r.lastEndedAt, endReason: null,
     tokens: 0, bricks: 0, tokensBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0 }, model: null, costUsd: 0, costEstimated: true,
     linesAdded: null, linesRemoved: null, size: null, commits: 0, prUrl: null, prState: null, stamp: r.lastStamp, outcome: r.lastOutcome,
@@ -775,7 +775,9 @@ export class CityScene {
     const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.bricks ? `<span class="tok">${compact(p.bricks)} bricks</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
     if (live) { const leader = document.createElement('i'); leader.className = 'leader'; bb.appendChild(leader); }
-    bb.onclick = () => this.opts.onSelect(p.id);
+    // "hand raised": the sign opens what the waiting agent is asking; otherwise the project.
+    const waiting = sessions.find((s) => s.status === 'needs_input');
+    bb.onclick = () => (waiting && this.opts.onAgent ? this.opts.onAgent(waiting.id) : this.opts.onSelect(p.id));
     bb.onpointerenter = () => { this.hovered = p.id; };
     this.label(labels, bb, top, 0, 'bb', p.id);
 

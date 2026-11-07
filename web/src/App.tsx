@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLogbook } from './useLogbook.ts';
 import { CrewView } from './views/CrewView.tsx';
 import { MedalToasts } from './crew/Leaderboard.tsx';
 import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
+import { AskPopup } from './views/AskPopup.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
 import { CostPanel } from './views/CostPanel.tsx';
@@ -37,10 +38,11 @@ function useTheme() {
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
 }
 
-type Sel = { kind: 'project' | 'agent' | 'graveyard' | 'cost'; id: string } | null;
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost'; id: string } | null;
 
 export function App() {
   const { state, conn } = useLogbook();
+  const stateRef = useRef(state); stateRef.current = state;
   const [view, setView] = useState<View>(readView);
   const [sel, setSel] = useState<Sel>(null);
   const [showLots, setShowLots] = useState(store.get('logbook.lots') !== '0');
@@ -70,6 +72,11 @@ export function App() {
   }, []);
   const go = (v: View) => { location.hash = v; setView(v); };
   const open = useMemo(() => ({ agent: (id: string) => setSel({ kind: 'agent', id }), project: (id: string) => setSel({ kind: 'project', id }) }), []);
+  // In the town, an agent with a hand up opens just what they're asking (approve it right there), not the whole drawer.
+  const townAgent = useCallback((id: string) => {
+    const s = stateRef.current?.sessions.find((x) => x.id === id);
+    setSel({ kind: s?.status === 'needs_input' ? 'ask' : 'agent', id });
+  }, []);
   const selectProject = useCallback((id: string | null) => setSel(id ? { kind: 'project', id } : null), []);
   const t = state?.totals;
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
@@ -127,7 +134,7 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
           ) : view === 'crew' ? (
             <CrewView state={crewState!} open={open} />
           ) : (
@@ -136,6 +143,7 @@ export function App() {
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProfile={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
           {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /><MedalToasts state={state} openProject={open.project} /></> : null}

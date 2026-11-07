@@ -845,3 +845,25 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .lf-word.w-stuck { color: color-mix(in srgb, var(--accent) 70%, var(--ink)); background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .lf-word.w-needs { color: #fff; background: var(--needs); }
 @keyframes lf-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+/* ---------- raised hand: answer it on the spot ---------- */
+.ask-scrim { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 35%, transparent); }
+.ask-pop {
+  width: min(460px, 100%); max-height: calc(100% - 32px); overflow: auto; display: flex; flex-direction: column; gap: 14px;
+  background: var(--surface); border: 1.5px solid color-mix(in srgb, var(--needs) 45%, transparent); border-radius: 16px; box-shadow: var(--shadow); padding: 16px;
+  animation: ask-in .16s ease-out;
+}
+@keyframes ask-in { from { transform: translateY(6px) scale(.98); opacity: 0; } }
+.ask-head { display: flex; gap: 12px; align-items: center; }
+.ask-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ask-who h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 19px; }
+.ask-head .close { position: static; align-self: flex-start; }
+.ask-body { display: flex; flex-direction: column; gap: 8px; }
+.ask-title { margin: 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.ask-detail { margin: 0; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+code.ask-detail { display: block; }
+.ask-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.approve { background: var(--ink); color: var(--bg); min-width: 120px; justify-content: center; }
+.btn.approve:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ask-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; }
+.ask-done { margin: 0; font-weight: 700; }

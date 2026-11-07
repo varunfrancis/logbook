@@ -18,6 +18,18 @@ export type Agent = {
   role: 'resident' | 'helper' | 'workbench' | 'routine'; // resident: the project's own character · helper: a temporary extra on main · workbench: tied to a worktree/branch · routine: a scheduled job that wakes up, works, sleeps
 };
 
+/** A raised hand you can answer from the town: what they want to do, and the exact command, file or plan. */
+export type AskView = {
+  id: string;
+  at: number;
+  tool: string;
+  title: string;
+  detail: string | null;
+  detailKind: 'command' | 'path' | 'text';
+  /** Claude Code offered a "don't ask again" rule for this one. */
+  canAlways: boolean;
+};
+
 export type SessionView = {
   id: string;
   projectId: string | null;
@@ -30,6 +42,8 @@ export type SessionView = {
   action: string | null;
   actionKind: ActionKind | null;
   needsMessage: string | null;
+  /** A permission prompt you can answer from Logbook (needs the PermissionRequest hook); null for questions, or when the hook isn't waiting. */
+  ask: AskView | null;
   branch: string | null;
   worktree: string | null;
   cwd: string | null;

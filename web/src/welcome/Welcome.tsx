@@ -247,7 +247,7 @@ function RollCall({ state, setTourFocus, onDone, onSkip }: { state: StateView; s
 
 type Sign = { id: string; title: string; body: string; mood: Mood; find: (s: StateView) => { session?: SessionView; projectId: string | null } | null };
 const SIGNS: Sign[] = [
-  { id: 'needs', title: 'A raised hand means they need you', body: 'They’re waiting for a yes, a no, or an answer. Click them and Swarmville jumps straight to their terminal. Your Mac will ping you too.', mood: 'needs',
+  { id: 'needs', title: 'A raised hand means they need you', body: 'They’re waiting for a yes, a no, or an answer. Click them to see what they’re asking and approve it right there. Your Mac will ping you too.', mood: 'needs',
     find: (st) => { const s = st.sessions.find((x) => x.status === 'needs_input'); return s ? { session: s, projectId: s.projectId } : null; } },
   { id: 'stuck', title: 'A rain cloud means someone’s stuck', body: 'They’ve hit the same problem again and again. A quick nudge from you usually gets them going.', mood: 'stuck',
     find: (st) => { const s = st.sessions.find((x) => x.stuck && x.status !== 'ended'); return s ? { session: s, projectId: s.projectId } : null; } },

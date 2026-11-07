@@ -17,8 +17,10 @@ const CUSTOM = !!process.env.LOGBOOK_DATA_DIR && path.resolve(process.env.LOGBOO
 const LABEL = CUSTOM ? `dev.logbook.daemon.${Buffer.from(path.resolve(DATA)).toString('base64url').slice(-10)}` : 'dev.logbook.daemon';
 const PLIST = path.join(HOME, 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const PORT = Number(process.env.LOGBOOK_PORT || 7777);
-const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Notification', 'Stop', 'SubagentStop', 'SessionEnd'];
-const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
+const EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Notification', 'Stop', 'SubagentStop', 'SessionEnd'];
+const TOOL_EVENTS = new Set(['PreToolUse', 'PermissionRequest', 'PostToolUse']);
+// A permission prompt waits for your answer in the town (the terminal prompt shows meanwhile; whichever answers first wins).
+const TIMEOUT: Record<string, number> = { PermissionRequest: 600 };
 const isOurs = (h: any) => typeof h?.command === 'string' && (CUSTOM ? h.command.includes(HOOK_DST) : h.command.includes('.logbook/hook.sh'));
 // A non-default port or data folder (test installs) travels with the hook command and the login item.
 const ENV: Record<string, string> = { ...(process.env.LOGBOOK_PORT ? { LOGBOOK_PORT: String(PORT) } : {}), ...(process.env.LOGBOOK_DATA_DIR ? { LOGBOOK_DATA_DIR: DATA } : {}) };
@@ -45,7 +47,7 @@ function installHooks() {
     const groups: any[] = (s.hooks[ev] ??= []);
     if (groups.some((g) => (g.hooks ?? []).some(isOurs))) continue;
     const command = (ENV.LOGBOOK_PORT ? `LOGBOOK_PORT=${ENV.LOGBOOK_PORT} ` : '') + HOOK_DST;
-    groups.push({ ...(TOOL_EVENTS.has(ev) ? { matcher: '*' } : {}), hooks: [{ type: 'command', command, timeout: 5 }] });
+    groups.push({ ...(TOOL_EVENTS.has(ev) ? { matcher: '*' } : {}), hooks: [{ type: 'command', command, timeout: TIMEOUT[ev] ?? 5 }] });
     added++;
   }
   if (added) writeSettings(s);
