@@ -254,21 +254,26 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
 
   return (
     <div className="crew">
-      <section>
+      {/* Desktop: Today sits in its own column on the right. Narrower: one column, Today right after Just finished. */}
+      <div className="crew-cols">
+      <aside className="crew-side">
+        <Today state={state} projects={projects} now={now} open={open} />
+      </aside>
+      <div className="crew-main">
+      <section className="early">
         <h2>Raised a hand <small>they can't continue without you</small></h2>
         {needs.length ? <div className="grid hands">{needs.map((s) => <HandCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={s.id === focusId} />)}</div>
           : <Empty title="Nobody is waiting on you." />}
       </section>
-      <section>
+      <section className="early">
         <h2>Building <small>{working.length} at work</small></h2>
         {working.length ? <div className="grid works">{working.map((s) => <WorkCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={s.id === focusId} />)}</div>
           : <Empty title="Nobody is building right now.">Start <code>claude</code> in any project and they'll clock in here within a couple of seconds.</Empty>}
       </section>
-      <section>
+      <section className="early">
         <h2>Just finished <small>what they did before their break</small></h2>
         <FinishedList items={finished} projects={projects} now={now} open={open} />
       </section>
-      <Today state={state} projects={projects} now={now} open={open} />
       {idle.length ? (
         <section>
           <h2>On a coffee break <small>finished what you asked, ready for more</small></h2>
@@ -307,6 +312,8 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
         </div>
       </Fold>
       <footer className="keys"><span><kbd>j</kbd>/<kbd>k</kbd> move</span><span><kbd>↵</kbd> go to agent</span><span><kbd>o</kbd> open profile</span></footer>
+      </div>
+      </div>
     </div>
   );
 }

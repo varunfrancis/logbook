@@ -292,7 +292,19 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 
 /* crew */
 .crew { height: 100%; overflow: auto; padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.crew > section, .crew > footer { max-width: 1240px; margin: 0 auto 28px; }
+/* One column below desktop width, with Today slotted in right after Just finished; on desktop Today gets its own column on the right. */
+.crew-cols { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; }
+.crew-main { display: contents; }
+.crew-main > * { order: 3; }
+.crew-main > .early { order: 1; }
+.crew-side { order: 2; container: today / inline-size; min-width: 0; }
+.crew-main > section, .crew-main > footer, .crew-side > section { margin: 0 0 28px; min-width: 0; }
+@media (min-width: 1180px) {
+  .crew-cols { max-width: 1680px; display: grid; grid-template-columns: minmax(0, 1fr) clamp(380px, 30%, 480px); gap: 32px; align-items: start; }
+  .crew-main { display: block; grid-column: 1; grid-row: 1; min-width: 0; }
+  .crew-side { grid-column: 2; grid-row: 1; position: sticky; top: 0; max-height: calc(100dvh - 96px); overflow-y: auto; scrollbar-width: thin; padding-bottom: 4px; }
+  .crew-side > section { margin-bottom: 0; }
+}
 .crew h2 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0 0 12px; }
 .crew h2 small { font-family: var(--f-body); font-weight: 700; font-size: 14px; color: var(--ink-3); margin-left: 6px; }
 .grid { display: grid; gap: 12px; }
@@ -840,10 +852,16 @@ code.ask-detail { display: block; }
 .done-projects b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; margin-right: 3px; }
 .done-see { font: 800 13px var(--f-body); color: var(--ink); white-space: nowrap; }
 .done-projects span { white-space: nowrap; }
-@media (max-width: 640px) {
+/* Today laid out for its own width: the right-hand column on desktop, or a phone. */
+@container today (max-width: 640px) {
   .done-strip { gap: 10px 16px; }
   .done-projects { flex-basis: 100%; order: 2; }
   .done-see { order: 3; }
+  .decide li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+  .decide li > .av { grid-column: 1; grid-row: 1; }
+  .decide li > .stamp { grid-column: 2; grid-row: 1; justify-self: start; min-width: 0; }
+  .decide li > .closed-body, .decide li > .today-acts { grid-column: 1 / -1; min-width: 0; }
+  .decide .btn { min-height: 30px; padding: 0 11px; font-size: 12.5px; }
 }
 .shipped-panel { width: min(460px, calc(100% - 24px)); }
 .shipped-list ul { display: flex; flex-direction: column; }
