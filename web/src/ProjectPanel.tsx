@@ -44,7 +44,7 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
       {p.description ? <p className="muted">{p.description}</p> : null}
       {voice === 'technical' && p.root ? <div className="path">{tildify(p.root)}</div> : null}
       <dl className="stats">
-        <div><dt>{voice === 'plain' ? 'Bricks laid' : 'Tokens'}</dt><dd>{voice === 'plain' ? p.bricks.toLocaleString() : compact(p.tokens)}</dd></div>
+        <div><dt>{voice === 'plain' ? 'Bricks' : 'Tokens'}</dt><dd>{voice === 'plain' ? p.bricks.toLocaleString() : compact(p.tokens)}</dd></div>
         <div><dt>Cost</dt><dd>{money(p.costUsd)}</dd></div>
         <div><dt>Shifts</dt><dd>{p.sessionsTotal}</dd></div>
         <div><dt>{voice === 'plain' ? 'Saves' : 'Commits'}</dt><dd>{p.commits}</dd></div>
