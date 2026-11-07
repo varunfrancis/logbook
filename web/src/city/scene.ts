@@ -1183,7 +1183,7 @@ export class CityScene {
 
     // the sign: always on, like the graveyard's
     const sign = new THREE.Object3D(); sign.position.set(-2, 4.1, -2); ring.add(sign);
-    const el = this.div('cafe-sign', `Café <small>${crew.length ? `${crew.length} on a break` : 'quiet'}</small>`);
+    const el = this.div('bb place cafe-sign', `<span class="d"></span><b>Café</b><span class="crew">${crew.length ? `${crew.length} on a break` : 'quiet'}</span>`);
     el.onclick = () => this.focusCafe();
     el.onpointerenter = () => { this.cafeHover = true; };
     el.onpointerleave = () => { this.cafeHover = false; };
@@ -1222,7 +1222,7 @@ export class CityScene {
     this.tree(-2.9, -2.9, g, 0.8);
     const sign = new THREE.Object3D(); sign.position.set(0, 2.2, 3.4); g.add(sign);
     g.userData.grave = true;
-    const signEl = this.div('grave-sign', `Graveyard <small>${graves.length}</small>`);
+    const signEl = this.div('bb place grave-sign', `<span class="d"></span><b>Graveyard</b><span class="crew">${graves.length} at rest</span>`);
     signEl.onclick = () => this.opts.onGraveyard?.();
     this.label(this.graveLabels, signEl, sign, 0, 'fx', '__grave');
     graves.slice(0, 12).forEach((e, i) => {
@@ -1320,6 +1320,8 @@ export class CityScene {
         // zoomed out: only sites with crew on them (or what you've picked) keep a name tag
         show = important || focused || (zoomedIn && st !== 'lot');
       }
+      // café / graveyard signs wear the same billboard as the buildings, and shrink with them when zoomed out
+      if (L.el.classList.contains('place')) L.el.classList.toggle('mini', !zoomedIn && !(L.pid === '__cafe' && this.cafeHover));
       const sid = L.el.dataset.sid;
       if (sid && F.sessions && !F.sessions.has(sid)) show = false;
       if (F.projects && L.pid && !L.pid.startsWith('__') && !F.projects.has(L.pid) && L.kind !== 'district') show = false;
