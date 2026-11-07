@@ -22,6 +22,8 @@ type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
 type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'district'; pid: string };
 
+/** Nearest isometric corner view: π/4 + k·π/2. */
+function snapCorner(az: number) { return Math.PI / 4 + Math.round((az - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2); }
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -130,7 +132,7 @@ export class CityScene {
   /** Turns the camera around the town by `deg` (positive = clockwise as seen from above). */
   rotateBy(deg: number) {
     const base = this.anim ? this.anim.to : { x: this.target.x, z: this.target.z, az: this.az, zoom: this.zoom };
-    this.flyTo({ ...base, az: base.az + (deg * Math.PI) / 180 });
+    this.flyTo({ ...base, az: snapCorner(base.az + (deg * Math.PI) / 180) });
   }
   /** Back to the classic north-up corner view. */
   resetView() { this.flyTo({ x: this.target.x, z: this.target.z, az: Math.round((this.az - Math.PI / 4) / (2 * Math.PI)) * 2 * Math.PI + Math.PI / 4, zoom: this.zoom }); }
@@ -329,14 +331,16 @@ export class CityScene {
         const h = this.pickAny(e.clientX, e.clientY);
         if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id); else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
       }
+      // Settle on the nearest of the four isometric corners: in-between angles shear the grid and look off.
+      if (drag?.rotate) this.flyTo({ x: this.target.x, z: this.target.z, az: snapCorner(this.az), zoom: this.zoom }, 350);
       drag = null;
       el.style.cursor = this.hovered ? 'pointer' : 'grab';
     };
     const key = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey) return;
       if (!this.container.isConnected || !this.container.offsetParent) return;
-      if (e.key === 'q' || e.key === 'Q') this.rotateBy(-45);
-      if (e.key === 'e' || e.key === 'E') this.rotateBy(45);
+      if (e.key === 'q' || e.key === 'Q') this.rotateBy(-90);
+      if (e.key === 'e' || e.key === 'E') this.rotateBy(90);
     };
     addEventListener('keydown', key);
     this.disposeFns.push(() => removeEventListener('keydown', key));
