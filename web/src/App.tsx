@@ -15,6 +15,7 @@ import { compact } from './format.ts';
 import { setMusic, useSound } from './audio.ts';
 import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
 import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
+import { SavedToast } from './SavedToast.tsx';
 
 type View = 'town' | 'crew' | 'day';
 const readView = (): View => (location.hash === '#crew' ? 'crew' : location.hash === '#day' ? 'day' : 'town');
@@ -43,6 +44,7 @@ export function App() {
   const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
   const [bubble, setBubble] = useState<'project' | 'task'>(store.get('logbook.bubble') === 'task' ? 'task' : 'project');
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const theme = useTheme();
   const welcome = useWelcome(state);
   const [tourFocus, setTourFocus] = useState<string | null>(null);
@@ -133,7 +135,8 @@ export function App() {
           {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /></> : null}
         </main>
         {state && ((firstLaunch && !welcome.active) || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
-        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}
+        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} onSaved={() => { setModal(null); setSavedAt(Date.now()); }} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}
+        {savedAt ? <SavedToast key={savedAt} message="Settings saved" onDone={() => setSavedAt(null)} /> : null}
         {state && modal === 'share' ? <ShareSheet state={state} onClose={() => setModal(null)} /> : null}
         {t && voice === 'plain' && view !== 'town' ? <div className="sr">{bricks(t.bricksToday)}</div> : null}
       </div>
