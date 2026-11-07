@@ -3,6 +3,7 @@ import type { GraveEntry, ProjectView, SessionView, StateView } from '../../../d
 import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
 import type { Mood } from '../crew/Avatar.tsx';
 import { compact } from '../format.ts';
+import { shortDoing } from '../copy.ts';
 
 // Pastel colors as authored (matches the prototype); no linear-space conversion.
 THREE.ColorManagement.enabled = false;
@@ -74,11 +75,13 @@ export class CityScene {
   private ndc = new THREE.Vector2();
   private disposeFns: (() => void)[] = [];
   private chatEls = new Map<string, HTMLElement>();
+  private doingEls = new Map<string, HTMLElement>();
+  private hl: { sessions: Set<string> | null; projects: Set<string> | null } = { sessions: null, projects: null };
   private graveGroup: THREE.Group | null = null;
   private parkGroup: THREE.Group | null = null;
   private parkLabels: Label[] = [];
   private parkKey = '';
-  private crewFigures: { g: THREE.Object3D; base: number; h: number }[] = [];
+  private crewFigures: { g: THREE.Object3D; base: number; h: number; pid: string }[] = [];
   private crewRings: THREE.Object3D[] = [];
   private last: { data: StateView; showLots: boolean } | null = null;
   private graveLabels: Label[] = [];
@@ -128,6 +131,10 @@ export class CityScene {
     if (changed && this.last) { for (const b of this.buildings.values()) b.key = ''; this.setState(this.last.data, this.last.showLots); }
     for (const m of this.winMats) { m.emissive.set(dark ? '#ffc861' : '#000000'); m.emissiveIntensity = dark ? 0.55 : 0; }
   }
+
+  /** Highlight a subset: only these agents are shown, and only these projects keep their name tags. null = everything. */
+  setFocus(sessions: Set<string> | null, projects: Set<string> | null, sessionProjects: Set<string> = new Set()) { this.hl = { sessions, projects }; this.focusPids = sessionProjects; }
+  private focusPids = new Set<string>();
 
   setSelected(id: string | null) {
     const changed = id !== this.selected;
@@ -195,7 +202,10 @@ export class CityScene {
       if (celebrate) this.confetti(p);
     }
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
-    for (const s of data.sessions) { const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== s.chatter) el.textContent = s.chatter; }
+    for (const s of data.sessions) {
+      const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== s.chatter) el.textContent = s.chatter;
+      const d = this.doingEls.get(s.id)?.querySelector('.doing'); const txt = shortDoing(s); if (d && d.textContent !== txt) d.textContent = txt;
+    }
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
   }
 
@@ -474,7 +484,7 @@ export class CityScene {
     const b = this.buildings.get(id);
     if (!b) return;
     this.freeObject(b.group);
-    for (const l of b.labels) { l.el.remove(); if (l.kind === 'chat') for (const [k, v] of this.chatEls) if (v === l.el) this.chatEls.delete(k); }
+    for (const l of b.labels) { l.el.remove(); if (l.kind === 'chat') for (const [k, v] of this.chatEls) if (v === l.el) this.chatEls.delete(k); if (l.el.dataset.sid && this.doingEls.get(l.el.dataset.sid) === l.el) this.doingEls.delete(l.el.dataset.sid); }
     this.labels = this.labels.filter((l) => !b.labels.includes(l));
     this.buildings.delete(id);
   }
@@ -733,7 +743,7 @@ export class CityScene {
     g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
     parent.add(g);
-    this.crewFigures.push({ g, base: g.scale.x, h: crew.height });
+    this.crewFigures.push({ g, base: g.scale.x, h: crew.height, pid });
     // helpers: a half-size copy of the agent tagging along
     let helper: ReturnType<typeof buildCrew> | null = null;
     if (s.helperActive) {
@@ -741,11 +751,15 @@ export class CityScene {
       helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
-    this.label(labels, this.div('tag', esc(a.title)), anchor, 0.42, 'tag', pid);
-    if (s.away) this.label(labels, this.div('zzz', 'z<small>z</small><small>z</small>'), anchor, 0.1, 'fx', pid);
+    // Always-on label: what they're doing in 2–3 words; their name appears when you hover or select the building.
+    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(shortDoing(s))}</span><span class="who">${esc(a.name)}</span>`);
+    tag.dataset.sid = s.id; tag.dataset.status = s.away ? 'away' : s.status;
+    this.label(labels, tag, anchor, 0.42, 'tag', pid);
+    this.doingEls.set(s.id, tag);
+    if (s.away) { const z = this.div('zzz', 'z<small>z</small><small>z</small>'); z.dataset.sid = s.id; this.label(labels, z, anchor, 0.1, 'fx', pid); }
     if (s.chatter) {
       const chat = this.div('chat', esc(s.chatter));
-      chat.dataset.seed = String(hash(s.id) % 997);
+      chat.dataset.seed = String(hash(s.id) % 997); chat.dataset.sid = s.id;
       this.label(labels, chat, anchor, 0.95, 'chat', pid);
       this.chatEls.set(s.id, chat);
     }
@@ -911,22 +925,36 @@ export class CityScene {
     this.crewFigures = this.crewFigures.filter((c) => c.g.parent);
     this.crewRings = this.crewRings.filter((r) => r.parent);
     for (const r of this.crewRings) r.rotation.y = this.az - Math.PI / 4;
+    const F = this.hl;
+    for (const c of this.crewFigures) c.g.visible = (!F.sessions || F.sessions.has(c.g.userData.sid)) && (!F.projects || F.projects.has(c.pid));
     for (const c of this.crewFigures) c.g.scale.setScalar(c.base * Math.min(2.6, Math.max(1, (30 * unitsPerPx) / (c.h * c.base))));
     this.renderer.render(this.scene, this.cam);
     const el = this.renderer.domElement, W = el.clientWidth, H = el.clientHeight;
     const zoomedIn = this.zoom > 1.4;
     const raised: { L: Label; x: number; y: number }[] = [];
+    const tags: { L: Label; x: number; y: number }[] = [];
     for (const L of this.labels) {
       const st = L.el.dataset.state;
       let show = true;
-      if (L.kind === 'tag') show = L.pid === this.selected || (zoomedIn && L.pid === this.hovered);
+      if (L.kind === 'tag') {
+        const ds = L.el.dataset.status;
+        // working / waiting crew always show what they're doing; resting crew only when you're close or looking at their building
+        show = ds === 'running' || ds === 'needs_input' || zoomedIn || L.pid === this.selected || L.pid === this.hovered || !!F.sessions?.has(L.el.dataset.sid ?? '');
+        L.el.classList.toggle('named', L.pid === this.selected || L.pid === this.hovered);
+      }
       if (L.kind === 'chat') { const seed = Number(L.el.dataset.seed ?? 0); show = L.pid === this.selected || (this.zoom > 1.05 && Math.floor((this.elapsed + seed) / 6) % 3 === 0); }
       if (L.kind === 'bb') {
         const important = st === 'site' || st === 'needs' || L.pid === this.selected || L.pid === this.hovered;
-        L.el.classList.toggle('mini', !important && !zoomedIn);
+        const focused = !!F.projects?.has(L.pid) || !!(F.sessions && this.focusPids.has(L.pid));
+        L.el.classList.toggle('mini', !important && !zoomedIn && !focused);
         L.el.classList.toggle('sel', L.pid === this.selected);
-        show = st !== 'lot' || important || zoomedIn;
+        // zoomed out: only sites with crew on them (or what you've picked) keep a name tag
+        show = important || focused || (zoomedIn && st !== 'lot');
       }
+      const sid = L.el.dataset.sid;
+      if (sid && F.sessions && !F.sessions.has(sid)) show = false;
+      if (F.projects && L.pid && !L.pid.startsWith('__') && !F.projects.has(L.pid) && L.kind !== 'district') show = false;
+      if (F.sessions && L.kind === 'bb' && !this.focusPids.has(L.pid) && L.pid !== this.selected) show = false;
       if (L.el.classList.contains('hidden-until-zoom')) show = zoomedIn || L.pid === this.hovered || L.pid === this.selected;
       if (!show) { L.el.style.display = 'none'; continue; }
       L.obj.getWorldPosition(this.v); this.v.y += L.dy; this.v.project(this.cam);
@@ -934,9 +962,24 @@ export class CityScene {
       L.el.style.display = '';
       const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
       if (L.kind === 'bb' && (st === 'site' || st === 'needs')) { raised.push({ L, x, y }); continue; }
+      if (L.kind === 'tag') { tags.push({ L, x, y }); continue; }
       L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       L.el.style.transform = L.kind === 'district' ? `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)` : L.el.style.transform;
       L.el.style.zIndex = L.kind === 'district' ? '1' : String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
+    }
+    // Crew labels: several agents at one site would stack on top of each other, so nudge them apart.
+    tags.sort((a, b) => b.y - a.y);
+    const tagBoxes: { x: number; y: number; w: number; h: number }[] = [];
+    for (const r of tags) {
+      const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight + 2;
+      let y = r.y;
+      for (let guard = 0, moved = true; moved && guard < 12; guard++) {
+        moved = false;
+        for (const q of tagBoxes) if (Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && y > q.y - q.h && y - h < q.y) { y = q.y - q.h; moved = true; }
+      }
+      tagBoxes.push({ x: r.x, y, w, h });
+      r.L.el.style.transform = `translate(${r.x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      r.L.el.style.zIndex = String(3000 + Math.round(y));
     }
     // Active projects: lift their name tags above the skyline on a dotted leader, and nudge them apart so none overlap.
     raised.sort((a, b) => b.y - a.y);

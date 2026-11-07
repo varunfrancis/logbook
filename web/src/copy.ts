@@ -48,6 +48,25 @@ export function plainAction(action: string | null, voice: Voice): string | null 
     .replace(/^\w/, (c) => c.toLowerCase());
 }
 
+/** What an agent is doing, in 2–3 words, for the label over their head in the town. */
+export function shortDoing(s: { status: string; away?: boolean; action: string | null; stuck?: unknown }): string {
+  if (s.status === 'needs_input') return 'needs you';
+  if (s.away) return 'napping';
+  if (s.status === 'idle') return 'coffee break';
+  if (s.status === 'ended') return 'clocked out';
+  if (s.stuck) return 'stuck';
+  const a = plainAction(s.action, 'plain');
+  if (!a) return 'thinking';
+  const clean = a.replace(/\S*\/(\S+)/g, '$1') // paths → just the file name
+    .replace(/^running (npm|pnpm|yarn|bun) (run )?build.*$/i, 'building the app')
+    .replace(/^running (npm|pnpm|yarn|bun) (run )?(\S+).*$/i, 'running $3')
+    .replace(/\b(the|a|an)\s+/gi, '');
+  const words = clean.replace(/[`"'“”]/g, '').replace(/[,:;(].*$/, '').replace(/\.(tsx?|jsx?|md|json|css|py|sh|ya?ml)\b/g, '').split(/\s+/).filter(Boolean);
+  const out = words.slice(0, 3);
+  while (out.length > 1 && /^(and|or|the|a|an|to|of|for|with|in|on|at|from|into|then)$/i.test(out[out.length - 1])) out.pop(); // don't end on a dangling word
+  return out.join(' ').replace(/[/\\]\S*$/, '') || 'thinking';
+}
+
 export const bricks = (n: number) => `${n.toLocaleString()} brick${n === 1 ? '' : 's'}`;
 export const money = (n: number) => (n >= 100 ? `$${Math.round(n).toLocaleString()}` : `$${n.toFixed(2)}`);
 export function mins(ms: number): string {

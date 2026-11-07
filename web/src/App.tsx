@@ -5,6 +5,7 @@ import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
@@ -38,6 +39,10 @@ export function App() {
   const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const theme = useTheme();
+  // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
+  const [only, setOnly] = useState<'needs' | 'building' | 'break' | 'shipped' | null>(null);
+  const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('logbook.hiddenProjects') || '[]')); } catch { return new Set(); } });
+  const setHidden = (s: Set<string>) => { setHiddenRaw(s); store.set('logbook.hiddenProjects', JSON.stringify([...s])); };
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { store.set('logbook.lots', showLots ? '1' : '0'); }, [showLots]);
   useEffect(() => { store.set('logbook.voice', voice); }, [voice]);
@@ -53,6 +58,21 @@ export function App() {
   const open = useMemo(() => ({ agent: (id: string) => setSel({ kind: 'agent', id }), project: (id: string) => setSel({ kind: 'project', id }) }), []);
   const selectProject = useCallback((id: string | null) => setSel(id ? { kind: 'project', id } : null), []);
   const t = state?.totals;
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const focus = useMemo(() => {
+    if (!state) return { sessions: null, projects: null, sessionProjects: new Set<string>() };
+    const projects = hidden.size ? new Set(state.projects.filter((p) => !hidden.has(p.id)).map((p) => p.id)) : null;
+    if (!only) return { sessions: null, projects, sessionProjects: new Set<string>() };
+    const match = state.sessions.filter((s) => only === 'needs' ? s.status === 'needs_input' : only === 'building' ? s.status === 'running' : only === 'break' ? s.status === 'idle'
+      : s.status === 'ended' && s.stamp === 'shipped' && (s.endedAt ?? 0) >= today0.getTime());
+    return { sessions: new Set(match.map((s) => s.id)), projects, sessionProjects: new Set(match.map((s) => s.projectId ?? '')) };
+  }, [state, only, hidden]);
+  // The Crew view lists only what the filters let through.
+  const crewState = useMemo(() => state && (focus.sessions || focus.projects) ? { ...state, projects: focus.projects ? state.projects.filter((p) => focus.projects!.has(p.id)) : state.projects,
+    sessions: state.sessions.filter((s) => (!focus.sessions || focus.sessions.has(s.id)) && (!focus.projects || focus.projects.has(s.projectId ?? ''))) } : state, [state, focus]);
+  const chip = (key: NonNullable<typeof only>, n: number, label: string, cls = '') => (
+    <button className={`sum chip ${cls}${only === key ? ' on' : ''}`} aria-pressed={only === key} onClick={() => setOnly(only === key ? null : key)} title={only === key ? 'Show everyone' : `Highlight only these`}><b>{n}</b> {label}</button>
+  );
   const firstLaunch = state && !state.town.chosen;
 
   return (
@@ -67,10 +87,11 @@ export function App() {
           </nav>
           {t ? (
             <div className="summary" aria-live="polite">
-              {t.needs ? <button className="sum needs" onClick={() => go('crew')}><b>{t.needs}</b> raised a hand</button> : null}
-              <span className="sum"><b>{t.running}</b> building</span>
-              <span className="sum"><b>{t.idle}</b> on a coffee break</span>
-              <span className="sum"><b>{t.shippedToday}</b> shipped today</span>
+              {t.needs ? chip('needs', t.needs, 'raised a hand', 'needs') : null}
+              {chip('building', t.running, 'building')}
+              {chip('break', t.idle, 'on a coffee break')}
+              {chip('shipped', t.shippedToday, 'shipped today')}
+              {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} /> : null}
               <span className="sum hide-sm"><b>{voice === 'plain' ? t.bricksToday.toLocaleString() : compact(t.tokensToday)}</b> {voice === 'plain' ? 'bricks laid' : 'tokens'}</span>
             </div>
           ) : <div className="summary" />}
@@ -90,9 +111,9 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Logbook on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} showLots={showLots} dark={theme.dark} onShare={() => setModal('share')} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} dark={theme.dark} onShare={() => setModal('share')} />
           ) : view === 'crew' ? (
-            <CrewView state={state} open={open} />
+            <CrewView state={crewState!} open={open} />
           ) : (
             <DayView state={state} openAgent={open.agent} />
           )}

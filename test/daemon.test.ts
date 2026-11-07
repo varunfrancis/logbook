@@ -202,3 +202,14 @@ test('neighborhoods: similar projects touch, unrelated ones have a park street b
   const parsed = parseGrouping('Sure!\n[{"name":"Money","items":[1,2,2]},{"name":"Fun","items":[4]}]', 4)!;
   assert.deepEqual(parsed, [{ name: 'Money', items: [1, 2] }, { name: 'Fun', items: [4] }, { name: 'Odds & Ends', items: [3] }]);
 });
+
+test('town labels say what an agent is doing in 2-3 words', async () => {
+  const { shortDoing } = await import('../web/src/copy.ts');
+  const run = (action: string) => shortDoing({ status: 'running', action });
+  assert.equal(run('Editing scene.ts'), 'changing scene');
+  assert.equal(run('Reading web/src/App.tsx'), 'reading App');
+  assert.equal(run('Running npm run build'), 'building app');
+  assert.equal(run('screenshot filters and labels'), 'screenshot filters');
+  assert.equal(shortDoing({ status: 'idle', away: true, action: null }), 'napping');
+  assert.equal(shortDoing({ status: 'needs_input', action: 'x' }), 'needs you');
+});
