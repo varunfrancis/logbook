@@ -74,6 +74,7 @@ export class CityScene {
   private parkGroup: THREE.Group | null = null;
   private parkLabels: Label[] = [];
   private parkKey = '';
+  private crewFigures: { g: THREE.Object3D; base: number; h: number }[] = [];
   private graveLabels: Label[] = [];
   private graveKey = '';
   private elapsed = 0;
@@ -123,7 +124,7 @@ export class CityScene {
   setState(data: StateView, showLots: boolean) {
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
-    for (const s of data.sessions) if (s.status !== 'ended' && !s.away && s.projectId) {
+    for (const s of data.sessions) if (s.status !== 'ended' && s.projectId) {
       if (!byProject.has(s.projectId)) byProject.set(s.projectId, []);
       byProject.get(s.projectId)!.push(s);
     }
@@ -142,7 +143,7 @@ export class CityScene {
     for (const p of visible) {
       seen.add(p.id);
       const sessions = (byProject.get(p.id) ?? []).sort((a, c) => a.id.localeCompare(c.id));
-      const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter])]);
+      const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
@@ -158,11 +159,16 @@ export class CityScene {
   fit() {
     const { minX, maxX, minZ, maxZ } = this.bounds;
     this.target.set(((minX + maxX) / 2) * PITCH, 2, ((minZ + maxZ) / 2) * PITCH);
-    // Isometric: the town's on-screen width follows (x − z), so a wide or tall town needs the sum of both sides.
-    const across = ((maxX - minX) + (maxZ - minZ)) / Math.SQRT2 + 1.6;
-    this.viewSize = Math.max(30, (across * PITCH) / 0.9);
-    this.zoom = 1;
-    this.placeCam();
+    this.viewSize = 60; this.zoom = 1;
+    this.placeCam(); this.resize();
+    // Measure where the town's corners land on screen, then scale so it just fills the view.
+    this.cam.updateMatrixWorld();
+    let ex = 0, ey = 0;
+    for (const x of [minX - 0.5, maxX + 0.5]) for (const z of [minZ - 0.5, maxZ + 0.5]) for (const y of [0, 6]) {
+      this.v.set(x * PITCH, y, z * PITCH).project(this.cam);
+      ex = Math.max(ex, Math.abs(this.v.x)); ey = Math.max(ey, Math.abs(this.v.y));
+    }
+    this.viewSize = Math.max(30, this.viewSize * Math.max(ex / 0.96, ey / 0.86));
     this.resize();
   }
 
@@ -633,12 +639,13 @@ export class CityScene {
   private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] }, updaters: Updater[], labels: Label[]) {
     if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
     const a = s.agent;
-    const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.status === 'idle' ? 'break' : 'working';
+    const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
     const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c));
     const g = crew.root;
     g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
     parent.add(g);
+    this.crewFigures.push({ g, base: g.scale.x, h: crew.height });
     // helpers: a half-size copy of the agent tagging along
     let helper: ReturnType<typeof buildCrew> | null = null;
     if (s.helperActive) {
@@ -648,6 +655,7 @@ export class CityScene {
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
     this.label(labels, this.div('tag', esc(a.title)), anchor, 0.42, 'tag', pid);
     if (mode === 'wave') this.label(labels, this.div('bubble', '!'), anchor, 0, 'fx', pid);
+    if (s.away) this.label(labels, this.div('zzz', 'z<small>z</small><small>z</small>'), anchor, 0.1, 'fx', pid);
     if (s.chatter) {
       const chat = this.div('chat', esc(s.chatter));
       chat.dataset.seed = String(hash(s.id) % 997);
@@ -805,6 +813,10 @@ export class CityScene {
     this.elapsed = this.clock.elapsedTime;
     for (const f of this.globalUpdaters) f(t, dt);
     for (const b of this.buildings.values()) for (const f of b.updaters) f(t, dt);
+    // Keep every character at least ~30px tall on screen, however far out you zoom.
+    const unitsPerPx = (this.cam.top - this.cam.bottom) / Math.max(1, this.renderer.domElement.clientHeight);
+    this.crewFigures = this.crewFigures.filter((c) => c.g.parent);
+    for (const c of this.crewFigures) c.g.scale.setScalar(c.base * Math.min(2.6, Math.max(1, (30 * unitsPerPx) / (c.h * c.base))));
     this.renderer.render(this.scene, this.cam);
     const el = this.renderer.domElement, W = el.clientWidth, H = el.clientHeight;
     const zoomedIn = this.zoom > 1.4;
