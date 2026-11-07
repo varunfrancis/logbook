@@ -155,7 +155,7 @@ export type AgentProfile = {
   costUsd: number;
   checksOk: number;
   checksFail: number;
-  recent: { id: string; title: string; stamp: Stamp | null; live: boolean; at: number | null }[];
+  recent: { id: string; title: string; ask: string | null; stamp: Stamp | null; live: boolean; at: number | null }[];
 };
 
 export type DayView = {

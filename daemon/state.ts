@@ -403,7 +403,7 @@ function profileFor(db: Db, key: string, live: Map<string, LiveEntry>, owner: st
     costUsd: sum((r) => costOf(db, r).usd),
     checksOk: sum((r) => r.tests_ok),
     checksFail: sum((r) => r.tests_fail),
-    recent: rows.slice(0, 5).map((r) => ({ id: r.id, title: toSessionView(db, r, live.get(r.id), Date.now(), owner).title, stamp: live.has(r.id) ? null : r.stamp ?? null, live: live.has(r.id), at: r.ended_at ?? r.last_event_at ?? null })),
+    recent: rows.slice(0, 5).map((r) => ({ id: r.id, title: toSessionView(db, r, live.get(r.id), Date.now(), owner).title, ask: r.last_prompt ?? r.first_prompt ?? null, stamp: live.has(r.id) ? null : r.stamp ?? null, live: live.has(r.id), at: r.ended_at ?? r.last_event_at ?? null })),
   };
 }
 

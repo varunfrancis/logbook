@@ -119,7 +119,7 @@ export function App() {
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
-          {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} /> : null}
+          {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
         </main>
         {state && (firstLaunch || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
         {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} /> : null}

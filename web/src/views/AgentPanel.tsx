@@ -4,7 +4,7 @@ import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { clock, mins, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
 import { GoTo, PrChip, Stamp } from '../components.tsx';
-import { useAgent, useNow } from '../useLogbook.ts';
+import { post, useAgent, useNow } from '../useLogbook.ts';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
   m_prompt: { sym: '→', cls: 'mo-you', title: 'You asked' },
@@ -22,7 +22,7 @@ function cleanAsk(t: string | null | undefined) {
   return x.length < 12 || /^[0-9a-f]{6,}$/i.test(x) ? '' : firstLine(x, 180); // skip empty or id-like prompts
 }
 
-export function AgentPanel({ id, state, onClose, openProject }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void }) {
+export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void }) {
   const voice = useVoice();
   const now = useNow(15000);
   const d = useAgent(id, state.generatedAt);
@@ -34,6 +34,7 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
   const card = d ? scorecard(d.profile) : null;
   const live = s.status !== 'ended';
   const latest = cleanAsk(s.lastPrompt) || cleanAsk(s.firstPrompt) || s.title;
+  const resumeJob = async (sid: string) => { await post(`/api/resume/${encodeURIComponent(sid)}`); };
 
   return (
     <aside className="panel agent" aria-label={`${a.title} profile`}>
@@ -87,9 +88,12 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
           <ul className="recent-jobs">
             {d.profile.recent.map((r) => (
               <li key={r.id}>
-                {r.live ? <span className="stamp st-live">On it</span> : r.stamp ? <Stamp stamp={r.stamp} /> : <span className="stamp st-pending">Checking…</span>}
-                <span className="rj-title">{r.title}</span>
-                <span className="sub">{r.live ? 'now' : ago(r.at, now)}</span>
+                <button className={`rj${r.id === s.id ? ' current' : ''}`} onClick={() => openAgent?.(r.id)} disabled={r.id === s.id} title={r.id === s.id ? 'You’re looking at this job' : 'Open this job: what was asked, how it went, and resume it'}>
+                  {r.live ? <span className="stamp st-live">On it</span> : r.stamp ? <Stamp stamp={r.stamp} /> : <span className="stamp st-pending">Checking…</span>}
+                  <span className="rj-title" title={r.title}>{cleanAsk(r.ask) || r.title}</span>
+                  <span className="sub">{r.id === s.id ? 'viewing' : r.live ? 'now' : ago(r.at, now)}</span>
+                </button>
+                {!r.live ? <button className="ghost small rj-resume" onClick={() => resumeJob(r.id)} title="Reopen this conversation in a terminal">Resume</button> : null}
               </li>
             ))}
           </ul>

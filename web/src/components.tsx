@@ -38,14 +38,16 @@ export function GoTo({ s, primary }: { s: SessionView; primary?: boolean }) {
       const r = await post(`/api/jump/${encodeURIComponent(s.id)}`);
       setMsg(r.via === 'extension' ? null : r.message ?? null);
     } else {
-      try { await navigator.clipboard.writeText(cmd); setMsg('Copied. Paste it in a terminal to bring them back.'); } catch { setMsg(cmd); }
+      const r = await post(`/api/resume/${encodeURIComponent(s.id)}`);
+      if (!r.ok) { try { await navigator.clipboard.writeText(cmd); setMsg(`${r.message ?? 'Couldn’t reopen it.'} Command copied instead.`); } catch { setMsg(cmd); } }
+      else setMsg(r.message ?? null);
     }
     setTimeout(() => setMsg(null), 4000);
   };
   return (
     <span className="goto">
-      <button className={primary ? 'btn dark' : 'ghost small'} onClick={click} title={live ? 'Open their terminal in VS Code' : cmd}>
-        {live ? <>Go to {s.agent.name}{primary ? <kbd>↵</kbd> : null}</> : `Bring ${s.agent.name} back`}
+      <button className={primary ? 'btn dark' : 'ghost small'} onClick={click} title={live ? 'Open their terminal in VS Code' : `Reopen this conversation in a terminal (${cmd})`}>
+        {live ? <>Go to {s.agent.name}{primary ? <kbd>↵</kbd> : null}</> : 'Resume this job'}
       </button>
       {msg ? <span className="goto-msg" role="status">{msg}</span> : null}
     </span>

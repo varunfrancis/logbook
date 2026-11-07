@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
 import { DATA_DIR, PORT, WEB_DIST } from './config.ts';
-import { kvGet, kvSet, openDb } from './db.ts';
+import { kvGet, kvSet, openDb, type Row } from './db.ts';
 import { scanTranscripts } from './transcripts.ts';
 import { readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, wrappedView } from './state.ts';
@@ -93,6 +93,42 @@ function jump(sessionId: string): { ok: boolean; via: string; message: string } 
   return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Logbook VS Code helper to jump straight to the terminal.' };
 }
 
+/*
+ * Resume a past shift: reopen that Claude conversation (claude --resume <id>) in a terminal in its folder.
+ * With the VS Code helper: focus (or open) the project's VS Code window, then that window claims the request and opens a terminal.
+ * Without it, or if no window claims it within a few seconds: a new Terminal.app window.
+ */
+type PendingResume = { id: string; cwd: string; root: string; at: number; claimed: boolean };
+const pendingResumes = new Map<string, PendingResume>();
+const VSCODE_BIN = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+function shq(s: string) { return `'${s.replace(/'/g, `'\\''`)}'`; }
+function resume(sessionId: string): { ok: boolean; via: string; message: string } {
+  if (live.has(sessionId)) return jump(sessionId);
+  const s = db.prepare('SELECT s.id, s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
+  if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
+  const root = s.root && fs.existsSync(s.root) ? s.root : null;
+  const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
+  if (!cwd) return { ok: false, via: 'none', message: 'Its folder no longer exists on this machine.' };
+  const moved = cwd !== s.cwd ? ' Its worktree is gone, so it opens in the main project folder.' : '';
+  const cmd = `claude --resume ${sessionId}`;
+  const viaTerminal = () => {
+    const script = `tell application "Terminal"\n activate\n do script ${JSON.stringify(`cd ${shq(cwd)} && ${cmd}`)}\nend tell`;
+    execFile('osascript', ['-e', script], () => {});
+  };
+  if (vscodeClients.size && fs.existsSync(VSCODE_BIN)) {
+    const r: PendingResume = { id: sessionId, cwd, root: root ?? cwd, at: Date.now(), claimed: false };
+    pendingResumes.set(sessionId, r);
+    execFile(VSCODE_BIN, ['-r', r.root], () => {});
+    const payload = JSON.stringify({ sessionId, cwd, root: r.root });
+    for (const c of vscodeClients) c.write(`event: resume\ndata: ${payload}\n\n`);
+    // A freshly opened window needs a moment to load the helper; it asks for pending resumes when it connects.
+    setTimeout(() => { if (!r.claimed) { pendingResumes.delete(sessionId); viaTerminal(); } }, 12_000);
+    return { ok: true, via: 'vscode', message: `Reopening it in VS Code.${moved}` };
+  }
+  viaTerminal();
+  return { ok: true, via: 'terminal', message: `Reopening it in Terminal.${moved}` };
+}
+
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 const server = http.createServer(async (req, res) => {
@@ -133,6 +169,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
     if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, jump(decodeURIComponent(p.slice('/api/jump/'.length))));
+    if (req.method === 'POST' && p.startsWith('/api/resume/claim/')) {
+      const r = pendingResumes.get(decodeURIComponent(p.slice('/api/resume/claim/'.length)));
+      if (!r || r.claimed || Date.now() - r.at > 60_000) return json(res, 200, { ok: false });
+      r.claimed = true; pendingResumes.delete(r.id);
+      return json(res, 200, { ok: true, cwd: r.cwd, command: `claude --resume ${r.id}` });
+    }
+    if (p === '/api/resume/pending') return json(res, 200, [...pendingResumes.values()].filter((r) => !r.claimed && Date.now() - r.at < 60_000));
+    if (req.method === 'POST' && p.startsWith('/api/resume/')) return json(res, 200, resume(decodeURIComponent(p.slice('/api/resume/'.length))));
     if (p === '/api/settings' && req.method === 'POST') {
       const body = await readJson(req);
       if (typeof body.town === 'string') setTown(db, body.town);

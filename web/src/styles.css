@@ -508,7 +508,16 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .profile-block .actions { margin-top: 4px; }
 
 .recent-jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.recent-jobs li { display: grid; grid-template-columns: 108px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; min-height: 24px; }
+.recent-jobs li { position: relative; display: flex; align-items: center; }
+.recent-jobs .rj { flex: 1; min-width: 0; display: grid; grid-template-columns: 108px minmax(0, 1fr) auto; gap: 10px; align-items: center; font: inherit; font-size: 13px; color: var(--ink); text-align: left; background: none; border: 0; padding: 5px 6px; margin: 0 -6px; border-radius: 8px; cursor: pointer; min-height: 32px; }
+.recent-jobs .rj:hover:not(:disabled) { background: var(--surface-2); }
+.recent-jobs .rj:disabled { cursor: default; }
+.recent-jobs .rj.current .rj-title { color: var(--ink-2); }
+.recent-jobs .rj-resume { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; transition: opacity .12s; background: var(--surface); }
+.recent-jobs li:hover .rj-resume, .recent-jobs .rj-resume:focus-visible { pointer-events: auto; }
+.recent-jobs li:hover .rj .sub { visibility: hidden; } /* Resume takes the time's place on hover: no layout shift */
+.recent-jobs li:hover .rj-resume, .recent-jobs .rj-resume:focus-visible { opacity: 1; }
+@media (hover: none) { .recent-jobs .rj-resume { opacity: 1; } }
 .recent-jobs .stamp { min-width: 0; width: 100%; box-sizing: border-box; letter-spacing: .3px; transform: none; font-size: 9.5px; padding: 2px 6px; text-align: center; justify-self: stretch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recent-jobs .rj-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .recent-jobs .sub { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
