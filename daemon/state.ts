@@ -4,7 +4,7 @@ import { kvGet } from './db.ts';
 import type { LiveEntry } from './live.ts';
 import { assignLots, ensureProjectForCwd } from './projects.ts';
 import { currentDistricts, layoutTown } from './districts.ts';
-import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from './status.ts';
+import { floorsFor, isAway, projectState, scopeOf, sessionStatus, buildingSize } from './status.ts';
 import { githubMeta } from './github.ts';
 import { agentKey, allocateIdentities, helperKey, identityFor, isHeadless, isHelperKey, isResidentKey, isRoutineKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
 import { routinesView } from './routines.ts';
@@ -99,7 +99,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
   const liveName = live?.name && !/^[a-z0-9]+-[0-9a-f]{1,3}$/i.test(live.name) ? live.name : null;
   const tokens = tokensOf(s);
   const cost = costOf(db, s);
-  const away = status === 'idle' && now - (s.last_event_at ?? 0) > AWAY_AFTER_MS;
+  const away = status === 'idle' && isAway(s, live, now);
   const stuck = status !== 'ended' && (s.err_count ?? 0) >= 3 && now - (s.err_at ?? 0) < 30 * 60_000
     ? { count: s.err_count, problem: String(s.err_sig ?? '').replace(/^[^:]+:\s*/, '') } : null;
   const files: { p: string }[] = s.files ? JSON.parse(s.files) : [];
