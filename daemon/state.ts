@@ -11,7 +11,7 @@ import { routinesView } from './routines.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
-import type { Agent, AgentDetail, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, Welcome, WrappedView } from './types.ts';
+import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, Welcome, WrappedView } from './types.ts';
 
 const BRICK = 10_000; // tokens per brick
 const shorten = (s: string, n = 72) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
@@ -36,6 +36,31 @@ export function costOf(db: Db, s: Row): { usd: number; estimated: boolean } {
   if (s.cost_usd != null && s.cost_usd > 0) return { usd: s.cost_usd, estimated: false };
   const t = tokensOf(s) + (s.tok_cache_read || 0);
   return { usd: t * rateFor(db, s.model), estimated: true };
+}
+
+/** Group sessions' cost by project, then by agent (one character can work several shifts). Biggest spenders first. */
+export function breakdownOf(db: Db, rows: Row[], names: Map<string, string>): CostBreakdown {
+  const byProject = new Map<string, CostBreakdown[number]>();
+  const latest = new Map<string, number>();
+  for (const s of rows) {
+    if (!s.project_id) continue;
+    const { usd, estimated } = costOf(db, s);
+    let p = byProject.get(s.project_id);
+    if (!p) byProject.set(s.project_id, p = { projectId: s.project_id, name: names.get(s.project_id) ?? path.basename(s.project_id), usd: 0, estimated: false, agents: [] });
+    p.usd += usd; p.estimated ||= estimated && usd > 0;
+    const agent = agentOf(s);
+    // Parallel helpers share a display name ("Iris Jr. the Builder"); one line per name reads better than five identical ones.
+    let a = p.agents.find((x) => x.agent.title === agent.title);
+    if (!a) p.agents.push(a = { agent, sessionId: s.id, shifts: 0, usd: 0, estimated: false });
+    a.shifts++; a.usd += usd; a.estimated ||= estimated && usd > 0;
+    const at = s.last_event_at || 0;
+    const k = p.projectId + '|' + agent.title;
+    if (at >= (latest.get(k) ?? -1)) { latest.set(k, at); a.sessionId = s.id; }
+  }
+  const spent = (x: { usd: number }) => x.usd >= 0.005; // hide rows that round to $0.00
+  const out = [...byProject.values()].filter(spent).sort((a, b) => b.usd - a.usd);
+  for (const p of out) p.agents = p.agents.filter(spent).sort((a, b) => b.usd - a.usd);
+  return out;
 }
 
 // ---------- agents ----------
@@ -309,6 +334,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
 
   const todayRows = db.prepare('SELECT * FROM sessions WHERE last_event_at >= ? AND project_id IS NOT NULL').all(today) as Row[];
   const costToday = todayRows.reduce((n, s) => n + costOf(db, s).usd, 0);
+  const costBreakdown = breakdownOf(db, todayRows, names);
   const waitedTodayMs = (db.prepare("SELECT SUM(MIN(end, ?) - MAX(start, ?)) w FROM segments WHERE kind = 'wait' AND end > ?").get(now, today, today) as Row).w || 0;
   const peakToday = peakOf([...sessionIntervals(db, today, now).values()].flat()).peak;
   const count = (st: SessionView['status']) => sessions.filter((s) => s.status === st).length;
@@ -321,6 +347,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     routines: routinesView(db, sessions, (r) => toSessionView(db, r, live.get(r.id), now, t.owner), now),
     districts: plan.districts.filter((d) => d.name !== 'For sale'),
     graveyard: graveyard(db, names, now, live),
+    costBreakdown,
     totals: {
       live: sessions.filter((s) => s.status !== 'ended').length,
       running: count('running'), needs: count('needs_input'), idle: count('idle'),

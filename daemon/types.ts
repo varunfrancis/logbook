@@ -129,6 +129,12 @@ export type GithubMeta = {
 
 export type Town = { name: string; chosen: boolean; suggestions: string[]; owner: string };
 
+/** Today's cost split by project, then by agent within it. Sums to totals.costToday. */
+export type CostBreakdown = {
+  projectId: string; name: string; usd: number; estimated: boolean;
+  agents: { agent: Agent; sessionId: string; shifts: number; usd: number; estimated: boolean }[];
+}[];
+
 export type StateView = {
   generatedAt: number;
   town: Town;
@@ -137,6 +143,7 @@ export type StateView = {
   sessions: SessionView[];
   routines: RoutineView[];
   graveyard: GraveEntry[];
+  costBreakdown: CostBreakdown;
   totals: {
     live: number; running: number; needs: number; idle: number; doneToday: number; shippedToday: number;
     tokensToday: number; bricksToday: number; costToday: number; waitedTodayMs: number; peakToday: number;

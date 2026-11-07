@@ -5,6 +5,7 @@ import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
+import { CostPanel } from './views/CostPanel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
@@ -32,7 +33,7 @@ function useTheme() {
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
 }
 
-type Sel = { kind: 'project' | 'agent' | 'graveyard'; id: string } | null;
+type Sel = { kind: 'project' | 'agent' | 'graveyard' | 'cost'; id: string } | null;
 
 export function App() {
   const { state, conn } = useLogbook();
@@ -106,7 +107,7 @@ export function App() {
             </div>
           ) : <div className="summary" />}
           <div className="bar-right">
-            {t ? <button className="link hide-sm" onClick={() => go('day')} title="See the day's numbers">Today's cost: {money(t.costToday)}</button> : null}
+            {t ? <button className="link hide-sm" onClick={() => setSel(sel?.kind === 'cost' ? null : { kind: 'cost', id: '' })} aria-pressed={sel?.kind === 'cost'} title="See which projects and agents spent it">Today's cost: {money(t.costToday)}</button> : null}
             <button className={`ghost small music${sound.music ? ' on' : ''}`} onClick={() => setMusic(!sound.music)} aria-pressed={sound.music}
               title={sound.music ? 'Background music is on. Click to turn it off' : 'Background music is off. Click to turn it on'}>{sound.music ? '♪ Music on' : '♪ Music off'}</button>
             <button className="ghost small" onClick={theme.cycle} aria-label="Toggle day and night">{theme.dark ? 'Day' : 'Night'}</button>
@@ -125,6 +126,7 @@ export function App() {
             <DayView state={state} openAgent={open.agent} />
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
