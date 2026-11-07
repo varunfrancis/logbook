@@ -150,7 +150,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .house .roof { position: absolute; top: -22px; left: -8px; right: -8px; height: 26px; border-radius: 10px; }
 .beam { position: absolute; left: 50%; bottom: 120px; width: 120px; height: 250px; transform: translateX(-62px); background: linear-gradient(to top, #17c3c355, transparent); opacity: var(--stars); border-radius: 60px 60px 0 0; pointer-events: none; }
 .crew { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; }
-.crew > span { filter: drop-shadow(0 0 calc(var(--stars) * 10px) #17c3c3aa); }
+/* night: no glow around the crew (it blurred them); a soft pool of warm window light on the ground instead */
+.crew::before { content: ""; position: absolute; left: -40px; right: -40px; bottom: -14px; height: 70px; border-radius: 50%; background: radial-gradient(closest-side, #ffd77240, #ffd77214 60%, transparent); opacity: var(--stars); pointer-events: none; z-index: -1; }
 .float { position: absolute; display: grid; place-items: center; }
 .bubble { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 8px 14px; font: 800 14px var(--f-body); box-shadow: 0 4px 0 #0001, var(--shadow); white-space: nowrap; }
 .bubble.red { background: var(--red); color: #fff; }
