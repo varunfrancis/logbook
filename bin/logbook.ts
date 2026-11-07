@@ -150,12 +150,13 @@ function installVscode() {
 }
 
 /** Waits for the daemon to answer (it starts answering before it has read your history), then opens the browser. */
-async function openWhenReady() {
+async function openWhenReady(open = true) {
   if (process.platform !== 'darwin') return console.log(`Open http://localhost:${PORT} in your browser.`);
   for (let i = 0; i < 40; i++) {
     try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(500) }); if (r.ok) break; } catch {}
     await new Promise((r) => setTimeout(r, 250));
   }
+  if (!open) return;
   try { execFileSync('open', [`http://localhost:${PORT}`]); } catch { console.log(`Open http://localhost:${PORT} in your browser.`); }
 }
 
@@ -187,7 +188,7 @@ switch (cmd) {
   case 'install':
     build(); installHooks(); FLAGS.has('--no-login-item') ? startDetached() : installDaemon();
     if (!FLAGS.has('--no-vscode') && !CUSTOM) { try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); } }
-    if (FLAGS.has('--no-open')) console.log(`\nAll set. Your town is at http://localhost:${PORT}`);
+    if (FLAGS.has('--no-open')) { await openWhenReady(false); console.log(`\nAll set. Your town is at http://localhost:${PORT}`); }
     else { console.log(`\nAll set. Opening your town at http://localhost:${PORT} …`); await openWhenReady(); }
     break;
   case 'update': {
