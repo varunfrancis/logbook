@@ -12,7 +12,7 @@ Everything runs on your machine. Logbook talks to GitHub with your own `gh` logi
 
 ## Crew
 
-Every agent is a character with a stable look: one of 10 shapes, 12 colors and 6 personality accessories (bow tie, glasses, headphones, beanie, scarf, freckles). Their job follows the work: Builder (new features), Plumber (fixing bugs), Painter (how it looks), Librarian (docs), Inspector (checks), Scout (research). Faces show how they're doing: building, raised a hand, coffee break, stuck, shipped, clocked out. The same character appears as a 2D avatar in the dashboard and as a 3D figure in the town. An agent picking up the same worktree or branch later is the same character, with a career.
+Every agent is a character with a stable look: one of 10 shapes, 12 colors and 6 personality accessories (bow tie, glasses, headphones, beanie, scarf, freckles). Their job follows the work: Builder (new features), Plumber (fixing bugs), Painter (how it looks), Librarian (docs), Inspector (checks), Scout (research). Faces show how they're doing: building, raised a hand, coffee break, stuck, shipped, clocked out. The town shows the exact same avatar artwork as the dashboard, standing in the 3D world and always facing you, on the side of the building you're looking at. An agent picking up the same worktree or branch later is the same character, with a career.
 
 Effort is measured in **bricks** (1 brick ≈ 10,000 tokens). Costs are in the dashboard, the profiles and the receipt. Switch the header to **Technical** to see raw tokens, branches, paths and PR numbers.
 

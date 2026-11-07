@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GraveEntry, ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
-import { buildCrew, type CrewMode } from './crew3d.ts';
+import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
 import type { Mood } from '../crew/Avatar.tsx';
 import { compact } from '../format.ts';
 
@@ -79,6 +79,7 @@ export class CityScene {
   private parkLabels: Label[] = [];
   private parkKey = '';
   private crewFigures: { g: THREE.Object3D; base: number; h: number }[] = [];
+  private crewRings: THREE.Object3D[] = [];
   private graveLabels: Label[] = [];
   private graveKey = '';
   private elapsed = 0;
@@ -120,6 +121,7 @@ export class CityScene {
     this.hemi.groundColor.set(dark ? '#3a4a3a' : '#9cc483');
     this.sun.intensity = dark ? 0.9 : 2.6;
     this.sun.color.set(dark ? '#b9c6ff' : '#fff1dc');
+    for (const c of this.crewFigures) setCrewNight(c.g, dark);
     for (const m of this.winMats) { m.emissive.set(dark ? '#ffc861' : '#000000'); m.emissiveIntensity = dark ? 0.55 : 0; }
   }
 
@@ -554,7 +556,8 @@ export class CityScene {
       if (!building && r() > 0.5) this.tree(-3.2, 3.1, g, 0.7);
     }
 
-    // builders
+    // builders: on a ring that turns with the camera, so the crew is always on the side of the building facing you
+    const ring = new THREE.Group(); ring.userData.crewRing = true; ring.rotation.y = this.az - Math.PI / 4; g.add(ring); this.crewRings.push(ring);
     const slots = this.slots(w, d, roofY, building && floors > 1 ? Math.min(3, Math.max(1, floors - 1)) : 0);
     const used = new Set<number>();
     sessions.forEach((s, i) => {
@@ -565,7 +568,7 @@ export class CityScene {
       if (idx === -1 || idx === undefined) idx = 9 + i;
       used.add(idx);
       const slot = slots[idx] ?? { pos: [(i % 3) - 1, 0, d / 2 + 2.2] as [number, number, number], face: Math.PI / 4 };
-      this.builder(g, p.id, s, mode, slot, updaters, labels);
+      this.builder(ring, p.id, s, mode, slot, updaters, labels);
     });
 
     // weather and events
@@ -704,7 +707,7 @@ export class CityScene {
       { pos: [sx, levels >= 3 ? 3 * FH : L1, -1.1], face: -Math.PI / 2 },                          // 6 wall, high
       { pos: [0, 0, d / 2 + 2], face: Math.PI / 2, walk: [[-w / 2, 0, d / 2 + 2.1], [w / 2, 0, d / 2 + 2.1]] }, // 7 street walk
       { pos: [-2.4, 0, d / 2 + 2.3], face: Math.PI / 4 },                                          // 8 bench
-      { pos: [-3.2, 0, 0.6], face: Math.PI / 3 },                                                 // 9 side bench
+      { pos: [w / 2 + 2.3, 0, d / 2 + 1.4], face: Math.PI / 4 },                                  // 9 front-right bench
     ];
     return s;
   }
@@ -713,7 +716,7 @@ export class CityScene {
     if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
     const a = s.agent;
     const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
-    const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c));
+    const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c), { dark: this.dark });
     const g = crew.root;
     g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
@@ -722,12 +725,11 @@ export class CityScene {
     // helpers: a half-size copy of the agent tagging along
     let helper: ReturnType<typeof buildCrew> | null = null;
     if (s.helperActive) {
-      helper = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: 'none', mood: 'working', mode: 'walk' }, (c) => this.m(c));
+      helper = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: 'none', mood: 'working', mode: 'walk' }, (c) => this.m(c), { dark: this.dark });
       helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
     this.label(labels, this.div('tag', esc(a.title)), anchor, 0.42, 'tag', pid);
-    if (mode === 'wave') this.label(labels, this.div('bubble', '!'), anchor, 0, 'fx', pid);
     if (s.away) this.label(labels, this.div('zzz', 'z<small>z</small><small>z</small>'), anchor, 0.1, 'fx', pid);
     if (s.chatter) {
       const chat = this.div('chat', esc(s.chatter));
@@ -895,6 +897,8 @@ export class CityScene {
     // Keep every character at least ~30px tall on screen, however far out you zoom.
     const unitsPerPx = (this.cam.top - this.cam.bottom) / Math.max(1, this.renderer.domElement.clientHeight);
     this.crewFigures = this.crewFigures.filter((c) => c.g.parent);
+    this.crewRings = this.crewRings.filter((r) => r.parent);
+    for (const r of this.crewRings) r.rotation.y = this.az - Math.PI / 4;
     for (const c of this.crewFigures) c.g.scale.setScalar(c.base * Math.min(2.6, Math.max(1, (30 * unitsPerPx) / (c.h * c.base))));
     this.renderer.render(this.scene, this.cam);
     const el = this.renderer.domElement, W = el.clientWidth, H = el.clientHeight;
