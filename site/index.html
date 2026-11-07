@@ -37,6 +37,7 @@
   --art-pink: #ffeef7; --art-pink-g: #ffd9ec; --art-green: #e9f8e1; --art-green-g: #d4f2c4;
   --chat-me: #47b8f5; --say-bg: #e5f5fe; --say-line: #c9e9fb;
   --stars: 0; --moon: 0;
+  --talk-edge: #d9d2c3; --talk-glow: #25303d26;
   --b-top: #e8eaed; --b-bar: #ffffff; --b-url: #f1f3f4;
   --sky: #47b8f5; --sky-dark: #1f8fd0; --sun: #ffc93c; --sun-dark: #e0a500;
   --orange: #ff9a3d; --red: #ff5a5f; --purple: #a978ff; --pink: #ff86c8; --teal: #17c3c3;
@@ -59,6 +60,7 @@
   --art-pink: #2b1d2a; --art-pink-g: #3a2437; --art-green: #182c22; --art-green-g: #1f3a2c;
   --chat-me: #17a4a4; --say-bg: #1a2a3c; --say-line: #2b4560;
   --stars: 1; --moon: 1;
+  --talk-edge: #ffd772; --talk-glow: #00000080;
   --b-top: #0e141c; --b-bar: #1c2532; --b-url: #232e3d;
   --shadow: 0 10px 30px #0008;
   color-scheme: dark;
@@ -77,6 +79,7 @@
   --art-pink: #2b1d2a; --art-pink-g: #3a2437; --art-green: #182c22; --art-green-g: #1f3a2c;
   --chat-me: #17a4a4; --say-bg: #1a2a3c; --say-line: #2b4560;
   --stars: 1; --moon: 1;
+  --talk-edge: #ffd772; --talk-glow: #00000080;
   --b-top: #0e141c; --b-bar: #1c2532; --b-url: #232e3d;
   --shadow: 0 10px 30px #0008;
   color-scheme: dark;
@@ -158,10 +161,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .chip-round { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 5px 0 rgba(0,0,0,.15); color: #fff; font: 900 26px var(--f-display); }
 
 /* the crew's conversation: one speech bubble over whoever is talking */
-.talk { position: absolute; z-index: 3; left: 0; bottom: 0; width: max-content; max-width: min(300px, calc(100vw - 40px)); background: var(--surface); color: var(--ink); border-radius: 18px; padding: 12px 16px; font: 700 15.5px/1.4 var(--f-body); text-align: left; box-shadow: 0 4px 0 #0000000d, var(--shadow); opacity: 0; transform: translateY(8px) scale(.92); transform-origin: var(--tail, 50%) 100%; transition: opacity .25s, transform .35s cubic-bezier(.2, 1.4, .4, 1); pointer-events: none; }
+.talk { position: absolute; z-index: 3; left: 0; bottom: 0; width: max-content; max-width: min(310px, calc(100vw - 40px)); background: #ffffff; color: #25303d; border: 2.5px solid var(--talk-edge); border-radius: 18px; padding: 12px 16px; font: 800 16px/1.4 var(--f-body); text-align: left; box-shadow: 0 5px 0 var(--talk-edge), 0 18px 34px var(--talk-glow); opacity: 0; transform: translateY(8px) scale(.92); transform-origin: var(--tail, 50%) 100%; transition: opacity .25s, transform .35s cubic-bezier(.2, 1.4, .4, 1); pointer-events: none; }
 .talk.show { opacity: 1; transform: none; }
-.talk b { display: block; font: 700 14px var(--f-display); color: var(--t-sky); margin-bottom: 2px; }
-.talk::after { content: ""; position: absolute; left: var(--tail, 50%); bottom: -9px; margin-left: -9px; border: 9px solid transparent; border-bottom: 0; border-top-color: var(--surface); }
+.talk b { display: block; font: 700 15px var(--f-display); color: var(--name, #1a6fb0); margin-bottom: 2px; }
+.talk::before, .talk::after { content: ""; position: absolute; left: var(--tail, 50%); border-style: solid; border-color: transparent; border-bottom: 0; }
+.talk::before { bottom: -15px; margin-left: -12px; border-width: 13px 12px 0; border-top-color: var(--talk-edge); }
+.talk::after { bottom: -10px; margin-left: -9px; border-width: 10px 9px 0; border-top-color: #ffffff; }
 
 /* the "it's opening" helper */
 .opening { position: fixed; z-index: 40; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 30px); opacity: 0; visibility: hidden; width: min(460px, calc(100% - 32px));
@@ -682,6 +687,7 @@ for (const el of document.querySelectorAll('[data-char]')) {
     ['rue', 'Rue', "I'm Rue. When my work ships, the whole town gets fireworks!"],
     ['bolt', 'Bolt', "I'm Bolt. Done for now? I'll wait at the café for the next job."],
   ];
+  const NAME_INK = { pip: '#1a5fc4', juno: '#c2561a', moss: '#1f7a45', rue: '#b8306f', bolt: '#6d3fd1' }; // darker than each body color, readable on white
   const crew = document.getElementById('crew'), talk = document.getElementById('talk'), stage = crew?.closest('.stage');
   if (!crew || !talk || !stage) return;
   crew.classList.add('talking');
@@ -695,6 +701,7 @@ for (const el of document.querySelectorAll('[data-char]')) {
     talk.classList.remove('show');
     setTimeout(() => {
       document.getElementById('talk-name').textContent = name;
+      talk.style.setProperty('--name', NAME_INK[k] ?? '#1a6fb0');
       document.getElementById('talk-text').textContent = text;
       const st = stage.getBoundingClientRect(), r = who.getBoundingClientRect();
       const cx = r.left + r.width / 2 - st.left, w = talk.offsetWidth;
