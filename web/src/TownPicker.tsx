@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { post } from './useLogbook.ts';
 import { setChime, setMusic, setVoices, useSound } from './audio.ts';
-import type { Voice } from './copy.ts';
+import type { Bubble, Voice } from './copy.ts';
 
 /** First launch: name your town. Also used from Settings to rename it. */
 export function TownPicker({ state, onDone }: { state: StateView; onDone: () => void }) {
@@ -31,7 +31,7 @@ export function TownPicker({ state, onDone }: { state: StateView; onDone: () => 
 
 export type Prefs = {
   voice: Voice; setVoice: (v: Voice) => void;
-  bubble: 'project' | 'task'; setBubble: (b: 'project' | 'task') => void;
+  bubble: Bubble; setBubble: (b: Bubble) => void;
   showLots: boolean; setShowLots: (b: boolean) => void;
 };
 
@@ -54,8 +54,8 @@ export function Settings({ state, onClose, onSaved, renameTown, prefs, replayWel
         <h2 id="settings-title">Settings</h2>
         <div className="setting"><div><b>Language</b><div className="muted">Plain talks in bricks and buildings; Technical shows tokens and tool calls.</div></div>
           <Seg label="Language" value={prefs.voice} set={prefs.setVoice} options={[['plain', 'Plain'], ['technical', 'Technical']]} /></div>
-        <div className="setting"><div><b>Agent bubbles</b><div className="muted">What the bubble over each agent in Town says: the project they're on, or the task they're doing right now.</div></div>
-          <Seg label="Agent bubbles" value={prefs.bubble} set={prefs.setBubble} options={[['project', 'Project'], ['task', 'Task']]} /></div>
+        <div className="setting"><div><b>Agent bubbles</b><div className="muted">What the bubble over each agent in Town says: the job they're on (“Extend the offer”), the project, or the step they're on right now.</div></div>
+          <Seg label="Agent bubbles" value={prefs.bubble} set={prefs.setBubble} options={[['job', 'Job'], ['project', 'Project'], ['task', 'Step']]} /></div>
         <div className="setting"><div><b>For-sale lots</b><div className="muted">Empty plots for projects Logbook knows about but hasn't seen any work on yet.</div></div>
           <label className="toggle"><input type="checkbox" id="show-lots" checked={prefs.showLots} onChange={(e) => prefs.setShowLots(e.target.checked)} /> Show</label></div>
         <div className="setting"><div><b>Town name</b><div className="muted">{state.town.name}</div></div><button type="button" className="ghost" onClick={renameTown}>Rename</button></div>
