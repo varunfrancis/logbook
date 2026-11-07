@@ -168,6 +168,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .talk::before { bottom: -15px; margin-left: -12px; border-width: 13px 12px 0; border-top-color: var(--talk-edge); }
 .talk::after { bottom: -10px; margin-left: -9px; border-width: 10px 9px 0; border-top-color: #ffffff; }
 
+.stage .hear { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: 20px; pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--talk-edge); background: #ffffff; color: #25303d; font: 800 13.5px var(--f-body); cursor: pointer; box-shadow: 0 4px 0 var(--talk-edge); }
+.stage .hear:active { transform: translateX(-50%) translateY(4px); box-shadow: none; }
+.stage .hear:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+.stage .hear .waves { display: none; } .stage .hear[aria-pressed="true"] .waves { display: inline; } .stage .hear[aria-pressed="true"] .muted { display: none; }
+.stage .hear[aria-pressed="true"] { color: #1a5fc4; }
+@media (max-width: 640px) { .stage .hear { bottom: 14px; } }
+
 /* the "it's opening" helper */
 .opening { position: fixed; z-index: 40; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 30px); opacity: 0; visibility: hidden; width: min(460px, calc(100% - 32px));
   background: var(--surface); color: var(--ink); border: 2px solid var(--line); border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow); transition: transform .35s cubic-bezier(.2, 1.5, .4, 1), opacity .2s, visibility .2s; display: flex; gap: 14px; }
@@ -423,25 +430,29 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
     <li>Rue: I'm Rue. When my work ships, the whole town gets fireworks!</li>
     <li>Bolt: I'm Bolt. Done for now? I'll wait at the café for the next job.</li>
   </ul>
-  <div class="stage" aria-hidden="true">
-    <div class="stars" id="stars"></div>
-    <div class="moon"></div>
-    <div class="beam hide-sm"></div>
-    <svg class="hill" viewBox="0 0 1500 230" preserveAspectRatio="none"><path class="a" d="M0 120 C 250 60, 450 40, 750 60 C 1050 80, 1250 50, 1500 110 L1500 230 L0 230 Z"/><path class="b" d="M0 150 C 300 110, 520 100, 750 112 C 1000 124, 1250 96, 1500 140 L1500 230 L0 230 Z"/></svg>
-    <div class="town">
+  <div class="stage">
+    <div aria-hidden="true" class="stars" id="stars"></div>
+    <div aria-hidden="true" class="moon"></div>
+    <div class="beam hide-sm" aria-hidden="true"></div>
+    <svg class="hill" aria-hidden="true" viewBox="0 0 1500 230" preserveAspectRatio="none"><path class="a" d="M0 120 C 250 60, 450 40, 750 60 C 1050 80, 1250 50, 1500 110 L1500 230 L0 230 Z"/><path class="b" d="M0 150 C 300 110, 520 100, 750 112 C 1000 124, 1250 96, 1500 140 L1500 230 L0 230 Z"/></svg>
+    <div class="town" aria-hidden="true">
       <div class="house" style="height:110px;background:#ff9a3d"><span class="roof" style="background:#e07a1f"></span><span class="wins"><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="door"></span></div>
       <div class="house" style="height:170px;background:#a978ff;width:104px"><span class="roof" style="background:#8a57e6"></span><span class="wins"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="door"></span></div>
       <div class="house" style="height:136px;background:#47b8f5"><span class="roof" style="background:#1f8fd0"></span><span class="wins"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="door"></span></div>
       <div class="house hide-sm" style="height:96px;background:#ff86c8"><span class="roof" style="background:#e5609f"></span><span class="wins"><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="door"></span></div>
     </div>
-    <div class="crew" id="crew">
+    <div class="crew" id="crew" aria-hidden="true">
       <span class="hop" data-char="juno" data-size="78" data-who="juno"></span>
       <span class="hop d1" data-char="moss" data-size="70" data-who="moss"></span>
       <span class="hop d2" data-char="pip" data-size="90" data-who="pip"></span>
       <span class="hop d3" data-char="rue" data-size="72" data-who="rue"></span>
       <span class="hop d4 hide-sm" data-char="bolt" data-size="70" data-who="bolt"></span>
     </div>
-    <div class="talk" id="talk"><b id="talk-name"></b><span id="talk-text"></span></div>
+    <div class="talk" id="talk" aria-hidden="true"><b id="talk-name"></b><span id="talk-text"></span></div>
+    <button class="hear" id="hear" type="button" aria-pressed="false">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path class="muted" d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="hear-label">Hear the crew</span>
+    </button>
   </div>
 </header>
 
@@ -692,6 +703,59 @@ for (const el of document.querySelectorAll('[data-char]')) {
   if (!crew || !talk || !stage) return;
   crew.classList.add('talking');
   let i = 0, timer = 0;
+  // Each crew member babbles in their own voice: short sung syllables, no real words. Off until you turn it on.
+  const VOICES = {
+    pip: { base: 300, wave: 'triangle', bright: 1.0, rate: 1.0 },
+    juno: { base: 400, wave: 'triangle', bright: 1.2, rate: 1.12 },
+    moss: { base: 240, wave: 'sine', bright: 0.85, rate: 0.9 },
+    rue: { base: 500, wave: 'triangle', bright: 1.35, rate: 1.2 },
+    bolt: { base: 185, wave: 'square', bright: 0.7, rate: 0.85 },
+  };
+  let ac = null, hearing = false, babbleStop = () => {};
+  try { hearing = localStorage.getItem('swarmville.hear') === '1'; } catch {}
+  const hearBtn = document.getElementById('hear');
+  function setHearing(on) {
+    hearing = on;
+    hearBtn.setAttribute('aria-pressed', String(on));
+    document.getElementById('hear-label').textContent = on ? 'Sound on' : 'Hear the crew';
+    try { localStorage.setItem('swarmville.hear', on ? '1' : '0'); } catch {}
+    if (!on) babbleStop();
+  }
+  function audio() {
+    if (!ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ac = new AC(); }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function babble(who, text) {
+    babbleStop();
+    if (!hearing || document.hidden) return;
+    const c = audio(); if (!c || c.state !== 'running') return;
+    const v = VOICES[who] ?? VOICES.pip;
+    const out = c.createGain(); out.gain.value = 0.11; out.connect(c.destination);
+    const syllables = Math.min(18, Math.max(6, Math.round(text.replace(/[^a-z]/gi, '').length / 3.2)));
+    const FORMANTS = [650, 900, 1250, 1700, 2300];
+    let t = c.currentTime + 0.05;
+    const nodes = [];
+    for (let n = 0; n < syllables; n++) {
+      const dur = (0.075 + Math.random() * 0.05) / v.rate, gap = (0.02 + Math.random() * 0.035) / v.rate;
+      const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+      const pitch = v.base * Math.pow(2, ((Math.random() * 7 - 3) + (n === syllables - 1 ? 3 : 0)) / 12); // last syllable lifts, like a question
+      o.type = v.wave;
+      o.frequency.setValueAtTime(pitch * 1.06, t); o.frequency.exponentialRampToValueAtTime(pitch, t + dur * 0.6);
+      f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.value = FORMANTS[(Math.random() * FORMANTS.length) | 0] * v.bright;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
+      nodes.push(o);
+      t += dur + gap;
+      if (n % 5 === 4) t += 0.08; // a little breath between phrases
+    }
+    babbleStop = () => { for (const o of nodes) { try { o.stop(); } catch {} } out.disconnect(); babbleStop = () => {}; };
+  }
+  hearBtn.addEventListener('click', () => { if (!hearing) { audio(); setHearing(true); babble(lastSpeaker, lastLine); } else setHearing(false); });
+  // Remembered as on: start as soon as the visitor first touches the page (browsers need a click before sound).
+  if (hearing) { setHearing(true); const wake = () => { audio(); removeEventListener('pointerdown', wake); removeEventListener('keydown', wake); }; addEventListener('pointerdown', wake); addEventListener('keydown', wake); }
+  let lastSpeaker = 'pip', lastLine = '';
+
   function say() {
     const visible = LINES.filter(([k]) => crew.querySelector(`[data-who="${k}"]`)?.offsetParent);
     const [k, name, text] = visible[i % visible.length];
@@ -710,12 +774,14 @@ for (const el of document.querySelectorAll('[data-char]')) {
       talk.style.bottom = `${st.bottom - r.top + 12}px`;
       talk.style.setProperty('--tail', `${Math.max(22, Math.min(w - 22, cx - left))}px`);
       talk.classList.add('show');
+      lastSpeaker = k; lastLine = text;
+      babble(k, text);
     }, 180);
     i++;
     timer = setTimeout(say, 3600);
   }
   say();
-  document.addEventListener('visibilitychange', () => { clearTimeout(timer); if (!document.hidden) timer = setTimeout(say, 800); });
+  document.addEventListener('visibilitychange', () => { clearTimeout(timer); babbleStop(); if (!document.hidden) timer = setTimeout(say, 800); });
   addEventListener('resize', () => { clearTimeout(timer); i = Math.max(0, i - 1); say(); });
 })();
 
