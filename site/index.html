@@ -199,6 +199,24 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .browser .shot.day { display: none; } :root:not([data-theme="light"]) .browser .shot.night { display: block; } }
 :root[data-theme="dark"] .browser .shot.day { display: none; } :root[data-theme="dark"] .browser .shot.night { display: block; }
 
+/* trust: GitHub button, privacy row, open source strip */
+.gh-btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--ink); font: 800 14px var(--f-body); text-decoration: none; box-shadow: 0 3px 0 var(--line); }
+.gh-btn:hover { border-color: var(--ink-3); }
+.gh-btn:active { transform: translateY(3px); box-shadow: none; }
+.gh-btn:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+.gh-stars { font: 800 12.5px var(--f-body); background: var(--surface-2); color: var(--ink-2); border-radius: 999px; padding: 2px 8px; }
+.promises { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font: 800 14px var(--f-body); color: var(--ink-2); }
+.promises li { display: inline-flex; align-items: center; gap: 6px; }
+.promises svg { color: var(--t-teal); flex: none; }
+.way img, .tab img { width: 16px; height: 16px; flex: none; vertical-align: -3px; margin-right: 6px; }
+.oss { padding-block: 0 20px; }
+.oss-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 28px 32px; }
+.oss-card h2 { font-size: clamp(26px, 3.4vw, 34px); text-transform: lowercase; }
+.oss-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; color: var(--ink-2); font-size: 15px; }
+.oss-meta a { color: var(--btn2-ink); }
+.oss-card .btn svg { flex: none; }
+@media (max-width: 640px) { .gh-btn span:not(.gh-stars) { display: none; } .gh-btn { padding: 0 11px; } }
+
 /* how to get it */
 .get { background: var(--band); color: var(--band-ink); position: relative; padding-block: 110px 130px; }
 .get h2 { font-size: clamp(34px, 5vw, 50px); text-align: center; text-transform: lowercase; }
@@ -353,6 +371,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
         <svg class="sun-i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="#ffc93c"/><g stroke="#ffc93c" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>
         <svg class="moon-i" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="#ffd772"/></svg>
       </button>
+      <a class="gh-btn" href="https://github.com/varunfrancis/logbook" rel="noopener"><svg class="gh-mark" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span><span class="gh-stars" data-stars hidden></span></a>
       <a class="btn small hide-sm" href="#get">Get it free</a>
     </div>
   </div>
@@ -368,8 +387,13 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
       Set up with Claude
     </a>
     <p class="how">Then press <span class="key">Enter</span> and click <b>Allow</b>.</p>
+    <ul class="promises" aria-label="What to expect">
+      <li><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Runs on your Mac</li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M3 3l18 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>No account</li>
+      <li><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2.2" fill="none"/></svg>Nothing uploaded</li>
+    </ul>
     <div class="ways"><span>Or use</span>
-      <a class="way" id="open-vscode" href="#">VS Code</a>
+      <a class="way" id="open-vscode" href="#"><img src="brand/vscode.png" width="16" height="16" alt="">Open in VS Code</a>
       <button class="way" type="button" data-tab="terminal">Terminal</button>
       <button class="way" type="button" id="copy-hero">Copy</button>
     </div>
@@ -427,7 +451,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
     <p class="lead">No sign-up. Claude sets it up for you.</p>
     <div class="tabs" role="tablist" aria-label="Where do you use Claude?">
       <button class="tab" role="tab" id="tab-app" aria-selected="true" aria-controls="steps-app" data-tab="app">Claude app <small>easiest</small></button>
-      <button class="tab" role="tab" id="tab-vscode" aria-selected="false" aria-controls="steps-vscode" data-tab="vscode">VS Code</button>
+      <button class="tab" role="tab" id="tab-vscode" aria-selected="false" aria-controls="steps-vscode" data-tab="vscode"><img src="brand/vscode.png" width="16" height="16" alt="">VS Code</button>
       <button class="tab" role="tab" id="tab-terminal" aria-selected="false" aria-controls="steps-terminal" data-tab="terminal">Terminal</button>
     </div>
 
@@ -520,6 +544,16 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   </div>
 </section>
 
+<section class="oss gutter" aria-label="Open source">
+  <div class="inner oss-card pop">
+    <div class="oss-text">
+      <h2>free and open source</h2>
+      <p class="oss-meta"><span>Open source · <a href="https://github.com/varunfrancis/logbook/blob/main/LICENSE">MIT license</a></span><span data-release hidden></span><span data-updated hidden></span><span>Built with Claude Code</span></p>
+    </div>
+    <a class="btn second" href="https://github.com/varunfrancis/logbook" rel="noopener"><svg class="gh-mark" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>View on GitHub</span><span class="gh-stars" data-stars hidden></span></a>
+  </div>
+</section>
+
 <section class="faq gutter" aria-labelledby="faq-title">
   <div class="inner">
     <h2 id="faq-title">questions?</h2>
@@ -540,7 +574,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
     </div>
   </div>
 </section>
-<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">The code</a><span>Mac only</span></div><p class="tm">Not affiliated with Anthropic. Claude is a trademark of Anthropic, PBC.</p></footer>
+<footer class="gutter"><div class="inner"><span>Swarmville</span><a href="#get">Get it</a><a href="#how">What it does</a><a href="https://github.com/varunfrancis/logbook">GitHub</a><a href="https://github.com/varunfrancis/logbook/blob/main/LICENSE">MIT license</a><span>Mac only</span></div><p class="tm">Built with Claude Code. Not affiliated with Anthropic. Claude is a trademark of Anthropic, PBC.</p></footer>
 
 <div class="opening" id="opening" role="dialog" aria-labelledby="opening-title" aria-live="polite">
   <span data-char="pip" data-size="56"></span>
@@ -606,6 +640,20 @@ for (const el of document.querySelectorAll('[data-char]')) {
   const ua = navigator.userAgent, b = document.getElementById('browser');
   const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg\/|OPR|Firefox|FxiOS/.test(ua);
   if (b && safari) { b.classList.remove('chrome'); b.classList.add('safari'); }
+})();
+
+// Live from GitHub: stars (once there are enough to be worth showing), latest release, last update.
+(async function () {
+  const ago = (t) => { const d = Math.round((Date.now() - new Date(t)) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : d < 60 ? 'a month ago' : `${Math.round(d / 30)} months ago`; };
+  try {
+    const [repo, rel] = await Promise.all([
+      fetch('https://api.github.com/repos/varunfrancis/logbook').then((r) => (r.ok ? r.json() : null)),
+      fetch('https://api.github.com/repos/varunfrancis/logbook/releases/latest').then((r) => (r.ok ? r.json() : null)),
+    ]);
+    if (repo && repo.stargazers_count >= 50) for (const el of document.querySelectorAll('[data-stars]')) { el.textContent = `★ ${repo.stargazers_count.toLocaleString()}`; el.hidden = false; }
+    if (rel?.tag_name) for (const el of document.querySelectorAll('[data-release]')) { el.textContent = `Latest: ${rel.tag_name}`; el.hidden = false; }
+    if (repo?.pushed_at) for (const el of document.querySelectorAll('[data-updated]')) { el.textContent = `Updated ${ago(repo.pushed_at)}`; el.hidden = false; }
+  } catch {}
 })();
 
 // Night sky
