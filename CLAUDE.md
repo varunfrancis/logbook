@@ -1,6 +1,6 @@
 # Working on Swarmville
 
-Swarmville (formerly Logbook; the GitHub repo is still `logbook`) is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24+) that reads Claude Code's files and hooks, plus a React/three.js UI (`web/`) built into `web/dist`, which the daemon serves on http://localhost:7777. It's macOS-only for now.
+Swarmville (formerly Logbook; the GitHub repo `varunfrancis/swarmville` was `logbook`, and old links redirect) is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24+) that reads Claude Code's files and hooks, plus a React/three.js UI (`web/`) built into `web/dist`, which the daemon serves on http://localhost:7777. It's macOS-only for now.
 
 ## Branch workflow
 

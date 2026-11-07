@@ -6,7 +6,7 @@ The person who sent you this link wants Swarmville installed on this computer. F
 
 ## What Swarmville is (tell them this first)
 
-Swarmville shows their Claude Code agents as little characters in a town in the browser: who is working, who needs them, what got shipped. It runs only on this Mac. It reads their Claude Code history (`~/.claude/projects`) and git on this computer, and nothing is uploaded. There's no account and it's free and open source (github.com/varunfrancis/logbook). To give projects friendly names, it asks the small Claude model through their own Claude Code login, which uses a tiny amount of their usage.
+Swarmville shows their Claude Code agents as little characters in a town in the browser: who is working, who needs them, what got shipped. It runs only on this Mac. It reads their Claude Code history (`~/.claude/projects`) and git on this computer, and nothing is uploaded. There's no account and it's free and open source (github.com/varunfrancis/swarmville). To give projects friendly names, it asks the small Claude model through their own Claude Code login, which uses a tiny amount of their usage.
 
 ## Steps
 
@@ -19,7 +19,7 @@ Swarmville shows their Claude Code agents as little characters in a town in the 
    - open their town in the browser
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/varunfrancis/logbook/main/install.sh | bash
+   curl -fsSL https://raw.githubusercontent.com/varunfrancis/swarmville/main/install.sh | bash
    ```
 
    It takes about a minute and prints a ✓ line for each step.
