@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
 import { DATA_DIR, PORT, WEB_DIST } from './config.ts';
 import { kvGet, kvSet, openDb, type Row } from './db.ts';
-import { scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
+import { purgeOwnRuns, scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { backfillEntrypoints } from './routines.ts';
 import { consolidateProjects } from './projects.ts';
 import { readLive, type LiveEntry } from './live.ts';
@@ -322,6 +322,7 @@ const server = http.createServer(async (req, res) => {
  * "Setting up your town" with real counts instead of a page that won't load.
  */
 refreshHookScript();
+try { const n = purgeOwnRuns(db); if (n) console.log(`[logbook] removed ${n} of Logbook's own background runs from the town`); } catch (e) { console.error('[logbook] cleanup failed', e); }
 try { backfillEntrypoints(db); } catch (e) { console.error('[logbook] entrypoint backfill failed', e); }
 console.log('[logbook] indexing transcripts…');
 const t0 = Date.now();
