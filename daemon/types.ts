@@ -76,6 +76,8 @@ export type ProjectView = {
   lot: [number, number];
   district: string | null; // neighborhood of similar projects
   state: ProjectState;
+  scope: number; // lines added + commits + a little for tokens; see scopeOf
+  size: number; // 0..1 relative to the biggest project in town; drives footprint and floors
   floors: number;
   tokens: number;
   bricks: number;
