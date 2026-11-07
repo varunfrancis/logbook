@@ -192,6 +192,121 @@ function installVscode() {
   console.log('VS Code helper installed. New VS Code windows pick it up on their own; windows already open start using it after VS Code restarts.');
 }
 
+/**
+ * Swarmville.app: an icon in Applications, Launchpad, Spotlight and the Dock, so nobody needs to know the address.
+ * Opening it opens the town; if the town isn't answering, it restarts the login item first. Built on this Mac by the
+ * installer, so macOS doesn't treat it as a download from the internet. Only the main copy with a login item gets one.
+ */
+const APP_NAME = 'Swarmville.app';
+const APP_ID = 'dev.swarmville.app';
+/** Set once the app has been pinned to the Dock, so taking it off the Dock sticks across updates. */
+const DOCK_MARK = path.join(DATA, '.dock-pinned');
+
+/** SWARMVILLE_APP_DIR puts the app somewhere else (testing); it also lets a separate test install have one. */
+const APP_DIR = env('APP_DIR');
+function appDir() {
+  if (APP_DIR) return APP_DIR;
+  try { fs.accessSync('/Applications', fs.constants.W_OK); return '/Applications'; } catch { return path.join(HOME, 'Applications'); }
+}
+function existingApp() {
+  return (APP_DIR ? [APP_DIR] : ['/Applications', path.join(HOME, 'Applications')]).map((d) => path.join(d, APP_NAME)).find((p) => {
+    try { return fs.readFileSync(path.join(p, 'Contents', 'Info.plist'), 'utf8').includes(`<string>${APP_ID}</string>`); } catch { return false; }
+  });
+}
+
+/** The app's launcher: a small script, so it needs no signing. */
+function launcherScript(o: { port: number; label: string; plist: string; log: string }) {
+  return `#!/bin/bash
+# Swarmville.app: opens your town. If Swarmville isn't answering, restarts it first.
+PORT=${o.port}
+up() { /usr/bin/curl -fs -m 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; }
+if ! up; then
+  /bin/launchctl kickstart -k "gui/$(id -u)/${o.label}" >/dev/null 2>&1 || /bin/launchctl bootstrap "gui/$(id -u)" '${o.plist}' >/dev/null 2>&1
+  for _ in $(seq 1 60); do up && break; sleep 0.5; done
+fi
+if up; then /usr/bin/open "http://localhost:$PORT"; exit 0; fi
+/usr/bin/osascript -e 'display alert "Swarmville didn’t start" message "Try opening it again in a minute. If it keeps happening, reinstall Swarmville with the one-line installer from github.com/varunfrancis/swarmville (your town is kept).\\n\\nDetails are in ${o.log}" as warning' >/dev/null 2>&1
+exit 1
+`;
+}
+
+function installMacApp() {
+  if (process.platform !== 'darwin' || (CUSTOM && !APP_DIR)) return;
+  const old = existingApp();
+  const dest = old ?? path.join(appDir(), APP_NAME);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const stage = `${dest}.new`;
+  fs.rmSync(stage, { recursive: true, force: true });
+  fs.mkdirSync(path.join(stage, 'Contents', 'MacOS'), { recursive: true });
+  fs.mkdirSync(path.join(stage, 'Contents', 'Resources'));
+  fs.writeFileSync(path.join(stage, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>Swarmville</string>
+  <key>CFBundleDisplayName</key><string>Swarmville</string>
+  <key>CFBundleIdentifier</key><string>${APP_ID}</string>
+  <key>CFBundleExecutable</key><string>Swarmville</string>
+  <key>CFBundleIconFile</key><string>Swarmville</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+  <key>CFBundleVersion</key><string>${VERSION}</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+</dict></plist>
+`);
+  const exe = path.join(stage, 'Contents', 'MacOS', 'Swarmville');
+  fs.writeFileSync(exe, launcherScript({ port: PORT, label: LABEL, plist: PLIST, log: path.join(DATA, 'daemon.log') }));
+  fs.chmodSync(exe, 0o755);
+  fs.copyFileSync(path.join(REPO, 'mac', 'Swarmville.icns'), path.join(stage, 'Contents', 'Resources', 'Swarmville.icns'));
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.renameSync(stage, dest);
+  // Tell Finder, Launchpad and Spotlight about it (and its icon) right away.
+  try { execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-f', dest], { stdio: 'ignore' }); } catch {}
+  console.log(`Swarmville app added to ${path.dirname(dest)}: open it from Launchpad or Spotlight any time.`);
+  if (!FLAGS.has('--no-dock') && !fs.existsSync(DOCK_MARK)) { try { pinToDock(dest); } catch {} }
+}
+
+const dockUrl = (app: string) => `file://${encodeURI(app)}/`;
+
+function pinToDock(app: string) {
+  const apps = execFileSync('defaults', ['read', 'com.apple.dock', 'persistent-apps'], { encoding: 'utf8' });
+  if (!apps.includes(dockUrl(app))) {
+    execFileSync('defaults', ['write', 'com.apple.dock', 'persistent-apps', '-array-add',
+      `<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>${dockUrl(app)}</string><key>_CFURLStringType</key><integer>15</integer></dict></dict></dict>`]);
+    execFileSync('killall', ['Dock']);
+    console.log('Swarmville is in your Dock.');
+  }
+  fs.writeFileSync(DOCK_MARK, '');
+}
+
+/** Takes the app's tile off the Dock (Dock settings are edited through an exported copy, the way `defaults` expects). */
+function unpinFromDock(app: string) {
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-dock-')), 'dock.plist');
+  const buddy = (c: string) => execFileSync('/usr/libexec/PlistBuddy', ['-c', c, tmp], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  try {
+    execFileSync('defaults', ['export', 'com.apple.dock', tmp]);
+    const ours: number[] = [];
+    for (let i = 0; ; i++) {
+      let url: string;
+      try { url = buddy(`Print :persistent-apps:${i}:tile-data:file-data:_CFURLString`); } catch { try { buddy(`Print :persistent-apps:${i}`); continue; } catch { break; } }
+      if (url === dockUrl(app)) ours.push(i);
+    }
+    if (!ours.length) return;
+    for (const i of ours.reverse()) buddy(`Delete :persistent-apps:${i}`);
+    execFileSync('defaults', ['import', 'com.apple.dock', tmp]);
+    execFileSync('killall', ['Dock']);
+  } finally { fs.rmSync(path.dirname(tmp), { recursive: true, force: true }); }
+}
+
+function uninstallMacApp() {
+  if (process.platform !== 'darwin' || (CUSTOM && !APP_DIR)) return;
+  const app = existingApp();
+  if (!app) return;
+  try { unpinFromDock(app); } catch {}
+  fs.rmSync(app, { recursive: true, force: true });
+  fs.rmSync(DOCK_MARK, { force: true });
+  console.log(`Removed the Swarmville icon (${app}) and its Dock tile.`);
+}
+
 /** Waits for the daemon to answer (it starts answering before it has read your history), then opens the browser. */
 async function openWhenReady(open = true) {
   if (process.platform !== 'darwin') return console.log(`Open http://localhost:${PORT} in your browser.`);
@@ -232,6 +347,7 @@ switch (cmd) {
     // Before the rename this lived in ~/.logbook under the dev.logbook.daemon login item: stop that copy, then move its data across.
     if (!CUSTOM) { retireLegacyLoginItem(); adoptLegacyData(DATA, LEGACY_DATA); }
     build(); installHooks(); FLAGS.has('--no-login-item') ? startDetached() : installDaemon();
+    if (!FLAGS.has('--no-login-item') && !FLAGS.has('--no-app')) { try { installMacApp(); } catch (e: any) { console.log(`Swarmville app not added: ${e.message}`); } }
     if (!FLAGS.has('--no-vscode') && !CUSTOM) { try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); } }
     if (FLAGS.has('--no-open')) { await openWhenReady(false); console.log(`\nAll set. Your town is at http://localhost:${PORT}`); }
     else { console.log(`\nAll set. Opening your town at http://localhost:${PORT} …`); await openWhenReady(); }
@@ -245,6 +361,7 @@ switch (cmd) {
   case 'version': console.log(VERSION); break;
   case 'uninstall':
     uninstallHooks(); uninstallDaemon(); await stopDetached();
+    try { uninstallMacApp(); } catch (e: any) { console.log(`Couldn't remove the Swarmville app: ${e.message}`); }
     // The VS Code helper is shared by every copy, so a separate (custom data folder) install leaves it alone.
     if (!CUSTOM && fs.existsSync(VSCODE_CLI)) { let gone = false; for (const id of [vscodeId(), LEGACY_VSCODE_ID]) { try { execFileSync(VSCODE_CLI, ['--uninstall-extension', id], { stdio: 'ignore' }); gone = true; } catch {} } if (gone) console.log('VS Code helper removed.'); }
     if (FLAGS.has('--everything')) {
@@ -255,6 +372,7 @@ switch (cmd) {
     break;
   case 'hooks': installHooks(); break;
   case 'vscode': installVscode(); break;
+  case 'app': installMacApp(); break;
   case 'start':
     build();
     spawn(process.execPath, ['--no-warnings', path.join(REPO, 'daemon', 'server.ts')], { stdio: 'inherit' });
@@ -266,12 +384,15 @@ switch (cmd) {
 
   swarmville install     add Claude Code hooks, run Swarmville at login, open your town (macOS)
                          --no-login-item  run in the background now, not at login
+                         --no-app         don't add the Swarmville app to Applications
+                         --no-dock        add the app, but don't pin it to the Dock
   swarmville update      get the latest version (keeps your town)
   swarmville start       run the daemon in the foreground
   swarmville open        open http://localhost:${PORT}
   swarmville status      list live agents in the terminal
+  swarmville app        add (or repair) the Swarmville app in Applications
   swarmville vscode      install the VS Code helper so "Go to" opens the right terminal
-  swarmville uninstall   remove hooks and the login item (keeps ~/.swarmville)
+  swarmville uninstall   remove hooks, the login item and the app (keeps ~/.swarmville)
                          --everything     also remove the app and its private Node
   swarmville version     print the version`);
 }

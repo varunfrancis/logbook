@@ -8,6 +8,7 @@
 #   2. Uses Node 24+ if you have it, otherwise downloads a private copy into ~/.swarmville/runtime (checked against nodejs.org's checksums).
 #   3. Downloads the latest Swarmville release into ~/.swarmville/app.
 #   4. Connects it to Claude Code (hooks in ~/.claude/settings.json, backed up first), starts it at login, opens your town.
+#   5. Adds a Swarmville app to Applications (and the Dock) that opens your town, restarting Swarmville if it's stuck.
 #
 # Swarmville used to be called Logbook and lived in ~/.logbook. An install from then is moved to ~/.swarmville, town
 # and all, and ~/.logbook is left as a link to it so anything still using the old path keeps working.
@@ -19,10 +20,13 @@
 #   SWARMVILLE_NO_LOGIN_ITEM=1  run in the background now, not at login
 #   SWARMVILLE_NO_OPEN=1     don't open the browser
 #   SWARMVILLE_NO_VSCODE=1   skip the VS Code helper
+#   SWARMVILLE_NO_APP=1      don't add the Swarmville app to Applications
+#   SWARMVILLE_NO_DOCK=1     add the app, but don't pin it to the Dock
+#   SWARMVILLE_APP_DIR       where the app goes (default /Applications, or ~/Applications if that isn't writable)
 #   SWARMVILLE_FORCE=1       install even if a developer copy is already set up as the login item
 set -euo pipefail
 
-for v in DATA_DIR PORT RELEASE_URL NO_LOGIN_ITEM NO_OPEN NO_VSCODE FORCE; do
+for v in DATA_DIR PORT RELEASE_URL NO_LOGIN_ITEM NO_OPEN NO_VSCODE NO_APP NO_DOCK APP_DIR FORCE; do
   old="LOGBOOK_$v"; new="SWARMVILLE_$v"
   if [ -z "${!new:-}" ] && [ -n "${!old:-}" ]; then export "$new=${!old}"; fi
 done
@@ -153,6 +157,8 @@ flags=""
 [ -n "${SWARMVILLE_NO_LOGIN_ITEM:-}" ] && flags="$flags --no-login-item"
 [ -n "${SWARMVILLE_NO_OPEN:-}" ] && flags="$flags --no-open"
 [ -n "${SWARMVILLE_NO_VSCODE:-}" ] && flags="$flags --no-vscode"
+[ -n "${SWARMVILLE_NO_APP:-}" ] && flags="$flags --no-app"
+[ -n "${SWARMVILLE_NO_DOCK:-}" ] && flags="$flags --no-dock"
 echo
 # shellcheck disable=SC2086
 "$NODE" --no-warnings "$DATA/app/bin/swarmville.ts" install $flags || fail "Setup didn't finish. The details are above."
@@ -170,5 +176,8 @@ fi
 
 echo
 ok "Swarmville $VERSION is running at http://localhost:$PORT"
+if [ -d "${SWARMVILLE_APP_DIR:-/Applications}/Swarmville.app" ] || [ -d "$HOME/Applications/Swarmville.app" ]; then
+  echo "    Next time, just open Swarmville from your Dock, Launchpad or Spotlight. It starts Swarmville again if it ever stops."
+fi
 echo "    Manage it with: $DATA/bin/swarmville status | update | uninstall"
 echo

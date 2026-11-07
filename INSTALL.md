@@ -31,6 +31,7 @@ Swarmville shows their Claude Code agents as little characters in a town in the 
 5. **Wrap up** in a few lines:
    - Their town is open at http://localhost:7777 (the browser should already show it). A short welcome tour introduces their agents. It's about two minutes and each step can be skipped.
    - It updates live as they work with Claude Code.
+   - To come back to their town later, they open **Swarmville** from the Dock, Launchpad or Spotlight. It restarts Swarmville if it has stopped.
    - Later they can ask you to "update Swarmville" (`~/.swarmville/bin/swarmville update`) or "uninstall Swarmville" (`~/.swarmville/bin/swarmville uninstall --everything`).
 
 ## If something goes wrong

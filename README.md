@@ -30,7 +30,7 @@ Claude explains what it will do, asks before running anything, and opens your to
 curl -fsSL https://raw.githubusercontent.com/varunfrancis/swarmville/main/install.sh | bash
 ```
 
-Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.swarmville/runtime` if you don't have one (checked against nodejs.org's checksums), puts Swarmville in `~/.swarmville/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. Running it again updates Swarmville and keeps your town. Afterwards: `~/.swarmville/bin/swarmville status | update | uninstall [--everything]`.
+Mac only for now. No Node, Homebrew or password needed: the installer downloads a private copy of Node 24 into `~/.swarmville/runtime` if you don't have one (checked against nodejs.org's checksums), puts Swarmville in `~/.swarmville/app`, adds the Claude Code hooks (backing up `~/.claude/settings.json` first), starts it at login and opens http://localhost:7777. It also adds a **Swarmville app** to Applications and your Dock: open it any time to get back to your town (it restarts Swarmville first if it ever stops). Running it again updates Swarmville and keeps your town. Afterwards: `~/.swarmville/bin/swarmville status | update | uninstall [--everything]`.
 
 There are no API keys. Friendly names and agent intros use the small Claude model through your own Claude Code login (the `claude` command, or the Claude desktop app's built-in copy), and GitHub features use your own `gh` login.
 
@@ -65,7 +65,7 @@ New agents walk in from the street with a "Hi, I'm …" bubble whenever they sta
 
 - `node bin/swarmville.ts vscode` reinstalls the VS Code helper. It lets **Go to {agent}** (or ↵ in the Crew view) open the exact terminal the agent runs in, and opens new jobs you start from Swarmville. New VS Code windows pick it up; restart VS Code once for windows already open. Without it, Swarmville uses Terminal.
 - Settings → *Skyline for your GitHub profile*: point it at a local clone of your profile README repo. **README skyline** in the Town view then saves `swarmville-skyline.png` there (or updates `logbook-skyline.png` if the repo already has one from before the rename), commits and pushes.
-- `node bin/swarmville.ts uninstall` removes the hooks, the login item and the VS Code helper. Your data in `~/.swarmville` stays.
+- `node bin/swarmville.ts uninstall` removes the hooks, the login item, the Swarmville app and the VS Code helper. Your data in `~/.swarmville` stays.
 
 ## How it knows what's happening
 
