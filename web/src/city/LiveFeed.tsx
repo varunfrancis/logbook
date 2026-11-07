@@ -18,7 +18,7 @@ export function LiveFeed({ state, visible, onAgent }: { state: StateView; visibl
   if (!jobs.length) return null;
   const needs = jobs.filter((j) => j.word === 'Needs you').length;
   return (
-    <section className={`live-feed${open ? '' : ' closed'}`} aria-label="Live jobs">
+    <section className={`live-feed${open ? '' : ' lf-folded'}`} aria-label="Live jobs">
       <button className="lf-head" onClick={() => setOpen(!open)} aria-expanded={open} title={open ? 'Fold away' : 'Show live jobs'}>
         <span className="lf-pulse" aria-hidden="true" />
         <span className="lf-title">Live jobs</span>
@@ -29,7 +29,7 @@ export function LiveFeed({ state, visible, onAgent }: { state: StateView; visibl
         <ul className="lf-rows">
           {jobs.map((j) => (
             <li key={j.id}>
-              <button className={`lf-row${j.word === 'Needs you' ? ' needs' : ''}`} onClick={() => onAgent(j.id)} title={`Open ${j.session.agent.name}'s card`}>
+              <button className="lf-row" onClick={() => onAgent(j.id)} title={`Open ${j.session.agent.name}'s card`}>
                 <AgentAvatar agent={j.session.agent} mood={moodFor(j.session)} size={32} />
                 <span className="lf-body">
                   <span className="lf-top">

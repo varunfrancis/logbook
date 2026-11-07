@@ -91,9 +91,9 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
       <div className="city-canvas" ref={host} />
       <div className="city-labels" ref={labels} />
       <div className={`town-left${replay ? ' below-clock' : ''}`}>
-        {replay ? null : <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />}
         <BumpToasts state={state} onAgent={onAgent} />
       </div>
+      {replay ? null : <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />}
       {replay ? (
         <div className="replay-clock" aria-live="off">
           <b>{new Date(replay.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</b>
