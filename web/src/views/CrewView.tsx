@@ -195,6 +195,10 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
         {working.length ? <div className="grid works">{working.map((s) => <WorkCard key={s.id} s={s} p={projects.get(s.projectId ?? '')} now={now} open={open} focused={s.id === focusId} />)}</div>
           : <Empty title="Nobody is building right now.">Start <code>claude</code> in any project and they'll clock in here within a couple of seconds.</Empty>}
       </section>
+      <section>
+        <h2>Just finished <small>what they did before their break</small></h2>
+        <FinishedList items={finished} projects={projects} now={now} open={open} />
+      </section>
       {idle.length ? (
         <section>
           <h2>On a coffee break <small>finished what you asked, ready for more</small></h2>
@@ -207,10 +211,6 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
           </div>
         </section>
       ) : null}
-      <section>
-        <h2>Just finished <small>what they did before their break</small></h2>
-        <FinishedList items={finished} projects={projects} now={now} open={open} />
-      </section>
       <Leaderboard state={state} now={now} openProject={open.project} />
       {state.routines?.length ? (
         <Fold id="scheduled" title="Scheduled" note={`${state.routines.length} · jobs that wake up, do their run, and go back to sleep`}>
