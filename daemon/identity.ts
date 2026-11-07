@@ -34,7 +34,7 @@ const NAMES = [
 
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-export type Identity = { key: string; name: string; shape: string; color: string; accessory: string };
+export type Identity = { key: string; name: string; shape: string; color: string; accessory: string; job?: Job | null };
 
 /**
  * Who a session is:
@@ -56,7 +56,7 @@ const registry = new Map<string, Identity>();
 
 /** Loads saved identities and gives every new agent key a name nobody recent is using. */
 export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: string[]) {
-  if (!registry.size) for (const r of db.prepare('SELECT key, name, shape, color, accessory FROM agents').all() as Identity[]) registry.set(r.key, r);
+  if (!registry.size) for (const r of db.prepare('SELECT key, name, shape, color, accessory, job FROM agents').all() as Identity[]) registry.set(r.key, r);
   const fresh = keys.filter((k) => !registry.has(k) && !isHelperKey(k));
   if (!fresh.length) return;
   const recent = new Set((db.prepare('SELECT name FROM agents WHERE created_at > ?').all(Date.now() - 45 * 24 * 3600_000) as { name: string }[]).map((r) => r.name));
@@ -70,6 +70,25 @@ export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: 
     recent.add(name);
     registry.set(key, id);
     ins.run(key, id.name, id.shape, id.color, id.accessory, Date.now());
+  }
+}
+
+/**
+ * A character's job is what they do most often across their whole career, so it stays put.
+ * Ties go to the job they had first.
+ */
+export function settleJobs(db: { prepare: (sql: string) => any }) {
+  const rows = db.prepare(`SELECT agent_key AS k, job, COUNT(*) AS n, MIN(started_at) AS first FROM sessions
+    WHERE agent_key IS NOT NULL AND job IS NOT NULL AND agent_key NOT LIKE '%#resident~%' GROUP BY agent_key, job`).all() as { k: string; job: Job; n: number; first: number }[];
+  const best = new Map<string, { job: Job; n: number; first: number }>();
+  for (const r of rows) {
+    const b = best.get(r.k);
+    if (!b || r.n > b.n || (r.n === b.n && (r.first ?? 0) < (b.first ?? 0))) best.set(r.k, r);
+  }
+  const upd = db.prepare('UPDATE agents SET job = ? WHERE key = ? AND COALESCE(job, \'\') != ?');
+  for (const [k, b] of best) {
+    const id = registry.get(k);
+    if (id && id.job !== b.job) { id.job = b.job; upd.run(b.job, k, b.job); }
   }
 }
 

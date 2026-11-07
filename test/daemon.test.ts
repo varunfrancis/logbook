@@ -163,3 +163,18 @@ test('one resident per project on main, helpers for parallel windows, own charac
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a character keeps one job: the one they do most', async () => {
+  const { refreshAgents, agentOf } = await import('../daemon/state.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, started_at, last_event_at, first_prompt) VALUES(?, ?, ?, ?, ?, ?)');
+  ins.run('a', 'gh:a/bot', 'main', 1, 2, 'fix the broken login');
+  ins.run('b', 'gh:a/bot', 'main', 3, 4, 'fix crash on threads');
+  ins.run('c', 'gh:a/bot', 'main', 5, 6, 'add a pricing page');
+  refreshAgents(db, 0, new Map());
+  const jobs = ['a', 'b', 'c'].map((id) => agentOf(db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any).job);
+  assert.deepEqual(jobs, ['plumber', 'plumber', 'plumber']);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

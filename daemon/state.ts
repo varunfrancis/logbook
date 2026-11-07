@@ -5,7 +5,7 @@ import type { LiveEntry } from './live.ts';
 import { assignLots, ensureProjectForCwd, spiral } from './projects.ts';
 import { floorsFor, projectState, sessionStatus } from './status.ts';
 import { githubMeta } from './github.ts';
-import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE } from './identity.ts';
+import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE, settleJobs } from './identity.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
@@ -40,7 +40,7 @@ export function costOf(db: Db, s: Row): { usd: number; estimated: boolean } {
 export function agentOf(s: Row): Agent {
   const key = s.agent_key || agentKey(s);
   const id = identityFor(key);
-  const job = (s.job as Agent['job']) || jobFor(s);
+  const job = (id.job as Agent['job']) || (s.job as Agent['job']) || jobFor(s); // the character's settled job, not this shift's
   const role = isHelperKey(key) ? 'helper' : isResidentKey(key) ? 'resident' : 'workbench';
   return { key, name: id.name, title: `${id.name} the ${JOB_TITLE[job]}`, job, jobTitle: JOB_TITLE[job], shape: id.shape, color: id.color, accessory: id.accessory, role };
 }
@@ -184,6 +184,7 @@ export function refreshAgents(db: Db, since: number, live: Map<string, LiveEntry
   }
   // oldest first, so long-running characters keep the names they had
   allocateIdentities(db, [...new Set(keys)].reverse());
+  settleJobs(db);
 }
 
 function projectNames(p: Row): { name: string; repo: string; source: ProjectView['nameSource'] } {

@@ -87,6 +87,7 @@ const ADD: Record<string, Record<string, string>> = {
   },
   projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER' },
   offsets: { state: 'TEXT' },
+  agents: { job: 'TEXT' },
 };
 
 /** Adds new columns, and on a schema bump re-derives everything from transcripts (keeps hook data). */
