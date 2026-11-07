@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
  *  - a slow, warm lo-fi loop (soft pad chords, a round bass note, sparse plucked melody with an echo)
  *  - a gentle two-note chime used as an FYI (e.g. two agents bumping into each other)
  * Browsers only allow sound after the first click or key press, so everything waits for that.
- * Music pauses while the browser tab is hidden and picks up again when you come back.
+ * Music keeps playing when the browser tab is in the background.
  */
 
 type Prefs = { music: boolean; chime: boolean; voices: boolean };
@@ -105,7 +105,9 @@ let lastNote = 3;
 function schedule() {
   const c = ctx!;
   if (nextTime < c.currentTime) nextTime = c.currentTime + 0.05;
-  while (nextTime < c.currentTime + 1.2) {
+  // Background tabs get their timers slowed (to ~1/s or less), so queue notes further ahead there.
+  const ahead = document.hidden ? 4 : 1.2;
+  while (nextTime < c.currentTime + ahead) {
     const chord = CHORDS[Math.floor(step / STEPS_PER_CHORD) % CHORDS.length];
     const s = step % STEPS_PER_CHORD;
     if (s === 0) pad(chord.pad, nextTime, EIGHTH * STEPS_PER_CHORD);
@@ -128,9 +130,9 @@ export function duckMusic(on: boolean) {
   if (ctx && timer) { musicBus.gain.cancelScheduledValues(ctx.currentTime); musicBus.gain.setTargetAtTime(on ? MUSIC_LEVEL * 0.25 : MUSIC_LEVEL, ctx.currentTime, on ? 0.15 : 0.9); }
 }
 
-/** Starts or stops the loop to match the setting, page visibility and whether sound is allowed yet. */
+/** Starts or stops the loop to match the setting and whether sound is allowed yet. Plays on in background tabs. */
 function sync() {
-  const want = prefs.music && unlocked && document.visibilityState === 'visible';
+  const want = prefs.music && unlocked;
   if (want) {
     const c = ensure(); if (!c) return;
     c.resume().catch(() => {});
@@ -174,5 +176,6 @@ if (typeof window !== 'undefined') {
   };
   addEventListener('pointerdown', unlock, true);
   addEventListener('keydown', unlock, true);
-  document.addEventListener('visibilitychange', sync);
+  // Some browsers suspend the audio context in the background; nudge it back (and top up the queue) on any visibility change.
+  document.addEventListener('visibilitychange', () => { sync(); if (ctx && timer) schedule(); });
 }
