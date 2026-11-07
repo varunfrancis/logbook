@@ -140,7 +140,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .way:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 /* not on a Mac (phones, mostly): one action that gets the link to their Mac, instead of Mac-only steps */
 .not-mac, .send-mac { display: none; }
-.not-mac { font-size: 15px; color: var(--ink-2); max-width: 34ch; margin: 0; }
+.not-mac { font-size: 15px; color: var(--ink-2); margin: 0; }
 .not-mac b { color: var(--ink); }
 .is-other .not-mac { display: block; }
 .is-other .send-mac { display: inline-flex; }
@@ -427,7 +427,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
 
   <div class="start" id="start">
     <a class="btn big send-mac" id="send-mac" href="#">Send it to my Mac</a>
-    <p class="not-mac">Swarmville runs on your <b>Mac</b>, set it up there.</p>
+    <p class="not-mac">Swarmville runs on your <b>Mac</b>. Set it up there.</p>
     <a class="btn big" id="open-claude" href="#">
       Set up with Claude
     </a>
