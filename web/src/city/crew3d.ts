@@ -9,7 +9,7 @@ import { Avatar, type Mood } from '../crew/Avatar.tsx';
  * (crate, box, blueprint) for what they're doing. Whatever angle you look from, you see their face.
  */
 
-export type CrewMode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit' | 'stuck';
+export type CrewMode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit' | 'stuck' | 'stand';
 export type CrewSpec = { shape: string; color: string; accessory: string; job: string; mood: Mood; mode: CrewMode };
 type Mat = (c: string) => THREE.Material;
 
@@ -115,6 +115,7 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?:
       case 'wave': y += Math.max(0, Math.sin(k * 4)) * 0.14; break;
       case 'sit': sq = Math.sin(k * 0.8) * 0.015; break;
       case 'stuck': rot = Math.sin(k * 1.5) * 0.08; break;
+      case 'stand': rot = Math.sin(k * 0.6) * 0.03; sq = Math.sin(k * 0.9) * 0.01; break; // shifting weight in a queue
     }
     fig.position.y = y;
     fig.scale.set(S * (1 + sq), S * (1 - sq), 1);

@@ -556,3 +556,6 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .pill.s-away { background: var(--surface-2); color: var(--ink-2); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .verdict-line.g-good, :root:not([data-theme="light"]) .score.g-good .score-value { color: #6fd39c; } :root:not([data-theme="light"]) .verdict-line.g-ok { color: #f5c542; } :root:not([data-theme="light"]) .verdict-line.g-bad, :root:not([data-theme="light"]) .score.g-bad .score-value { color: #ff8a8e; } }
 :root[data-theme="dark"] .verdict-line.g-good, :root[data-theme="dark"] .score.g-good .score-value { color: #6fd39c; } :root[data-theme="dark"] .verdict-line.g-ok { color: #f5c542; } :root[data-theme="dark"] .verdict-line.g-bad, :root[data-theme="dark"] .score.g-bad .score-value { color: #ff8a8e; }
+.cafe-sign { font-family: var(--f-display); font-weight: 600; font-size: 13px; color: #fff; background: #8a5a36; padding: 3px 10px; border-radius: 6px; pointer-events: auto; cursor: pointer; white-space: nowrap; }
+.cafe-sign small { opacity: .8; font-weight: 500; margin-left: 2px; }
+.cafe-sign:hover { background: #74482a; }
