@@ -7,9 +7,9 @@ import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useNow } from '../useLogbook.ts';
 import { jobLabel } from '../city/liveJobs.ts';
 import { Leaderboard } from '../crew/Leaderboard.tsx';
-import { finishedAt, todayView } from '../crew/today.ts';
+import { finishedAt, prNum, todayView } from '../crew/today.ts';
 
-type Open = { agent: (id: string) => void; project: (id: string) => void };
+type Open = { agent: (id: string) => void; project: (id: string) => void; shipped: () => void };
 
 function HandCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectView; now: number; open: Open; focused: boolean }) {
   return (
@@ -129,14 +129,11 @@ const dayWord = (t: number, now: number) => {
   if (t >= d0.getTime() - 24 * 3600_000) return 'yesterday';
   return new Date(t).toLocaleDateString([], { weekday: 'short' });
 };
-const prNum = (url: string | null) => (url ? `#${url.split('/').pop()}` : null);
 
 /** What still needs a call from you, and what got done today. Nothing here grades you. */
 function Today({ state, projects, now, open }: { state: StateView; projects: Map<string, ProjectView>; now: number; open: Open }) {
   const [gone, setGone] = useState<string[]>([]); // let go during this visit, so Undo can bring them back
   const [pending, setPending] = useState<Set<string>>(new Set()); // hidden at once, before the daemon confirms
-  const [openProj, setOpenProj] = useState<Set<string>>(new Set());
-  const [showChats, setShowChats] = useState(false);
   const letGo = useMemo(() => new Set([...(state.letGo ?? []), ...pending]), [state.letGo, pending]);
   const t = todayView(state.sessions, letGo, now);
   const name = (id: string) => state.sessions.find((s) => s.id === id)?.agent.name ?? 'someone';
@@ -148,11 +145,21 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
     const p = new Set(pending); p.delete(id); setPending(p);
     post('/api/today/letgo', { id, undo: true });
   };
-  const nothing = !t.decide.length && !t.shipped;
+  const nothing = !t.decide.length && !t.shipped && !t.chats.length;
   return (
     <section id="today">
-      <h2>Today <small>{t.shipped} shipped{t.decide.length ? ` · ${t.decide.length} need${t.decide.length === 1 ? 's' : ''} a decision` : ''}</small></h2>
+      <h2>Today {t.decide.length ? <small>{t.decide.length} need{t.decide.length === 1 ? 's' : ''} a decision from you</small> : null}</h2>
       {nothing ? <Empty title="Nothing shipped yet today, and nothing is waiting on a decision." /> : null}
+      {t.shipped || t.chats.length ? (
+        <button className="done-strip" onClick={open.shipped} title="See everything that shipped today">
+          <span className="done-big">{t.shipped}<small>shipped today</small></span>
+          <span className="done-projects">
+            {t.done.map(({ projectId, items }) => <span key={projectId}><b>{items.length}</b> {projects.get(projectId)?.name ?? 'Unknown project'}</span>)}
+            {!t.shipped ? <span>Nothing merged yet</span> : null}
+          </span>
+          <span className="done-see">See what shipped ›</span>
+        </button>
+      ) : null}
       {t.decide.length ? (
         <>
           <p className="today-h">Needs a decision from you <span>· stays here until it's merged, picked up or let go</span></p>
@@ -176,38 +183,6 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
         </>
       ) : null}
       {gone.length ? <p className="today-gone">Let go: {gone.map(name).join(', ')} · <button className="link" onClick={undo}>Undo</button></p> : null}
-      {t.done.length ? (
-        <>
-          <p className="today-h">Done <span>· merged and live</span></p>
-          <div className="done-grid">
-            {t.done.map(({ projectId, items }) => {
-              const all = openProj.has(projectId);
-              const faces = [...new Map(items.map((s) => [s.agent.key, s.agent])).values()].slice(0, 5);
-              return (
-                <div className="done-proj" key={projectId}>
-                  <div className="done-top">
-                    <button className="link" onClick={() => open.project(projectId)}><b>{projects.get(projectId)?.name ?? 'Unknown project'}</b></button>
-                    <span className="done-n">{items.length}<small>shipped</small></span>
-                  </div>
-                  <div className="crew-faces">{faces.map((a) => <AgentAvatar key={a.key} agent={a} mood="shipped" size={28} />)}</div>
-                  <ul>
-                    {(all ? items : items.slice(0, 4)).map((s) => (
-                      <li key={s.id} onClick={() => open.agent(s.id)} title={`${s.agent.title} · ${ago(finishedAt(s), now)}`}><span>{s.title}</span><span className="num">{prNum(s.prUrl) ?? ''}</span></li>
-                    ))}
-                  </ul>
-                  {items.length > 4 ? <button className="link more-n" onClick={() => { const n = new Set(openProj); if (all) n.delete(projectId); else n.add(projectId); setOpenProj(n); }}>{all ? 'Show fewer' : `+ ${items.length - 4} more`}</button> : null}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
-      {t.chats.length ? (
-        <div className="today-chats">
-          <button className="link" onClick={() => setShowChats(!showChats)}>{showChats ? 'Hide the' : 'Also'} {t.chats.length} chat{t.chats.length === 1 ? '' : 's'} that didn't change anything {showChats ? '▴' : '›'}</button>
-          {showChats ? <ul>{t.chats.map((s) => <li key={s.id} onClick={() => open.agent(s.id)}><b>{s.title}</b> <span className="sub">· {s.agent.name} · {projects.get(s.projectId ?? '')?.name}</span></li>)}</ul> : null}
-        </div>
-      ) : null}
     </section>
   );
 }

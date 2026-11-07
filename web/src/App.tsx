@@ -7,6 +7,7 @@ import { AskPopup } from './views/AskPopup.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
 import { CostPanel } from './views/CostPanel.tsx';
+import { ShippedPanel } from './views/ShippedPanel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
@@ -39,7 +40,7 @@ function useTheme() {
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
 }
 
-type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost'; id: string } | null;
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped'; id: string } | null;
 
 export function App() {
   const { state, conn } = useLogbook();
@@ -77,7 +78,7 @@ export function App() {
     addEventListener('keydown', f); return () => removeEventListener('keydown', f);
   }, []);
   const go = (v: View) => { location.hash = v; setView(v); };
-  const open = useMemo(() => ({ agent: (id: string) => setSel({ kind: 'agent', id }), project: (id: string) => setSel({ kind: 'project', id }) }), []);
+  const open = useMemo(() => ({ agent: (id: string) => setSel({ kind: 'agent', id }), project: (id: string) => setSel({ kind: 'project', id }), shipped: () => setSel({ kind: 'shipped', id: '' }) }), []);
   // In the town, an agent with a hand up opens just what they're asking (approve it right there), not the whole drawer.
   const townAgent = useCallback((id: string) => {
     const s = stateRef.current?.sessions.find((x) => x.id === id);
@@ -144,6 +145,7 @@ export function App() {
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'shipped' ? <ShippedPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProfile={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
