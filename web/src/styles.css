@@ -192,6 +192,7 @@ details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .bb.sel { outline: 2.5px solid var(--accent); }
 .tag { white-space: nowrap; font-size: 11px; font-weight: 800; background: #25303dee; color: #fff; padding: 2px 8px; border-radius: 999px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 5px; align-items: center; }
 .tag .who { display: none; opacity: .7; font-weight: 600; } .tag.named .who { display: inline; }
+.tag.named { max-width: 320px; } .tag .for { opacity: .85; font-variant-numeric: tabular-nums; }
 .tag .grp { display: none; } .tag.grouped .grp { display: inline; } .tag.grouped .doing { display: none; }
 .tag.doing-run { background: #0f8f8f; box-shadow: 0 0 0 2px #17c3c355; } .tag.doing-run .doing::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9ff3f3; margin-right: 5px; vertical-align: 1px; animation: blink 1.2s ease-in-out infinite; }
 .tag.doing-needs { background: #e5484d; } .tag.doing-rest { background: #5c6878e6; font-weight: 700; }
