@@ -400,7 +400,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .stats dd.hot { color: var(--needs); }
 .plist li { cursor: pointer; }
 .pl-top { align-items: center; }
-.pl-top > div { min-width: 0; }
+/* The text column takes exactly the room left beside the avatar and clips there, so a long session title ends in "…"
+   inside its card instead of running past it (min-width: 0 alone isn't enough in every engine). */
+.pl-top > div { flex: 1 1 0; min-width: 0; overflow: hidden; }
 .rename { display: flex; gap: 6px; flex-wrap: wrap; }
 .rename input, .field { font: 600 15px var(--f-body); padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; }
 
@@ -531,7 +533,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 }
 
 /* Agent profile: who they are, how they're doing, what they're on. One spacing scale: 4 / 8 / 12 / 20. */
-.panel { scrollbar-width: thin; } /* no reserved gutter: it doubled the side padding */
+.panel { scrollbar-width: thin; overflow-x: hidden; } /* no reserved gutter: it doubled the side padding; never scrolls sideways */
 .panel > * { flex-shrink: 0; } /* never squash a section when the panel overflows */
 .panel.agent { gap: 20px; }
 .panel.agent .agent-head { align-items: flex-start; gap: 12px; }
