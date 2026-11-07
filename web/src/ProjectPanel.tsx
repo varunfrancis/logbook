@@ -16,7 +16,17 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
   if (!p) return null;
   const sessions = detail?.sessions ?? state.sessions.filter((s) => s.projectId === id);
   const live = sessions.filter((s) => s.status !== 'ended');
+  // Show who is working right now; agents on a coffee break fold away so they don't bury them.
+  const working = live.filter((s) => s.status !== 'idle');
+  const resting = live.filter((s) => s.status === 'idle');
   const past = sessions.filter((s) => s.status === 'ended').slice(0, 8);
+  const liveRow = (s: (typeof live)[number]) => (
+    <li key={s.id} onClick={() => openAgent(s.id)}>
+      <div className="pl-top"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={40} /><div><b>{s.agent.title}</b><div className="sub">{s.title}</div></div></div>
+      <div className="pl-act">{s.status === 'needs_input' ? s.needsMessage : s.status === 'running' ? `Right now: ${plainAction(s.action, voice)}` : STATUS[voice][s.status]}</div>
+      <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num">{duration(s.startedAt, now)}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /><ClockOut s={s} /></div>
+    </li>
+  );
   const save = async () => { await post(`/api/project/${encodeURIComponent(p.id)}/name`, { name: draft }); setEditing(false); };
 
   return (
@@ -54,15 +64,15 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
       {live.length ? (
         <section>
           <h3>On site now</h3>
-          <ul className="plist">
-            {live.map((s) => (
-              <li key={s.id} onClick={() => openAgent(s.id)}>
-                <div className="pl-top"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={40} /><div><b>{s.agent.title}</b><div className="sub">{s.title}</div></div></div>
-                <div className="pl-act">{s.status === 'needs_input' ? s.needsMessage : s.status === 'running' ? `Right now: ${plainAction(s.action, voice)}` : STATUS[voice][s.status]}</div>
-                <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num">{duration(s.startedAt, now)}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /><ClockOut s={s} /></div>
-              </li>
-            ))}
-          </ul>
+          {working.length
+            ? <ul className="plist">{working.map(liveRow)}</ul>
+            : <p className="muted">Nobody is building right now.</p>}
+          {resting.length ? (
+            <details className="fold">
+              <summary><h3>{resting.length} on {STATUS[voice].idle.toLowerCase()}</h3></summary>
+              <ul className="plist">{resting.map(liveRow)}</ul>
+            </details>
+          ) : null}
         </section>
       ) : null}
 
