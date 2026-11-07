@@ -28,7 +28,7 @@ jobs:
         # The daemon only uses Node's built-in modules, so the app is its source plus the built web UI. No node_modules.
         run: |
           mkdir -p out/swarmville
-          cp -R daemon bin hook vscode package.json README.md LICENSE INSTALL.md out/swarmville/
+          cp -R daemon bin hook vscode mac package.json README.md LICENSE INSTALL.md out/swarmville/
           mkdir -p out/swarmville/web && cp -R web/dist out/swarmville/web/dist
           tar -czf swarmville.tar.gz -C out swarmville
           tar -tzf swarmville.tar.gz | head -20
