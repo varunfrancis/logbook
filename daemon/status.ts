@@ -63,7 +63,8 @@ export function floorsFor(size: number): number {
 
 export function projectState(p: { root: string | null; sessionsTotal: number; lastActivity: number | null }, crew: { status: SessionStatus; away?: boolean }[], now: number): ProjectState {
   if (crew.some((s) => s.status === 'needs_input')) return 'needs';
-  if (crew.some((s) => s.status === 'running' || (s.status === 'idle' && !s.away))) return 'site';
+  // Crew on site means someone is in the building working. Agents on a coffee break are at the café, so their project shows its usual stage.
+  if (crew.some((s) => s.status === 'running')) return 'site';
   if (!p.root && p.sessionsTotal === 0) return 'lot';
   const age = p.lastActivity ? now - p.lastActivity : Infinity;
   if (age < CONSTRUCTION_MS) return 'construction';

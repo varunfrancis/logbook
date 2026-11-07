@@ -172,6 +172,9 @@ test('status rules', () => {
   assert.equal(projectState({ root: null, sessionsTotal: 0, lastActivity: null }, [], now), 'lot');
   const day = 24 * 3600_000, T = 100 * day;
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T }, [{ status: 'running' }], T), 'site');
+  // everyone on a coffee break: they're at the café, so the building isn't lit up as crew on site
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T }, [{ status: 'idle' }], T), 'construction');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 2, lastActivity: T }, [{ status: 'idle' }, { status: 'running' }], T), 'site');
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 2 * day }, [{ status: 'ended' }], T), 'construction');
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 10 * day }, [], T), 'recent');
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 40 * day }, [], T), 'done');

@@ -270,7 +270,8 @@ export class CityScene {
       const key = JSON.stringify([p.state, p.floors, Math.round((p.size ?? 0) * 20), p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, away, sessions.map((s) => [s.id, this.modeOf(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter, s.away, this.sleepers.has(s.id) ? nextRunText(this.sleepers.get(s.id)!.nextAt) : null])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
-      const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
+      // celebrate when the crew packs up, not each time the last builder steps out to the café
+      const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs') && away === 0;
       // a rebuild keeps the lot at the height it already reached, so a raised site doesn't drop and rise again (and jolt its labels) on every update
       const startY = prev?.group.position.y ?? 0;
       if (prev) this.removeBuilding(p.id);
@@ -769,8 +770,7 @@ export class CityScene {
     const pr = p.prState === 'merged' ? '<span class="pr merged">merged</span>' : p.prState === 'open' ? '<span class="pr open">PR open</span>' : '';
     const asleep = sessions.filter((s) => this.sleepers.has(s.id)).length, awake = sessions.length - asleep;
     const crewText = p.state === 'needs' ? 'hand raised'
-      : !awake && onBreakCount ? 'all at the café'
-      : `${awake + onBreakCount} on site${onBreakCount ? ` · ${onBreakCount} at the café` : ''}${asleep ? ` · ${asleep} asleep` : ''}`;
+      : `${awake} on site${onBreakCount ? ` · ${onBreakCount} at the café` : ''}${asleep ? ` · ${asleep} asleep` : ''}`;
     const crew = live ? `<span class="crew">${crewText}</span>` : '';
     const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.bricks ? `<span class="tok">${compact(p.bricks)} bricks</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
