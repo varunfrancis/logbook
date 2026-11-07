@@ -1,32 +1,30 @@
-# Logbook — how the owner reviews work
+# Working on Logbook
 
-The owner looks at changes **only on http://localhost:7777, locally**. Not a Vite dev server, not another port, not a Vercel/preview deploy. Every session must leave its work visible there without being asked.
+Logbook is a local app: a Node daemon (`daemon/`, built-in modules only, Node 24+) that reads Claude Code's files and hooks, plus a React/three.js UI (`web/`) built into `web/dist`, which the daemon serves on http://localhost:7777. It's macOS-only for now.
 
-## Branch workflow (GitHub: varunfrancis/logbook)
+## Branch workflow
 
-`main` on GitHub is the source of truth. CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on every PR and every push to `main`.
+`main` is the source of truth. CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on every PR and every push to `main`.
 
-- **Never edit files in the main checkout** `/Users/user/Work/logbook`. It only pulls `main` and serves it on 7777. Do all work in a worktree, on a branch named `feat/<short-topic>` (or `fix/<short-topic>`).
-- Start from the latest main: `git fetch origin` then `git switch -c feat/<topic> origin/main`.
+- Work on a branch named `feat/<short-topic>` or `fix/<short-topic>`, started from the latest `origin/main`. A git worktree under `.claude/worktrees/` keeps it separate from other work.
 - One feature per branch: small PRs mean fewer conflicts.
-- Never push directly to `main`; everything lands through a PR.
+- Never push directly to `main`. Everything lands through a PR with green CI (squash-merge).
 
-## Finishing any change (required, every time)
+## Before you open a PR
 
-1. In your worktree: `npx tsc --noEmit` and `npm test`, then commit.
-2. Catch up with main and resolve conflicts on your branch, keeping both features: `git fetch origin && git rebase origin/main` (re-run the checks if anything changed).
-3. Push and open a PR: `git push -u origin HEAD`, then `gh pr create --fill --base main`.
-4. Wait for CI: `gh pr checks --watch`. If it fails, fix on the branch and push again.
-5. Merge once CI is green: `gh pr merge --squash --delete-branch`.
-6. Make it live in the main checkout:
-   - `cd /Users/user/Work/logbook && git pull --ff-only origin main`
-   - `npm ci` if `package-lock.json` changed, then `npm run build` (writes `dist/`, which the daemon serves).
-   - If anything under `daemon/` changed: `launchctl kickstart -k gui/$(id -u)/dev.logbook.daemon`
-7. Confirm it's live: `curl -s localhost:7777 | grep -o 'index-[^"]*\.js'` matches the bundle `npm run build` just printed.
+1. `npx tsc --noEmit` and `npm test` pass.
+2. `npm run build` works if you touched `web/`.
+3. Rebase on `origin/main`, keep both sides of any conflict, and re-run the checks.
+4. User-facing changes: try them in the real app, not just tests (`npm run dev`, or build and restart your daemon).
 
-If `git pull --ff-only` refuses because the main checkout has local commits or edits, don't discard or force anything — tell the owner what's there.
+## Running it while developing
 
-## The 7777 daemon
+- `npm run dev`: daemon with `--watch` plus Vite on http://localhost:5177.
+- To try the installer without touching your real setup: `LOGBOOK_DATA_DIR=/tmp/lb LOGBOOK_PORT=7792 LOGBOOK_NO_LOGIN_ITEM=1 LOGBOOK_NO_VSCODE=1 CLAUDE_CONFIG_DIR=/tmp/claude-test bash install.sh` (see the comment at the top of `install.sh`).
+- Logbook's own small-model runs happen in `<data dir>/namer` and are never shown as projects. Clean up any test data folders you create.
 
-- Runs under launchd as `dev.logbook.daemon` (`~/Library/LaunchAgents/dev.logbook.daemon.plist`): `node daemon/server.ts` from the main checkout, KeepAlive, logs in `~/.logbook/daemon.log`.
-- Don't start a second copy with `npm start`/`npm run dev`; restart via `launchctl kickstart -k` instead. If it isn't loaded: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.logbook.daemon.plist`.
+## Releasing
+
+Bump `version` in `package.json` through a PR, then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` publishes `logbook.tar.gz`, which `install.sh` downloads.
+
+Maintainers may keep personal steps (where they review, how they deploy) in a gitignored `CLAUDE.local.md`.
