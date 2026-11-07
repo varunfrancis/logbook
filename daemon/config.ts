@@ -26,6 +26,8 @@ export const CONSTRUCTION_MS = 7 * 24 * 3600_000;
 export const QUIET_AFTER_MS = 30 * 24 * 3600_000;
 /** An idle agent stops counting as "crew on site" after this long without activity. */
 export const AWAY_AFTER_MS = 2 * 3600_000;
+/** A background job sitting idle without having asked for anything is done in all but name: it naps after this. */
+export const BG_AWAY_AFTER_MS = 30 * 60_000;
 /** Sessions shown in the dashboard's "Done" group. */
 export const RECENT_MS = 24 * 3600_000;
 

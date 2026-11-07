@@ -34,6 +34,8 @@ export type Delta = {
   lastPrompt: string | null;
   prompts: number;
   outcome: string | null;
+  /** A background job's closing status line: undefined = no change, null = cleared by a new message. See jobVerdict. */
+  verdict?: JobVerdict | null;
   action: { text: string; kind: ActionKind } | null;
   turnEnded: boolean | null;
   commits: number;
@@ -48,6 +50,14 @@ export type Delta = {
   segments: Segment[];
   state: ParseState;
 };
+
+export type JobVerdict = 'result' | 'failed' | 'needs';
+/** Background jobs end their report with a `result:`, `failed:` or `needs input:` line. The last one in a reply wins. */
+export function jobVerdict(text: string | null | undefined): JobVerdict | null {
+  const all = [...String(text ?? '').matchAll(/^\s*(result|failed|needs input):/gim)];
+  const w = all.at(-1)?.[1].toLowerCase();
+  return w === 'result' ? 'result' : w === 'failed' ? 'failed' : w ? 'needs' : null;
+}
 
 const PR_RE = /https:\/\/github\.com\/[^/\s"\\]+\/[^/\s"\\]+\/pull\/\d+/;
 const TEST_RE = /\b(npm (run )?test|pnpm (run )?test|yarn test|bun test|vitest|jest|pytest|py\.test|go test|cargo test|rspec|mocha|playwright test|phpunit|node --test|make test|tox)\b/;
@@ -145,7 +155,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
         if (r.isMeta || r.isSidechain) break;
         const p = cleanPrompt(textOf(c));
         if (p) {
-          d.firstPrompt ??= p; d.lastPrompt = p; d.prompts++; d.turnEnded = false;
+          d.firstPrompt ??= p; d.lastPrompt = p; d.prompts++; d.turnEnded = false; d.verdict = null;
           if (ts) {
             if (st.lastEnd && !st.workStart && ts > st.lastEnd) d.segments.push({ start: st.lastEnd, end: ts, kind: 'idle' });
             if (st.workStart) endWork(ts); // interrupted turn
@@ -192,6 +202,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
             d.turnEnded = false;
           } else if (b?.type === 'text' && b.text?.trim()) {
             d.outcome = b.text.trim().slice(0, 1500);
+            d.verdict = jobVerdict(b.text);
           }
         }
         if (msg.stop_reason === 'end_turn') {
@@ -274,6 +285,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
       last_prompt = COALESCE(?, last_prompt),
       prompts = prompts + ?,
       outcome = COALESCE(?, outcome),
+      job_verdict = CASE WHEN ? = 1 THEN ? ELSE job_verdict END,
       current_action = CASE WHEN ? = 1 THEN ? WHEN ? = 1 THEN NULL ELSE current_action END,
       action_kind = CASE WHEN ? = 1 THEN ? WHEN ? = 1 THEN NULL ELSE action_kind END,
       commits = commits + ?, tools = tools + ?, edits = edits + ?, reads = reads + ?, webs = webs + ?, asks = asks + ?,
@@ -285,6 +297,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
     WHERE id = ?`).run(
     transcript, d.entrypoint, d.branch, d.first, d.last,
     d.tokIn, d.tokOut, d.tokCR, d.tokCW, d.model, d.aiTitle, d.firstPrompt, d.lastPrompt, d.prompts, d.outcome,
+    d.verdict !== undefined ? 1 : 0, d.verdict ?? '', // '' = read, no verdict; NULL = never read
     d.action ? 1 : 0, d.action?.text ?? null, d.turnEnded ? 1 : 0,
     d.action ? 1 : 0, d.action?.kind ?? null, d.turnEnded ? 1 : 0,
     d.commits, d.tools, d.edits, d.reads, d.webs, d.asks, d.testsOk, d.testsFail,

@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describeTool } from '../daemon/describe.ts';
-import { cleanPrompt, parseLines } from '../daemon/transcripts.ts';
+import { cleanPrompt, jobVerdict, parseLines } from '../daemon/transcripts.ts';
 import { parseGithubRemote, rootFromPath } from '../daemon/git.ts';
 import { consolidateProjects, ensureProjectForCwd, spiral } from '../daemon/projects.ts';
 import { execFileSync } from 'node:child_process';
-import { floorsFor, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
+import { floorsFor, isAway, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
 import { handleHook, isJobNotice } from '../daemon/hooks.ts';
 import { addAsk, answerAsk, asksBySession, describeAsk, dropAsk, settleSession } from '../daemon/asks.ts';
@@ -110,6 +110,40 @@ test('git helpers parse remotes and collapse worktrees into their repo', () => {
   assert.equal(parseGithubRemote('https://gitlab.com/acme/app'), null);
   assert.deepEqual(rootFromPath('/Users/v/Work/CAT/.claude/worktrees/seo-foundation'), { root: '/Users/v/Work/CAT', worktree: 'seo-foundation' });
   assert.deepEqual(rootFromPath('/Users/v/Work/CAT'), { root: '/Users/v/Work/CAT', worktree: null });
+});
+
+test('background jobs that delivered clock out instead of taking a coffee break', () => {
+  assert.equal(jobVerdict('Merged #12.\n\nresult: Fixed the café label'), 'result');
+  assert.equal(jobVerdict('Tried.\nfailed: no such repo'), 'failed');
+  assert.equal(jobVerdict('needs input: which port?'), 'needs');
+  assert.equal(jobVerdict('The result: was fine'), null); // only a line of its own counts
+  assert.equal(jobVerdict('result: a\nneeds input: b'), 'needs'); // the last one wins
+
+  const now = 10 * 3600_000;
+  const bg = { pid: 1, sessionId: 'a', cwd: '/', kind: 'bg', status: 'idle', name: null, updatedAt: null, startedAt: null };
+  const term = { ...bg, kind: 'interactive' };
+  assert.equal(sessionStatus({ job_verdict: 'result' }, bg, now), 'ended');
+  assert.equal(sessionStatus({ job_verdict: 'failed' }, bg, now), 'ended');
+  assert.equal(sessionStatus({ job_verdict: null, outcome: 'All set.\nresult: shipped' }, bg, now), 'ended'); // rows read before the column existed
+  assert.equal(sessionStatus({ job_verdict: '', outcome: 'result: old reply' }, bg, now), 'idle'); // a new message cleared it
+  assert.equal(sessionStatus({ job_verdict: 'needs' }, bg, now), 'idle');
+  assert.equal(sessionStatus({ job_verdict: 'result' }, term, now), 'idle'); // a terminal stays on break
+  assert.equal(sessionStatus({ job_verdict: 'result' }, { ...bg, status: 'busy' }, now), 'running'); // replied to: back at work
+
+  const quiet = { last_event_at: now - 45 * 60_000 };
+  assert.equal(isAway(quiet, bg, now), true);
+  assert.equal(isAway({ ...quiet, job_verdict: 'needs' }, bg, now), false); // still waiting on you
+  assert.equal(isAway(quiet, term, now), false);
+  assert.equal(isAway({ last_event_at: now - 3 * 3600_000 }, term, now), true);
+
+  const lines = [
+    { type: 'assistant', timestamp: '2026-11-01T10:00:00Z', message: { id: 'm1', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.\nresult: shipped' }] } },
+  ].map((x) => JSON.stringify(x));
+  const d = parseLines(lines);
+  assert.equal(d.verdict, 'result');
+  const next = parseLines([JSON.stringify({ type: 'user', timestamp: '2026-11-01T10:05:00Z', message: { content: 'one more thing' } })], d.state);
+  assert.equal(next.verdict, null); // a new message clears it
+  assert.equal(parseLines([]).verdict, undefined); // nothing read: leave it alone
 });
 
 test('spiral gives unique, stable lots around the center', () => {
