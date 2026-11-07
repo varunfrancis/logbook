@@ -379,8 +379,11 @@ test('town labels say what an agent is doing in 2-3 words', async () => {
 test('agent scorecard: deliver, work on their own, value for money', async () => {
   const { scorecard } = await import('../web/src/crew/scorecard.ts');
   const base = { days: 30, shifts: 6, finished: 5, delivered: 4, shipped: 3, scrapped: 1, saves: 9, workMs: 5 * 3600_000, interruptions: 2, waitedMs: 600_000, costUsd: 12, checksOk: 8, checksFail: 1, recent: [] };
-  const good = scorecard(base);
+  const good = scorecard(base, true);
   assert.deepEqual(good.scores.map((s) => s.grade), ['good', 'good', 'good']);
+  // On the plan nothing was spent, so cost isn't one of the scores
+  assert.deepEqual(scorecard(base).scores.map((s) => s.label), ['Delivers', 'On their own']);
+  assert.equal(scorecard(base).verdict.grade, 'good');
   assert.equal(good.verdict.grade, 'good');
   const bad = scorecard({ ...base, delivered: 0, shipped: 0, scrapped: 4, interruptions: 40, costUsd: 90 });
   assert.equal(bad.scores[0].grade, 'bad'); assert.equal(bad.scores[1].grade, 'bad'); assert.equal(bad.verdict.grade, 'bad');
@@ -585,7 +588,8 @@ test('medals: one crew per category, minimums before a rate counts, ties to whoe
   const a = crew({ projectId: 'a', name: 'Alpha', finished: 4, delivered: 3, points: 7, sizes: { feature: 1, fix: 2 }, workMs: 3 * 3600_000, interruptions: 3, costUsd: 9, checksOk: 9, firstDeliveredAt: 200 });
   const b = crew({ projectId: 'b', name: 'Beta', finished: 2, delivered: 2, points: 7, sizes: { tweak: 1, overhaul: 1 }, workMs: 20 * 60_000, interruptions: 0, costUsd: 2, checksOk: 2, checksFail: 1, firstDeliveredAt: 100 });
   const c = crew({ projectId: 'c', name: 'Gamma', finished: 1, delivered: 1, points: 1, costUsd: 0.1, workMs: 5 * 60_000 }); // one job: no rate medals
-  const m = Object.fromEntries(medals([a, b, c]).map((x) => [x.id, x]));
+  const m = Object.fromEntries(medals([a, b, c], true).map((x) => [x.id, x]));
+  assert.equal(medals([a, b, c]).some((x) => x.id === 'value'), false); // on the plan there's no cost to compare
   assert.equal(m.shipped.holder!.name, 'Beta'); // 7 points each, Beta delivered first
   assert.equal(m.shipped.runnerUp!.crew.name, 'Alpha');
   assert.equal(m.aim.holder!.name, 'Beta');

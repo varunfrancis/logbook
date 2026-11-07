@@ -12,7 +12,7 @@ import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
-import { bricks, money, VoiceContext, type Bubble, type Voice } from './copy.ts';
+import { bricks, CostContext, PLAN_NOTE, priced, VoiceContext, type Bubble, type CostView, type Voice } from './copy.ts';
 import { compact } from './format.ts';
 import { setMusic, useSound } from './audio.ts';
 import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
@@ -49,6 +49,7 @@ export function App() {
   const [sel, setSel] = useState<Sel>(null);
   const [showLots, setShowLots] = useState(store.get('swarmville.lots') !== '0');
   const [voice, setVoice] = useState<Voice>((store.get('swarmville.voice') as Voice) || 'plain');
+  const [costView, setCostView] = useState<CostView>(store.get('swarmville.costView') === 'api' ? 'api' : 'plan');
   const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('swarmville.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -68,6 +69,7 @@ export function App() {
   }, [!!state]);
   useEffect(() => { store.set('swarmville.lots', showLots ? '1' : '0'); }, [showLots]);
   useEffect(() => { store.set('swarmville.voice', voice); }, [voice]);
+  useEffect(() => { store.set('swarmville.costView', costView); }, [costView]);
   useEffect(() => { store.set('swarmville.bubbleMode', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
@@ -106,7 +108,7 @@ export function App() {
   const firstLaunch = state && !state.town.chosen;
 
   return (
-    <VoiceContext.Provider value={voice}>
+    <VoiceContext.Provider value={voice}><CostContext.Provider value={costView}>
       <div className={`app view-${view}${welcome.active && welcome.step !== 'setup' && welcome.step !== 'name' ? ' touring' : ''}`}>
         <header className="bar">
           <div className="brand"><AgentAvatar agent={FOREMAN} mood="hello" size={30} /><div className="brand-text"><b>{state?.town.name ?? 'Swarmville'}</b><small>a Swarmville Town</small></div></div>
@@ -127,7 +129,7 @@ export function App() {
             </div>
           ) : <div className="summary" />}
           <div className="bar-right">
-            {t ? <button className="link hide-sm" onClick={() => setSel(sel?.kind === 'cost' ? null : { kind: 'cost', id: '' })} aria-pressed={sel?.kind === 'cost'} title="See which projects and agents spent it">Today's cost: {money(t.costToday)}</button> : null}
+            {t ? <button className="link hide-sm" onClick={() => setSel(sel?.kind === 'cost' ? null : { kind: 'cost', id: '' })} aria-pressed={sel?.kind === 'cost'} title={costView === 'api' ? 'See which projects and agents spent it, at API prices' : PLAN_NOTE}>Today's cost: {priced(costView, t.costToday)}</button> : null}
             <button className={`ghost small music${sound.music ? ' on' : ''}`} onClick={() => setMusic(!sound.music)} aria-pressed={sound.music}
               title={sound.music ? 'Background music is on. Click to turn it off' : 'Background music is off. Click to turn it on'}>{sound.music ? '♪ Music on' : '♪ Music off'}</button>
             <button className="ghost small" onClick={theme.cycle} aria-label="Toggle day and night">{theme.dark ? 'Day' : 'Night'}</button>
@@ -153,11 +155,11 @@ export function App() {
           {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /><MedalToasts state={state} openProject={open.project} /></> : null}
         </main>
         {state && ((firstLaunch && !welcome.active) || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
-        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} onSaved={() => { setModal(null); setSavedAt(Date.now()); }} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}
+        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} onSaved={() => { setModal(null); setSavedAt(Date.now()); }} renameTown={() => setModal('town')} prefs={{ voice, setVoice, costView, setCostView, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}
         {savedAt ? <SavedToast key={savedAt} message="Settings saved" onDone={() => setSavedAt(null)} /> : null}
         {state && modal === 'share' ? <ShareSheet state={state} onClose={() => setModal(null)} /> : null}
         {t && voice === 'plain' && view !== 'town' ? <div className="sr">{bricks(t.bricksToday)}</div> : null}
       </div>
-    </VoiceContext.Provider>
+    </CostContext.Provider></VoiceContext.Provider>
   );
 }

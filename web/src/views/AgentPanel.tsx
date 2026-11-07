@@ -1,7 +1,7 @@
 import type { StateView } from '../../../daemon/types.ts';
 import { scorecard } from '../crew/scorecard.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
-import { clock, money, plainAction, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
+import { clock, plainAction, priced, useCostView, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
 import { ago, compact, duration, firstLine, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useSwarmville.ts';
@@ -25,6 +25,7 @@ function cleanAsk(t: string | null | undefined) {
 
 export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void }) {
   const voice = useVoice();
+  const cost = useCostView();
   const now = useNow(15000);
   const d = useAgent(id, state.generatedAt);
   const s = d?.session ?? state.sessions.find((x) => x.id === id);
@@ -32,7 +33,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
   const a = s.agent;
   const project = d?.project ?? state.projects.find((p) => p.id === s.projectId);
   const moments = (d?.moments ?? []).filter((m) => MOMENT[m.kind]).slice(-14);
-  const card = d ? scorecard(d.profile) : null;
+  const card = d ? scorecard(d.profile, cost === 'api') : null;
   const live = s.status !== 'ended';
   const latest = cleanAsk(s.lastPrompt) || cleanAsk(s.firstPrompt) || s.title;
   const resumeJob = async (sid: string) => { await post(`/api/resume/${encodeURIComponent(sid)}`); };
@@ -139,7 +140,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
           </section>
         ) : null}
         {s.outcome && s.status === 'ended' ? <section><h3>Last words</h3><p className="outcome-full">{s.outcome}</p></section> : null}
-        <p className="sub">{s.status === 'ended' ? `Clocked out ${ago(s.endedAt, now)} after ${duration(s.startedAt, s.endedAt)}.` : `On shift for ${duration(s.startedAt, now)}.`} {money(s.costUsd)}{s.costEstimated ? ' (est.)' : ''} · {voice === 'plain' ? `${s.bricks.toLocaleString()} bricks` : `${compact(s.tokens)} tokens`}</p>
+        <p className="sub">{s.status === 'ended' ? `Clocked out ${ago(s.endedAt, now)} after ${duration(s.startedAt, s.endedAt)}.` : `On shift for ${duration(s.startedAt, now)}.`} {priced(cost, s.costUsd)}{cost === 'api' ? (s.costEstimated ? ' at API prices (est.)' : ' at API prices') : ''} · {voice === 'plain' ? `${s.bricks.toLocaleString()} bricks` : `${compact(s.tokens)} tokens`}</p>
         {voice === 'technical' ? <p className="path">{tildify(s.cwd)} · {s.branch ?? '—'} · {s.model ?? ''} · session {s.id}</p> : null}
       </details>
     </aside>

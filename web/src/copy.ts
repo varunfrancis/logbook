@@ -6,6 +6,14 @@ export type Voice = 'plain' | 'technical';
 export const VoiceContext = createContext<Voice>('plain');
 export const useVoice = () => useContext(VoiceContext);
 
+/** Claude Code runs on your Claude plan, so by default nothing reads as spent. 'api' shows what the same tokens would cost at API prices. */
+export type CostView = 'plan' | 'api';
+export const CostContext = createContext<CostView>('plan');
+export const useCostView = () => useContext(CostContext);
+export const PLAN_NOTE = 'Included in your Claude plan. To see what it would cost at API prices, turn that on in Settings.';
+/** A cost as the user has chosen to see it: $0 on the plan, API prices otherwise. */
+export const priced = (view: CostView, usd: number) => (view === 'api' ? money(usd) : '$0');
+
 export const STATUS: Record<Voice, Record<SessionStatus, string>> = {
   plain: { running: 'Building', needs_input: 'Raised a hand', idle: 'Coffee break', ended: 'Clocked out' },
   technical: { running: 'Running', needs_input: 'Needs input', idle: 'Idle', ended: 'Ended' },

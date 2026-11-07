@@ -53,8 +53,9 @@ export const RULES: Rule[] = [
 /** Ties go to whoever got there first. */
 const order = (r: Rule) => (a: CrewDay, b: CrewDay) => r.score(b) - r.score(a) || (a.firstDeliveredAt ?? Infinity) - (b.firstDeliveredAt ?? Infinity) || a.name.localeCompare(b.name);
 
-export function medals(crews: CrewDay[]): Medal[] {
-  return RULES.map((r) => {
+/** Without API prices there's no cost to compare, so Best value sits out. */
+export function medals(crews: CrewDay[], api = false): Medal[] {
+  return RULES.filter((r) => api || r.id !== 'value').map((r) => {
     const ranked = crews.filter(r.eligible).sort(order(r));
     const [first, second] = ranked;
     return { id: r.id, icon: r.icon, label: r.label, help: r.help, holder: first ?? null, value: first ? r.value(first) : '', runnerUp: second ? { crew: second, value: r.value(second) } : null };
