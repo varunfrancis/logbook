@@ -3,7 +3,7 @@ import { kvSet, logEvent } from './db.ts';
 import { describeTool } from './describe.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
 import { cleanPrompt } from './transcripts.ts';
-import { DATA_DIR } from './config.ts';
+import { isOwnRun } from './config.ts';
 
 const PR_RE = /https:\/\/github\.com\/[^/\s"]+\/[^/\s"]+\/pull\/\d+/;
 
@@ -13,7 +13,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
   const event = p?.hook_event_name;
   if (typeof sid !== 'string' || typeof event !== 'string') return;
 
-  if (typeof p.cwd === 'string' && p.cwd.startsWith(DATA_DIR)) return; // Logbook's own helper runs
+  if (isOwnRun(typeof p.cwd === 'string' ? p.cwd : null)) return; // Logbook's own helper runs
   db.prepare('INSERT OR IGNORE INTO sessions(id, transcript, cwd, started_at) VALUES(?, ?, ?, ?)').run(sid, p.transcript_path ?? null, p.cwd ?? null, now);
   const s = db.prepare('SELECT project_id, hook_state, hook_state_at FROM sessions WHERE id = ?').get(sid) as Row;
   // A raised hand ends when anything else happens: record how long the agent waited for you.

@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Db, Row } from './db.ts';
 import { describeTool, type ActionKind } from './describe.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
-import { DATA_DIR, PROJECTS_DIR } from './config.ts';
+import { DATA_DIR, isOwnRun, PROJECTS_DIR } from './config.ts';
 
 /** Parser state carried across incremental reads of one transcript (persisted in offsets.state). */
 export type ParseState = {
@@ -209,7 +209,7 @@ const JSON_FILES_CAP = 40;
 /** Writes a delta into the sessions table (incrementing counters, keeping latest values). */
 export function applyDelta(db: Db, d: Delta, transcript: string) {
   if (!d.sessionId) return;
-  if (d.cwd && d.cwd.startsWith(DATA_DIR)) return; // Logbook's own helper runs
+  if (isOwnRun(d.cwd)) return; // Logbook's own helper runs
   let s = db.prepare('SELECT id, project_id, files, err_sig, err_count, err_at FROM sessions WHERE id = ?').get(d.sessionId) as Row | undefined;
   if (!s) {
     db.prepare('INSERT INTO sessions(id, transcript) VALUES(?, ?)').run(d.sessionId, transcript);

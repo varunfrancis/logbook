@@ -9,8 +9,8 @@ export type Started = { ok: boolean; via: string; message: string; command?: str
  * Pick a project and a way to start, say what it's about, and Logbook opens Claude Code there.
  * Used on the welcome tour ("Your turn") and on every agent's profile ("Work with me").
  */
-export function StartWork({ state, moves, defaultMove, projectId, onStarted, idPrefix = 'sw' }: {
-  state: StateView; moves: MoveId[]; defaultMove?: MoveId; projectId?: string | null; onStarted: (r: Started) => void; idPrefix?: string;
+export function StartWork({ state, moves, defaultMove, projectId, onStarted, idPrefix = 'sw', secondary }: {
+  state: StateView; moves: MoveId[]; defaultMove?: MoveId; projectId?: string | null; onStarted: (r: Started) => void; idPrefix?: string; secondary?: React.ReactNode;
 }) {
   const projects = useMemo(() => state.projects.filter((p) => p.root).sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0)), [state.projects]);
   const [pid, setPid] = useState(projectId ?? projects[0]?.id ?? '');
@@ -58,7 +58,8 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
       </label>
       {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p> : null}
       {err ? <p className="sw-err" role="alert">{err}</p> : null}
-      <div className="row end">
+      <div className={`row ${secondary ? 'between' : 'end'}`}>
+        {secondary}
         <button className="btn dark" type="submit" disabled={busy || !project}>{busy ? 'Starting…' : move === 'plan' ? 'Start planning' : move === 'brainstorm' ? 'Start brainstorming' : 'Start'}</button>
       </div>
     </form>

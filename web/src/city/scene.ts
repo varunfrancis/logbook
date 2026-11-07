@@ -833,7 +833,7 @@ export class CityScene {
     if (hello) {
       const hi = this.div('hello', `<b>Hi, I’m ${esc(a.name)}!</b><span>New on site</span>`);
       hi.dataset.sid = s.id;
-      this.label(labels, hi, anchor, 1.25, 'fx', pid);
+      this.label(labels, hi, anchor, 1.9, 'fx', pid);
       setTimeout(() => hi.remove(), 90_000 - (Date.now() - arrivedAt!));
     }
     if (s.chatter && !hello) {
