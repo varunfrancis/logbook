@@ -562,8 +562,11 @@ test("Logbook's own background runs never become projects, even after a test fol
   ins.run('own-new', 'local:/gone/tmp/lbdata/namer', `${OWN_MARK}\nYou name software projects…`);
   ins.run('own-old', 'local:/gone/tmp/lbdata/namer', 'You name software projects for non-technical people.\nReply with ONLY…');
   ins.run('real', 'local:/w/app', 'Describe the bug in the login page');
-  assert.equal(purgeOwnRuns(db), 2);
-  assert.deepEqual((db.prepare('SELECT id FROM sessions').all() as any[]).map((r) => r.id), ['real']);
+  // a bare session start in a test copy's naming folder: no transcript, nothing said
+  db.prepare('INSERT INTO sessions(id, project_id, cwd) VALUES(?, ?, ?)').run('own-bare', 'local:/gone/tmp/lbdata/namer', '/gone/tmp/lbdata/namer');
+  db.prepare('INSERT INTO sessions(id, project_id, cwd) VALUES(?, ?, ?)').run('real-bare', 'local:/w/app', '/w/app');
+  assert.equal(purgeOwnRuns(db), 3);
+  assert.deepEqual((db.prepare('SELECT id FROM sessions ORDER BY id').all() as any[]).map((r) => r.id), ['real', 'real-bare']);
   assert.deepEqual((db.prepare('SELECT id FROM projects ORDER BY id').all() as any[]).map((r) => r.id), ['local:/w/app']);
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });

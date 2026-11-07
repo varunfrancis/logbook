@@ -215,6 +215,10 @@ const ownSessions = new Set<string>();
  */
 export function purgeOwnRuns(db: Db): number {
   const ids = (db.prepare('SELECT id, first_prompt FROM sessions WHERE first_prompt IS NOT NULL').all() as Row[]).filter((r) => OWN_PROMPT.test(r.first_prompt)).map((r) => r.id);
+  // Bare session starts from a naming folder (a test copy's hook fired, nothing was ever said or read).
+  for (const r of db.prepare(`SELECT id, cwd FROM sessions WHERE transcript IS NULL AND COALESCE(prompts, 0) = 0 AND COALESCE(tok_in, 0) + COALESCE(tok_out, 0) = 0 AND cwd IS NOT NULL`).all() as Row[]) {
+    if (/\/\.?(logbook-)?namer$/.test(r.cwd)) ids.push(r.id);
+  }
   for (const id of ids) {
     ownSessions.add(id);
     for (const t of ['events', 'segments']) db.prepare(`DELETE FROM ${t} WHERE session_id = ?`).run(id);

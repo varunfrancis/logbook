@@ -56,6 +56,7 @@ function tick() {
     scanTranscripts(db);
     live = readLive();
     refreshAgents(db, ticks === 0 ? 0 : Date.now() - 2 * 24 * 3600_000, live);
+    if (ticks % 150 === 149) { try { if (purgeOwnRuns(db)) soon(); } catch {} } // every ~5 minutes
     if (ticks++ % 15 === 0) { db.prepare("UPDATE sessions SET stamp = NULL WHERE stamp IS NOT NULL AND id IN (" + ([...live.keys()].map(() => '?').join(',') || "''") + ")").run(...live.keys()); stampClosed(db, new Set(live.keys()), ticks === 1 ? 400 : 25); }
     refresh();
   } catch (e) {
