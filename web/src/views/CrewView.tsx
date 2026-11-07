@@ -5,6 +5,7 @@ import { bricks, PROJECT, SIZE, STAMP_NOTE, plainAction, useVoice } from '../cop
 import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { useNow } from '../useLogbook.ts';
+import { jobLabel } from '../city/liveJobs.ts';
 import { Leaderboard } from '../crew/Leaderboard.tsx';
 
 type Open = { agent: (id: string) => void; project: (id: string) => void };
@@ -65,7 +66,7 @@ function WorkCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectVie
         <div className="work-who"><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : s.agent.role === 'routine' ? `Scheduled job · ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
         {flag ? <span className={`flag ${flag.cls}`} title={flag.text}>{flag.label}</span> : null}
       </div>
-      <div className="task" title={s.title}>{s.title}</div>
+      <div className="task" title={s.title}>{jobLabel(s)}</div>
       <div className="now">Right now: <Swap text={plainAction(s.action, voice) ?? 'thinking'} /></div>
       <div className="meta"><span>{duration(s.startedAt, now)}</span><span>{voice === 'plain' ? bricks(s.bricks) : `${compact(s.tokens)} tok`}</span>{s.helperActive ? <span>+ helper</span> : null}<GoTo s={s} /></div>
     </article>
