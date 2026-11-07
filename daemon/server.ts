@@ -17,6 +17,7 @@ import { stampClosed } from './outcome.ts';
 import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
+import { addNote, dismissFlag, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
 import type { Setup, StateView, Welcome } from './types.ts';
 import { NEW_WELCOME } from './state.ts';
 
@@ -36,6 +37,7 @@ function refresh() {
   const { generatedAt, ...rest } = state;
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
+  writePendingMarker(DATA_DIR, notesPending(db, live));
   if (hash !== stateHash) {
     stateHash = hash;
     notifyTransitions(state);
@@ -176,6 +178,14 @@ function sameSite(req: http.IncomingMessage): boolean {
   try { const u = new URL(origin); return u.hostname === 'localhost' || u.hostname === '127.0.0.1'; } catch { return false; }
 }
 
+/** What a hook that waits gets back: the opt-in intro, then the project's notes from you. */
+function hookReply(payload: any): object | null {
+  const intro = terminalIntro(db, payload, live, state.town.name) as { hookSpecificOutput: { additionalContext: string } } | null;
+  const note = noteContext(db, payload, state.town.owner);
+  const text = [intro?.hookSpecificOutput.additionalContext, note?.text].filter(Boolean).join('\n\n');
+  return text ? { hookSpecificOutput: { hookEventName: payload.hook_event_name, additionalContext: text } } : null;
+}
+
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 const server = http.createServer(async (req, res) => {
@@ -185,9 +195,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/hook') {
       const body = await readBody(req, 8 * 1024 * 1024);
       if (url.searchParams.get('reply')) {
-        // Session start: the hook waits briefly for an optional "introduce yourself" note for Claude.
+        // Session start (and a prompt while a note is waiting): the hook waits briefly for context to hand Claude.
         let out: object | null = null;
-        try { const payload = JSON.parse(body); handleHook(db, payload); out = terminalIntro(db, payload, live, state.town.name); soon(); } catch {}
+        try { const payload = JSON.parse(body); handleHook(db, payload); out = hookReply(payload); soon(); } catch {}
         return out ? json(res, 200, out) : void res.writeHead(204).end();
       }
       res.writeHead(204).end();
@@ -229,6 +239,14 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       return json(res, 200, launch(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan));
     }
+    if (req.method === 'POST' && p === '/api/notes') {
+      const body = await readJson(req);
+      const id = addNote(db, String(body.projectId ?? ''), String(body.text ?? ''));
+      refresh();
+      return json(res, id ? 200 : 400, id ? { ok: true, id } : { ok: false, error: 'Write a note for a project first.' });
+    }
+    if (req.method === 'POST' && /^\/api\/notes\/\d+\/remove$/.test(p)) { removeNote(db, Number(p.split('/')[3])); refresh(); return json(res, 200, { ok: true }); }
+    if (req.method === 'POST' && p === '/api/crews/dismiss') { const body = await readJson(req); dismissFlag(db, String(body.projectId ?? '')); refresh(); return json(res, 200, { ok: true }); }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/wrapped') return json(res, 200, wrappedView(db, state, url.searchParams.get('month') || today().slice(0, 7)));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));

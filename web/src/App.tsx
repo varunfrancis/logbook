@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLogbook } from './useLogbook.ts';
 import { CrewView } from './views/CrewView.tsx';
+import { MedalToasts } from './crew/Leaderboard.tsx';
 import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
@@ -81,7 +82,9 @@ export function App() {
   // The Crew view lists only what the filters let through.
   const crewState = useMemo(() => state && (focus.sessions || focus.projects) ? { ...state, projects: focus.projects ? state.projects.filter((p) => focus.projects!.has(p.id)) : state.projects,
     sessions: state.sessions.filter((s) => (!focus.sessions || focus.sessions.has(s.id)) && (!focus.projects || focus.projects.has(s.projectId ?? ''))),
-    routines: (state.routines ?? []).filter((r) => (!focus.projects || focus.projects.has(r.projectId)) && (!focus.sessions || (!!r.liveSessionId && focus.sessions.has(r.liveSessionId)))) } : state, [state, focus]);
+    routines: (state.routines ?? []).filter((r) => (!focus.projects || focus.projects.has(r.projectId)) && (!focus.sessions || (!!r.liveSessionId && focus.sessions.has(r.liveSessionId)))),
+    crews: (state.crews ?? []).filter((c) => !focus.projects || focus.projects.has(c.projectId)),
+    notes: (state.notes ?? []).filter((n) => !focus.projects || focus.projects.has(n.projectId)) } : state, [state, focus]);
   const chip = (key: NonNullable<typeof only>, n: number, label: string, cls = '') => (
     <button className={`sum chip ${cls}${only === key ? ' on' : ''}`} aria-pressed={only === key} onClick={() => setOnly(only === key ? null : key)} title={only === key ? 'Show everyone' : `Highlight only these`}><b>{n}</b> {label}</button>
   );
@@ -132,7 +135,7 @@ export function App() {
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
-          {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /></> : null}
+          {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /><MedalToasts state={state} openProject={open.project} /></> : null}
         </main>
         {state && ((firstLaunch && !welcome.active) || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
         {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} onSaved={() => { setModal(null); setSavedAt(Date.now()); }} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} replayWelcome={() => { setModal(null); setSel(null); welcome.replay(); }} /> : null}

@@ -398,3 +398,97 @@ test('scheduled jobs: asleep between runs, awake while one is going', async () =
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("today's crews: a project's agents judged together; a rough day raises 'needs a word'", async () => {
+  const { crewsToday, dismissFlag, addNote } = await import('../daemon/crews.ts');
+  const { refreshAgents } = await import('../daemon/state.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const now = Date.now();
+  db.prepare("INSERT INTO projects(id, name, remote) VALUES('gh:a/cat', 'Cat', 'x'), ('gh:a/dog', 'Dog', 'x')").run();
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at, ended_at, stamp, lines_added, lines_removed, cost_usd, tests_ok, tests_fail, err_count, err_at, err_sig, pr_url, pr_state) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  ins.run('c1', 'gh:a/cat', 'main', null, now - 9000, now - 8000, now - 8000, 'shipped', 300, 10, 2, 3, 0, 0, null, null, null, null); // a feature
+  ins.run('c2', 'gh:a/cat', 'fix-x', 'fix-x', now - 7000, now - 6000, now - 6000, 'review', 40, 5, 1, 1, 0, 0, null, null, null, null); // a fix
+  ins.run('c3', 'gh:a/cat', 'main', null, now - 5000, now - 4000, now - 4000, 'chat', 0, 0, 1, 0, 0, 0, null, null, null, null);       // just a chat: doesn't count
+  ins.run('d1', 'gh:a/dog', 'main', null, now - 5000, now - 4000, now - 4000, 'scrapped', 50, 0, 4, 0, 2, 0, null, null, null, null);
+  ins.run('d2', 'gh:a/dog', 'b', 'b', now - 5000, now - 3000, now - 3000, 'unfinished', 20, 0, 4, 0, 3, 3, now - 3500, 'Bash: rate limit test', null, null);
+  ins.run('d3', 'gh:a/dog', 'c', 'c', now - 3000, now - 1000, null, null, 5, 0, 1, 0, 0, 0, null, null, 'https://github.com/a/dog/pull/1', 'open'); // still working, PR open: delivered
+  refreshAgents(db, 0, new Map());
+  const rows = db.prepare('SELECT * FROM sessions').all() as any[];
+  const names = new Map([['gh:a/cat', 'Cat'], ['gh:a/dog', 'Dog']]);
+  const live = new Map([['d3', {} as any]]);
+  const crews = crewsToday(db, rows, live, names, now);
+  const cat = crews.find((c) => c.projectId === 'gh:a/cat')!, dog = crews.find((c) => c.projectId === 'gh:a/dog')!;
+  assert.equal(cat.agents.length, 2); // the resident and the fix-x branch agent
+  assert.equal(cat.agents[0].role, 'resident');
+  assert.deepEqual([cat.finished, cat.delivered, cat.points, cat.sizes.feature, cat.sizes.fix], [2, 2, 5, 1, 1]);
+  assert.equal(cat.flag, null);
+  assert.deepEqual([dog.finished, dog.delivered, dog.lost, dog.stuck], [3, 1, 2, 1]);
+  assert.match(dog.flag!.reasons.join(' | '), /2 jobs scrapped or left unfinished \| stuck in a loop on “rate limit test” \| checks failed 5 times/);
+  assert.match(dog.flag!.draft, /same error comes back twice/);
+  // "It's fine" hides it for today; so does having a word
+  dismissFlag(db, 'gh:a/dog', now);
+  assert.equal(crewsToday(db, rows, live, names, now).find((c) => c.projectId === 'gh:a/dog')!.flag, null);
+  dismissFlag(db, 'gh:a/cat', now + 2 * 24 * 3600_000); // a later day's dismissal replaces the old list
+  assert.ok(crewsToday(db, rows, live, names, now).find((c) => c.projectId === 'gh:a/dog')!.flag);
+  addNote(db, 'gh:a/dog', 'Stop after two tries', now);
+  assert.equal(crewsToday(db, rows, live, names, now).find((c) => c.projectId === 'gh:a/dog')!.flag, null);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('notes from you: every new session on the project gets them; working agents get new ones on their next prompt', async () => {
+  const { addNote, removeNote, noteContext, notesPending, notesView } = await import('../daemon/crews.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const start = { session_id: 'n-1', cwd: dir, hook_event_name: 'SessionStart', source: 'startup' };
+  handleHook(db, start);
+  const projectId = (db.prepare('SELECT project_id FROM sessions WHERE id = ?').get('n-1') as any).project_id;
+  assert.equal(noteContext(db, start, 'Varun'), null); // no notes yet
+  assert.equal(addNote(db, projectId, '   '), null);
+  assert.equal(addNote(db, 'nope', 'hi'), null);
+  const live = new Map([['n-1', {} as any]]);
+  const id = addNote(db, projectId, 'Stop after two tries and ask me.')!;
+  assert.equal(notesPending(db, live), true); // n-1 is working and hasn't seen it
+  const prompt = { session_id: 'n-1', cwd: dir, hook_event_name: 'UserPromptSubmit', prompt: 'go' };
+  const first = noteContext(db, prompt, 'Varun')!;
+  assert.equal(first.event, 'UserPromptSubmit');
+  assert.match(first.text, /New note from Varun/);
+  assert.match(first.text, /- Stop after two tries and ask me\./);
+  assert.equal(notesPending(db, live), false);
+  assert.equal(noteContext(db, prompt, 'Varun'), null); // only once per session
+  const again = noteContext(db, { ...start, source: 'compact' }, 'Varun')!; // after a compaction it's handed over again
+  assert.match(again.text, /Standing notes/);
+  handleHook(db, { ...start, session_id: 'n-2' });
+  assert.match(noteContext(db, { ...start, session_id: 'n-2' }, 'Varun')!.text, /two tries/);
+  assert.equal(notesView(db, new Map())[0].reached, 2);
+  removeNote(db, id);
+  assert.equal(noteContext(db, { ...start, session_id: 'n-3' }, 'Varun'), null);
+  assert.equal(notesView(db, new Map()).length, 0);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('medals: one crew per category, minimums before a rate counts, ties to whoever got there first', async () => {
+  const { medals, handovers, jobsText } = await import('../web/src/crew/medals.ts');
+  const crew = (o: object) => ({ projectId: 'p', name: 'P', agents: [], shifts: 1, finished: 0, delivered: 0, points: 0, sizes: {}, lost: 0, workMs: 0, waitedMs: 0, interruptions: 0, costUsd: 0, checksOk: 0, checksFail: 0, stuck: 0, firstDeliveredAt: null, flag: null, ...o });
+  const a = crew({ projectId: 'a', name: 'Alpha', finished: 4, delivered: 3, points: 7, sizes: { feature: 1, fix: 2 }, workMs: 3 * 3600_000, interruptions: 3, costUsd: 9, checksOk: 9, firstDeliveredAt: 200 });
+  const b = crew({ projectId: 'b', name: 'Beta', finished: 2, delivered: 2, points: 7, sizes: { tweak: 1, overhaul: 1 }, workMs: 20 * 60_000, interruptions: 0, costUsd: 2, checksOk: 2, checksFail: 1, firstDeliveredAt: 100 });
+  const c = crew({ projectId: 'c', name: 'Gamma', finished: 1, delivered: 1, points: 1, costUsd: 0.1, workMs: 5 * 60_000 }); // one job: no rate medals
+  const m = Object.fromEntries(medals([a, b, c]).map((x) => [x.id, x]));
+  assert.equal(m.shipped.holder!.name, 'Beta'); // 7 points each, Beta delivered first
+  assert.equal(m.shipped.runnerUp!.crew.name, 'Alpha');
+  assert.equal(m.aim.holder!.name, 'Beta');
+  assert.equal(m.independent.holder!.name, 'Beta');
+  assert.match(m.independent.value, /never needed you/);
+  assert.equal(m.value.holder!.name, 'Beta');
+  assert.equal(m.clean.holder!.name, 'Alpha');
+  assert.equal(jobsText(a), '3 jobs (1 feature, 2 fixes)');
+  assert.equal(medals([c]).find((x) => x.id === 'aim')!.holder, null);
+  assert.equal(medals([]).every((x) => !x.holder), true);
+  // handovers: nothing on the first look; a new holder is news
+  const prev = new Map(medals([a]).map((x) => [x.id, x.holder?.projectId ?? null]));
+  const moved = handovers(prev, medals([a, b]));
+  assert.ok(moved.some((x) => x.medal.id === 'shipped' && x.from === 'a'));
+  assert.deepEqual(handovers(new Map(), medals([a])), []);
+});

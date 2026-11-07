@@ -9,6 +9,13 @@ case "$payload" in
     printf '%s' "$payload" | curl -s -m 1 -X POST -H 'content-type: application/json' --data-binary @- "$url?reply=1" 2>/dev/null
     exit 0
     ;;
+  *'"hook_event_name":"UserPromptSubmit"'*|*'"hook_event_name": "UserPromptSubmit"'*)
+    # A note from you is waiting for a working agent (the daemon leaves a marker next to this script): hand it over with this prompt.
+    if [ -e "${0%/*}/notes.pending" ]; then
+      printf '%s' "$payload" | curl -s -m 1 -X POST -H 'content-type: application/json' --data-binary @- "$url?reply=1" 2>/dev/null
+      exit 0
+    fi
+    ;;
 esac
 # Everything else is fire-and-forget.
 (
