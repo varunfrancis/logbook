@@ -23,6 +23,17 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   const [busy, setBusy] = useState<'preview' | 'record' | 'skyline' | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const activeCount = state.projects.filter((p) => p.state === 'site' || p.state === 'needs').length;
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!host.current?.offsetParent) return;
+      if (e.key === '?') setKeysOpen((o) => !o);
+      if (e.key === 'Escape') setKeysOpen(false);
+    };
+    addEventListener('keydown', f); return () => removeEventListener('keydown', f);
+  }, []);
 
   useEffect(() => {
     const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id), onGraveyard: () => cb.current.onGraveyard() });
@@ -104,12 +115,27 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
         <button className="ghost" onClick={skyline} disabled={!!busy}>README skyline</button>
         {msg ? <span className="action-msg" role="status">{msg}</span> : null}
       </div>
+      {keysOpen ? (
+        <div className="keys-card" role="dialog" aria-label="Keyboard shortcuts">
+          <div className="keys-head"><b>Keyboard shortcuts</b><button className="ghost small" onClick={() => setKeysOpen(false)} aria-label="Close">✕</button></div>
+          <dl>
+            {KEYS.map(([k, what]) => <div key={what}><dt>{k.map((x) => <kbd key={x}>{x}</kbd>)}</dt><dd>{what}</dd></div>)}
+          </dl>
+        </div>
+      ) : null}
       <div className="city-tools">
-        <button className="tool" onClick={() => scene.current?.zoomBy(1.25)} aria-label="Zoom in">+</button>
-        <button className="tool" onClick={() => scene.current?.zoomBy(0.8)} aria-label="Zoom out">−</button>
+        <button className="tool" onClick={() => scene.current?.zoomBy(1.25)} aria-label="Zoom in (+)" title="Zoom in (+) · or scroll">+</button>
+        <button className="tool" onClick={() => scene.current?.zoomBy(0.8)} aria-label="Zoom out (−)" title="Zoom out (−) · or scroll">−</button>
         <button className="tool" onClick={() => scene.current?.rotateBy(-90)} aria-label="Turn the town left (Q)" title="Turn left (Q) · or right-drag / shift-drag to spin">⟲</button>
         <button className="tool" onClick={() => scene.current?.rotateBy(90)} aria-label="Turn the town right (E)" title="Turn right (E) · or right-drag / shift-drag to spin">⟳</button>
-        <button className="tool" onClick={() => scene.current?.fit()} aria-label="Fit whole town">⤢</button>
+        <button className="tool" onClick={() => scene.current?.focusActive()} disabled={!activeCount}
+          aria-label="Focus on active projects (G)" title={activeCount ? `Focus on the ${activeCount} active project${activeCount === 1 ? '' : 's'} (G)` : 'No one is working right now'}>
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M3 7V4a1 1 0 0 1 1-1h3M13 3h3a1 1 0 0 1 1 1v3M17 13v3a1 1 0 0 1-1 1h-3M7 17H4a1 1 0 0 1-1-1v-3" /><circle cx="10" cy="10" r="2.2" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+        <button className="tool" onClick={() => scene.current?.fit()} aria-label="Fit whole town (F)" title="Fit whole town (F)">⤢</button>
+        <button className={`tool${keysOpen ? ' on' : ''}`} onClick={() => setKeysOpen((o) => !o)} aria-label="Keyboard shortcuts (?)" aria-expanded={keysOpen} title="Keyboard shortcuts (?)">?</button>
       </div>
       <div className="legend">
         <span><i className="p-site" />{PROJECT[voice].site}</span>
@@ -122,3 +148,12 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     </div>
   );
 }
+
+const KEYS: [string[], string][] = [
+  [['+', '−'], 'Zoom in / out'],
+  [['←', '↑', '→', '↓'], 'Pan (or W A S D)'],
+  [['Q', 'E'], 'Turn the town left / right'],
+  [['G'], 'Focus on active projects'],
+  [['F'], 'Fit the whole town'],
+  [['?'], 'Show or hide these shortcuts'],
+];
