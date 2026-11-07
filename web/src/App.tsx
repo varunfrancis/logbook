@@ -71,7 +71,7 @@ export function App() {
   useEffect(() => { store.set('swarmville.bubbleMode', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
-    document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Swarmville'}`;
+    document.title = `${n ? `(${n}) ` : ''}${state ? `${state.town.name} · Swarmville Town` : 'Swarmville Town'}`;
   }, [state?.totals.needs, state?.town.name]);
   useEffect(() => {
     const f = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSel(null); setModal(null); } };
@@ -109,7 +109,7 @@ export function App() {
     <VoiceContext.Provider value={voice}>
       <div className={`app view-${view}${welcome.active && welcome.step !== 'setup' && welcome.step !== 'name' ? ' touring' : ''}`}>
         <header className="bar">
-          <div className="brand"><AgentAvatar agent={FOREMAN} mood="hello" size={30} /><div className="brand-text"><b>{state?.town.name ?? 'Swarmville'}</b><small>a Swarmville town</small></div></div>
+          <div className="brand"><AgentAvatar agent={FOREMAN} mood="hello" size={30} /><div className="brand-text"><b>{state?.town.name ?? 'Swarmville'}</b><small>a Swarmville Town</small></div></div>
           <PipFavicon mood={state ? townMood(state.sessions) : 'hello'} />
           <nav className="tabs" aria-label="View">
             <button className={view === 'town' ? 'on' : ''} onClick={() => go('town')}>Town</button>

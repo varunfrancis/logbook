@@ -29,8 +29,10 @@ export function PipFavicon({ mood }: { mood: Mood }) {
     icon.removeAttribute('style');
     icon.setAttribute('viewBox', '-6 -12 132 132'); // room for the hard hat and the raised-hand badge
     const href = 'data:image/svg+xml,' + encodeURIComponent(new XMLSerializer().serializeToString(icon));
-    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    // One icon link only: a leftover second one (the old Logbook buildings) would win over Pip in the tab.
+    const links = [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')];
+    const link = links.shift() ?? document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }));
+    for (const extra of links) extra.remove();
     link.type = 'image/svg+xml';
     link.href = href;
   }, [mood]);
