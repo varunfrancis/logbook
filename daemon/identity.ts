@@ -36,17 +36,28 @@ function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++
 
 export type Identity = { key: string; name: string; shape: string; color: string; accessory: string };
 
+/**
+ * Who a session is:
+ *  - work in a worktree or on a feature branch: that workbench's own character (comes back when the work is picked up again)
+ *  - work on main: the project's resident, one character for all of it
+ * A second window on main while the resident is busy becomes a helper (see refreshAgents).
+ */
 export function agentKey(s: Row): string {
   const wb = s.worktree || (s.branch && !/^(main|master|develop|dev|trunk|HEAD)$/.test(s.branch) ? s.branch : null);
-  return wb ? `${s.project_id ?? ''}#${wb}` : s.id;
+  if (wb) return `${s.project_id ?? ''}#${wb}`;
+  return s.project_id ? residentKey(s.project_id) : s.id;
 }
+export const residentKey = (projectId: string) => `${projectId}#resident`;
+export const helperKey = (projectId: string, sessionId: string) => `${residentKey(projectId)}~${sessionId}`;
+export const isHelperKey = (key: string) => key.includes('#resident~');
+export const isResidentKey = (key: string) => key.endsWith('#resident');
 
 const registry = new Map<string, Identity>();
 
 /** Loads saved identities and gives every new agent key a name nobody recent is using. */
 export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: string[]) {
   if (!registry.size) for (const r of db.prepare('SELECT key, name, shape, color, accessory FROM agents').all() as Identity[]) registry.set(r.key, r);
-  const fresh = keys.filter((k) => !registry.has(k));
+  const fresh = keys.filter((k) => !registry.has(k) && !isHelperKey(k));
   if (!fresh.length) return;
   const recent = new Set((db.prepare('SELECT name FROM agents WHERE created_at > ?').all(Date.now() - 45 * 24 * 3600_000) as { name: string }[]).map((r) => r.name));
   const ins = db.prepare('INSERT OR IGNORE INTO agents(key, name, shape, color, accessory, created_at) VALUES(?, ?, ?, ?, ?, ?)');
@@ -63,6 +74,11 @@ export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: 
 }
 
 export function identityFor(key: string): Identity {
+  if (isHelperKey(key)) {
+    // a helper wears the resident's shape and colors, with their name and "Jr."
+    const base = identityFor(key.slice(0, key.indexOf('~')));
+    return { ...base, key, name: `${base.name} Jr.`, accessory: 'none' };
+  }
   return registry.get(key) ?? hashIdentity(key);
 }
 

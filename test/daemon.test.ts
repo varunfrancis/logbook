@@ -135,3 +135,31 @@ test('hooks drive a session from start to needs-you to closed', () => {
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('one resident per project on main, helpers for parallel windows, own characters for worktrees', async () => {
+  const { refreshAgents, agentOf } = await import('../daemon/state.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const now = Date.now();
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, branch, worktree, started_at, last_event_at) VALUES(?, ?, ?, ?, ?, ?)');
+  ins.run('old', 'gh:a/cat', 'main', null, now - 9e6, now - 8e6); // closed earlier on main
+  ins.run('m1', 'gh:a/cat', 'main', null, now - 5000, now);     // live on main, first
+  ins.run('m2', 'gh:a/cat', 'main', null, now - 1000, now);     // live on main, second
+  ins.run('wt', 'gh:a/cat', 'seo', 'seo', now - 3000, now);     // live in a worktree
+  const live = new Map(['m1', 'm2', 'wt'].map((id) => [id, { pid: 1, sessionId: id, cwd: '/x', kind: 'interactive', status: 'busy', name: null, updatedAt: null, startedAt: null }]));
+  refreshAgents(db, 0, live);
+  const row = (id: string) => db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any;
+  const [old, m1, m2, wt] = ['old', 'm1', 'm2', 'wt'].map((id) => agentOf(row(id)));
+  assert.equal(old.key, m1.key);           // same resident across sessions
+  assert.equal(m1.role, 'resident');
+  assert.equal(m2.role, 'helper');
+  assert.equal(m2.name, `${m1.name} Jr.`);
+  assert.equal(m2.color, m1.color);
+  assert.equal(wt.role, 'workbench');
+  assert.notEqual(wt.key, m1.key);
+  // m2 stays a helper in history after it closes
+  refreshAgents(db, 0, new Map());
+  assert.equal(agentOf(row('m2')).role, 'helper');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

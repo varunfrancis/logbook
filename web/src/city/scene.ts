@@ -630,7 +630,7 @@ export class CityScene {
     const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.status === 'idle' ? 'break' : 'working';
     const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c));
     const g = crew.root;
-    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(1.35);
+    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
     parent.add(g);
     // helpers: a half-size copy of the agent tagging along

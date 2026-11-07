@@ -5,7 +5,7 @@ import type { LiveEntry } from './live.ts';
 import { assignLots, ensureProjectForCwd, spiral } from './projects.ts';
 import { floorsFor, projectState, sessionStatus } from './status.ts';
 import { githubMeta } from './github.ts';
-import { agentKey, allocateIdentities, identityFor, jobFor, JOB_TITLE } from './identity.ts';
+import { agentKey, allocateIdentities, helperKey, identityFor, isHelperKey, isResidentKey, jobFor, JOB_TITLE } from './identity.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
@@ -41,7 +41,8 @@ export function agentOf(s: Row): Agent {
   const key = s.agent_key || agentKey(s);
   const id = identityFor(key);
   const job = (s.job as Agent['job']) || jobFor(s);
-  return { key, name: id.name, title: `${id.name} the ${JOB_TITLE[job]}`, job, jobTitle: JOB_TITLE[job], shape: id.shape, color: id.color, accessory: id.accessory };
+  const role = isHelperKey(key) ? 'helper' : isResidentKey(key) ? 'resident' : 'workbench';
+  return { key, name: id.name, title: `${id.name} the ${JOB_TITLE[job]}`, job, jobTitle: JOB_TITLE[job], shape: id.shape, color: id.color, accessory: id.accessory, role };
 }
 
 function chatterFor(v: Omit<SessionView, 'chatter'>, owner: string, now: number): string | null {
@@ -156,13 +157,28 @@ export function adoptLive(db: Db, live: Map<string, LiveEntry>) {
   }
 }
 
-/** Keeps each recent session's agent key and job current. */
-export function refreshAgents(db: Db, since: number) {
-  const rows = db.prepare('SELECT * FROM sessions WHERE project_id IS NOT NULL AND (last_event_at >= ? OR agent_key IS NULL) ORDER BY last_event_at DESC').all(since) as Row[];
+/**
+ * Keeps each recent session's agent key and job current.
+ * On main, the earliest live session in a project is the resident; any other live one at the same time is a helper,
+ * and stays a helper in history once it has been one.
+ */
+export function refreshAgents(db: Db, since: number, live: Map<string, LiveEntry>) {
+  const rows = db.prepare('SELECT * FROM sessions WHERE project_id IS NOT NULL AND (last_event_at >= ? OR agent_key IS NULL OR id IN (' + ([...live.keys()].map(() => '?').join(',') || "''") + ')) ORDER BY last_event_at DESC').all(since, ...live.keys()) as Row[];
   const upd = db.prepare('UPDATE sessions SET agent_key = ?, job = ? WHERE id = ?');
+  const residentBusy = new Map<string, string>(); // project -> live session id holding the resident
+  const liveOnMain = rows.filter((s) => live.has(s.id) && isResidentKey(agentKey(s))).sort((a, b) => (a.started_at ?? 0) - (b.started_at ?? 0));
+  for (const s of liveOnMain) {
+    const holder = residentBusy.get(s.project_id);
+    if (!holder && !isHelperKey(s.agent_key ?? '')) residentBusy.set(s.project_id, s.id);
+  }
   const keys: string[] = [];
   for (const s of rows) {
-    const key = agentKey(s), job = jobFor(s);
+    let key = agentKey(s);
+    if (isResidentKey(key)) {
+      if (isHelperKey(s.agent_key ?? '')) key = s.agent_key; // once a helper, always that helper
+      else if (live.has(s.id) && residentBusy.has(s.project_id) && residentBusy.get(s.project_id) !== s.id) key = helperKey(s.project_id, s.id);
+    }
+    const job = jobFor(s);
     keys.push(key);
     if (key !== s.agent_key || job !== s.job) upd.run(key, job, s.id);
   }

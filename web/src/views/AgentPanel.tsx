@@ -35,7 +35,7 @@ export function AgentPanel({ id, state, onClose, openProject }: { id: string; st
         <div className="agent-id">
           <h2>{a.title}</h2>
           <div className="sub">{STATUS[voice][s.status]} on <button className="link" onClick={() => project && openProject(project.id)}>{project?.name ?? 'a project'}</button> · {started}–{ended}</div>
-          {d ? <div className="chips-sm"><span>{d.career.shifts} shift{d.career.shifts === 1 ? '' : 's'} · {d.career.shipped} shipped</span>{d.career.usualProject ? <span>Usually on {d.career.usualProject}</span> : null}</div> : null}
+          {d ? <div className="chips-sm">{a.role === 'resident' ? <span>Resident of {project?.name}</span> : a.role === 'helper' ? <span>Helping out on {project?.name}</span> : <span>Own workbench{voice === 'technical' && (s.worktree || s.branch) ? `: ${s.worktree ?? s.branch}` : ''}</span>}<span>{d.career.shifts} shift{d.career.shifts === 1 ? '' : 's'} · {d.career.shipped} shipped</span>{d.career.usualProject && a.role === 'workbench' ? <span>Usually on {d.career.usualProject}</span> : null}</div> : null}
         </div>
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>
       </header>

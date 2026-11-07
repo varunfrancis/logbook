@@ -15,6 +15,7 @@ export type Agent = {
   shape: string;
   color: string;
   accessory: string;
+  role: 'resident' | 'helper' | 'workbench'; // resident: the project's own character · helper: a temporary extra on main · workbench: tied to a worktree/branch
 };
 
 export type SessionView = {

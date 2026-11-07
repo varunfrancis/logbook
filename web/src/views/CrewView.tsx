@@ -37,7 +37,7 @@ function WorkCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectVie
     <article className={`work${flag ? ' f-' + flag.cls : ''}${focused ? ' focused' : ''}`} onClick={() => open.agent(s.id)}>
       <div className="work-head">
         <AgentAvatar agent={s.agent} mood={moodFor(s)} size={60} />
-        <div><b className="agent-name">{s.agent.title}</b><div className="sub">{p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
+        <div><b className="agent-name">{s.agent.title}</b><div className="sub">{s.agent.role === 'resident' ? `Resident of ${p?.name}` : s.agent.role === 'helper' ? `Helping on ${p?.name}` : p?.name}{voice === 'technical' && (s.worktree || s.branch) ? ` · ${s.worktree ?? s.branch}` : ''}</div></div>
       </div>
       <div className="task">{s.title}</div>
       <div className="now">Right now: {plainAction(s.action, voice) ?? 'thinking'}</div>
