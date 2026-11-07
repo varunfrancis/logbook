@@ -14,7 +14,7 @@ THREE.ColorManagement.enabled = false;
 const LOT = 8, ROAD = 3, PITCH = LOT + ROAD, FH = 1.1, BASE = 0.24;
 const PALETTE = ['#f4b183', '#9fd9c6', '#b8a7e8', '#f6d36b', '#9cc7f0', '#f5a3b5', '#a8d8a0', '#f2c38b', '#c6b8f0', '#8fd3d9'];
 const VEST = ['#ff7a45', '#3f8efc', '#9b6bff', '#14b8a6', '#f472b6', '#f5b301', '#ef4444', '#22c55e'];
-const STATE_DOT: Record<string, string> = { site: '#ef9a1a', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
+const STATE_DOT: Record<string, string> = { site: '#3f8efc', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
 const LIFT = 1.6;
 
 type Mode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit';
@@ -383,7 +383,7 @@ export class CityScene {
     const live = p.state === 'site' || p.state === 'needs';
     const building = live || p.state === 'construction';
     const quiet = p.state === 'done';
-    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#ef9a1a', updaters);
+    if (live) this.raise(outer, p.state === 'needs' ? '#e5484d' : '#3f8efc', updaters);
     let color = PALETTE[h % PALETTE.length];
     if (quiet) color = this.desat(color);
     const recent = p.state === 'recent';
@@ -467,6 +467,7 @@ export class CityScene {
     const crew = live ? `<span class="crew">${p.state === 'needs' ? 'hand raised' : `${sessions.length} on site`}</span>` : '';
     const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.tokens ? `<span class="tok">${compact(p.tokens)}</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
+    if (live) { const leader = document.createElement('i'); leader.className = 'leader'; bb.appendChild(leader); }
     bb.onclick = () => this.opts.onSelect(p.id);
     bb.onpointerenter = () => { this.hovered = p.id; };
     this.label(labels, bb, top, 0, 'bb', p.id);
@@ -477,7 +478,7 @@ export class CityScene {
   /** Lifts a lot with crew on site onto a lit plinth, with a pulsing ring on the street below. */
   private raise(outer: THREE.Group, accent: string, updaters: Updater[]) {
     const plinth = this.bx(8.4, 1, 8.4, this.tint(accent, 0.55), 0, 0, 0, outer);
-    const rimMat = new THREE.MeshBasicMaterial({ color: accent });
+    const rimMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true });
     const rim = new THREE.Group(); outer.add(rim);
     for (const [w, d, x, z] of [[8.6, 0.12, 0, 4.24], [8.6, 0.12, 0, -4.24], [0.12, 8.6, 4.24, 0], [0.12, 8.6, -4.24, 0]] as const) {
       const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, d), rimMat); bar.position.set(x, -0.05, z); rim.add(bar);
@@ -492,6 +493,7 @@ export class CityScene {
       ring.position.y = -y + 0.06;
       const k = (t * 0.6) % 1;
       ring.scale.setScalar(1 + k * 0.35); ringMat.opacity = 0.55 * (1 - k);
+      rimMat.opacity = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 5)); // blink
     });
   }
 
@@ -707,6 +709,7 @@ export class CityScene {
     this.renderer.render(this.scene, this.cam);
     const el = this.renderer.domElement, W = el.clientWidth, H = el.clientHeight;
     const zoomedIn = this.zoom > 1.4;
+    const raised: { L: Label; x: number; y: number }[] = [];
     for (const L of this.labels) {
       const st = L.el.dataset.state;
       let show = true;
@@ -723,8 +726,27 @@ export class CityScene {
       if (this.v.x < -1.2 || this.v.x > 1.2 || this.v.y < -1.2 || this.v.y > 1.2) { L.el.style.display = 'none'; continue; }
       L.el.style.display = '';
       const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
+      if (L.kind === 'bb' && (st === 'site' || st === 'needs')) { raised.push({ L, x, y }); continue; }
       L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       L.el.style.zIndex = String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
+    }
+    // Active projects: lift their name tags above the skyline on a dotted leader, and nudge them apart so none overlap.
+    raised.sort((a, b) => b.y - a.y);
+    const placed: { x: number; y: number; w: number; h: number }[] = [];
+    for (const r of raised) {
+      const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight + 8;
+      let y = r.y - 46;
+      for (let guard = 0, moved = true; moved && guard < 24; guard++) {
+        moved = false;
+        for (const q of placed) {
+          if (Math.abs(r.x - q.x) < (w + q.w) / 2 + 8 && y > q.y - q.h && y - h < q.y) { y = q.y - q.h - 6; moved = true; }
+        }
+      }
+      placed.push({ x: r.x, y, w, h });
+      r.L.el.style.transform = `translate(${r.x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      r.L.el.style.zIndex = String(5000 + Math.round(y));
+      const leader = r.L.el.querySelector('.leader') as HTMLElement | null;
+      if (leader) leader.style.height = `${Math.max(0, r.y - y - 6).toFixed(1)}px`;
     }
   };
 }
