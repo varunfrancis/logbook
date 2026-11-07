@@ -21,7 +21,7 @@ const LIFT = 1.6;
 
 type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
-type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'district'; pid: string };
+type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat' | 'hello' | 'district'; pid: string };
 type Slot = { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] };
 
 /** Nearest isometric corner view: π/4 + k·π/2. */
@@ -877,14 +877,14 @@ export class CityScene {
     if (nap) {
       const el = this.div('hello', `<b>${esc(nap.text)}</b><span>${esc(nap.sub)}</span>`);
       el.dataset.sid = s.id;
-      this.label(labels, el, anchor, 1.25, 'fx', pid);
+      this.label(labels, el, anchor, 1.25, 'hello', pid);
       setTimeout(() => el.remove(), (wokeAt !== null ? 60_000 : 30_000) - (Date.now() - nap.at));
     }
     const hello = !nap && arrivedAt !== null && Date.now() - arrivedAt < 90_000;
     if (hello) {
       const hi = this.div('hello', `<b>Hi, I’m ${esc(a.name)}!</b><span>New on site</span>`);
-      hi.dataset.sid = s.id;
-      this.label(labels, hi, anchor, 1.9, 'fx', pid);
+      hi.dataset.sid = s.id; hi.dataset.hi = esc(a.name);
+      this.label(labels, hi, anchor, 1.9, 'hello', pid);
       setTimeout(() => hi.remove(), 90_000 - (Date.now() - arrivedAt!));
     }
     if (s.chatter && !hello && !nap) {
@@ -1220,7 +1220,9 @@ export class CityScene {
     const raised: { L: Label; x: number; y: number }[] = [];
     const tags: { L: Label; x: number; y: number }[] = [];
     const chats: { L: Label; x: number; y: number }[] = [];
+    const hellos: { L: Label; x: number; y: number }[] = [];
     const plainNames: { L: Label; x: number; y: number }[] = [];
+    const signs: { L: Label; x: number; y: number }[] = []; // café / graveyard signs, "Shipped!" banners: greetings keep off them
     for (const L of this.labels) {
       const st = L.el.dataset.state;
       let show = true;
@@ -1253,10 +1255,12 @@ export class CityScene {
       if (L.kind === 'bb' && (st === 'site' || st === 'needs')) { raised.push({ L, x, y }); continue; }
       if (L.kind === 'tag') { tags.push({ L, x, y }); continue; }
       if (L.kind === 'chat') { chats.push({ L, x, y }); continue; }
+      if (L.kind === 'hello') { hellos.push({ L, x, y }); continue; }
       L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       L.el.style.transform = L.kind === 'district' ? `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)` : L.el.style.transform;
       L.el.style.zIndex = L.kind === 'district' ? '1' : String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
       if (L.kind === 'bb' && L.pid !== this.selected && L.pid !== this.hovered) plainNames.push({ L, x, y });
+      if (L.kind === 'fx') signs.push({ L, x, y });
     }
     // Resting crew at one site share a single tag ("4 on coffee break") instead of a pile of identical pills.
     // Hover or select the building to see each of them by name again.
@@ -1318,6 +1322,47 @@ export class CityScene {
     // Chat bubbles: one per site at a time, sitting just above the speaker's tag. A bubble that can't find clear
     // space is skipped this time rather than drawn over other labels. It gets another turn on its next cycle.
     const blockers = [...tagBoxes, ...placed];
+    const signBoxes = hellos.length || chats.length ? signs.map((r) => ({ x: r.x, y: r.y, w: r.L.el.offsetWidth, h: r.L.el.offsetHeight })) : [];
+    // Greetings ("Hi, I'm …! New on site", "… woke up!") go first: just above the agent's tag, stepping up past any
+    // project name or crew label in the way. If there's no room above, they drop below what they hit instead.
+    // One greeting per site: crew who arrive together (a burst of helpers) share one "N new crew!" bubble.
+    const overlaps = (x: number, y: number, w: number, h: number) => (q: { x: number; y: number; w: number; h: number }) => Math.abs(x - q.x) < (w + q.w) / 2 + 6 && y > q.y - q.h && y - h < q.y;
+    const hitAt = (x: number, y: number, w: number, h: number) => blockers.find(overlaps(x, y, w, h)) ?? signBoxes.find(overlaps(x, y, w, h));
+    const helloSites = new Map<string, { L: Label; x: number; y: number }[]>();
+    for (const r of hellos) { if (!r.L.el.isConnected) continue; const g = helloSites.get(r.L.pid) ?? []; g.push(r); helloSites.set(r.L.pid, g); }
+    for (const g of helloSites.values()) {
+      const lead = g.find((r) => r.L.el.dataset.hi === undefined) ?? g[0]; // a wake-up note wins over arrivals
+      for (const r of g) if (r !== lead) r.L.el.style.display = 'none';
+      const el = lead.L.el, r = lead;
+      if (el.dataset.hi !== undefined) {
+        const n = g.filter((q) => q.L.el.dataset.hi !== undefined).length;
+        const html = n > 1 ? `<b>${n} new crew!</b><span>New on site</span>` : `<b>Hi, I’m ${el.dataset.hi}!</b><span>New on site</span>`;
+        if (el.innerHTML !== html) el.innerHTML = html;
+      }
+      const own = tagBySid.get(el.dataset.sid ?? '');
+      const x = own ? own.x : r.x;
+      const w = el.offsetWidth, h = el.offsetHeight + 10;
+      const start = own ? own.y - own.h - 6 : r.y;
+      let y = start, ok = false;
+      for (let guard = 0; guard < 10; guard++) {
+        const hit = hitAt(x, y, w, h);
+        if (!hit) { ok = y - h >= 0; break; }
+        y = hit.y - hit.h - 6;
+        if (start - y > 160) break;
+      }
+      if (!ok) {
+        y = start;
+        for (let guard = 0; guard < 10; guard++) {
+          const hit = hitAt(x, y, w, h);
+          if (!hit) { ok = y <= H; break; }
+          y = hit.y + h + 6;
+          if (y - start > 160) break;
+        }
+      }
+      if (!ok) { el.style.display = 'none'; continue; }
+      blockers.push({ x, y, w, h });
+      el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+    }
     const chatSites = new Set<string>();
     chats.sort((a, b) => (a.L.pid === this.selected ? -1 : 0) - (b.L.pid === this.selected ? -1 : 0));
     for (const r of chats) {
@@ -1329,7 +1374,7 @@ export class CityScene {
       const start = own ? own.y - own.h - 4 : r.y;
       let y = start, ok = false;
       for (let guard = 0; guard < 8; guard++) {
-        const hit = blockers.find((q) => Math.abs(x - q.x) < (w + q.w) / 2 + 6 && y > q.y - q.h && y - h < q.y);
+        const hit = hitAt(x, y, w, h);
         if (!hit) { ok = true; break; }
         y = hit.y - hit.h - 4;
         if (start - y > 90) break; // drifting too far from the speaker: not worth it
