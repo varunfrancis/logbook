@@ -703,13 +703,14 @@ for (const el of document.querySelectorAll('[data-char]')) {
   if (!crew || !talk || !stage) return;
   crew.classList.add('talking');
   let i = 0, timer = 0;
-  // Each crew member babbles in their own voice: short sung syllables, no real words. Off until you turn it on.
+  // Each crew member murmurs in their own voice: muffled, speech-like talk with no real words. Off until you turn it on.
+  // pitch: voice in Hz · size: how big the "mouth" sounds (formants scale with it) · rate: syllables per second
   const VOICES = {
-    pip: { base: 300, wave: 'triangle', bright: 1.0, rate: 1.0 },
-    juno: { base: 400, wave: 'triangle', bright: 1.2, rate: 1.12 },
-    moss: { base: 240, wave: 'sine', bright: 0.85, rate: 0.9 },
-    rue: { base: 500, wave: 'triangle', bright: 1.35, rate: 1.2 },
-    bolt: { base: 185, wave: 'square', bright: 0.7, rate: 0.85 },
+    pip: { pitch: 175, size: 1.0, rate: 4.4 },
+    juno: { pitch: 235, size: 1.12, rate: 4.9 },
+    moss: { pitch: 150, size: 0.94, rate: 4.0 },
+    rue: { pitch: 280, size: 1.2, rate: 5.2 },
+    bolt: { pitch: 115, size: 0.86, rate: 3.7 },
   };
   let ac = null, hearing = false, babbleStop = () => {};
   try { hearing = localStorage.getItem('swarmville.hear') === '1'; } catch {}
@@ -726,30 +727,51 @@ for (const el of document.querySelectorAll('[data-char]')) {
     if (ac.state === 'suspended') ac.resume();
     return ac;
   }
+  // Vowel shapes (first two formants, Hz): ah, eh, ee, oh, oo, uh.
+  const VOWELS = [[750, 1200], [520, 1800], [330, 2200], [520, 900], [360, 800], [600, 1150]];
   function babble(who, text) {
     babbleStop();
     if (!hearing || document.hidden) return;
     const c = audio(); if (!c || c.state !== 'running') return;
     const v = VOICES[who] ?? VOICES.pip;
-    const out = c.createGain(); out.gain.value = 0.11; out.connect(c.destination);
-    const syllables = Math.min(18, Math.max(6, Math.round(text.replace(/[^a-z]/gi, '').length / 3.2)));
-    const FORMANTS = [650, 900, 1250, 1700, 2300];
-    let t = c.currentTime + 0.05;
-    const nodes = [];
+    // One continuous voice: a buzzy source shaped into vowels by two resonances, then muffled like a voice through a wall.
+    const src = c.createOscillator(); src.type = 'sawtooth';
+    const vib = c.createOscillator(), vibAmt = c.createGain(); vib.frequency.value = 5.2; vibAmt.gain.value = v.pitch * 0.012; vib.connect(vibAmt); vibAmt.connect(src.frequency);
+    const f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter(), g2 = c.createGain();
+    f1.type = f2.type = 'bandpass'; f1.Q.value = 5; f2.Q.value = 7; g2.gain.value = 0.55;
+    const muffle = c.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 1150; muffle.Q.value = 0.5;
+    const env = c.createGain(); env.gain.value = 0.0001;
+    const out = c.createGain(); out.gain.value = 0.55;
+    src.connect(f1); src.connect(f2); f2.connect(g2); f1.connect(muffle); g2.connect(muffle); muffle.connect(env); env.connect(out); out.connect(c.destination);
+    // Rhythm: syllables grouped into little words, the whole line fitting inside the bubble's time.
+    const letters = text.replace(/[^a-z]/gi, '').length;
+    const syllables = Math.min(Math.round(3.0 * v.rate), Math.max(7, Math.round(letters / 2.6)));
+    const t0 = c.currentTime + 0.06;
+    let t = t0, word = 0, wordLen = 1 + ((Math.random() * 3) | 0);
+    const P = (semi) => v.pitch * Math.pow(2, semi / 12);
+    src.frequency.setValueAtTime(P(2), t);
     for (let n = 0; n < syllables; n++) {
-      const dur = (0.075 + Math.random() * 0.05) / v.rate, gap = (0.02 + Math.random() * 0.035) / v.rate;
-      const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
-      const pitch = v.base * Math.pow(2, ((Math.random() * 7 - 3) + (n === syllables - 1 ? 3 : 0)) / 12); // last syllable lifts, like a question
-      o.type = v.wave;
-      o.frequency.setValueAtTime(pitch * 1.06, t); o.frequency.exponentialRampToValueAtTime(pitch, t + dur * 0.6);
-      f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.value = FORMANTS[(Math.random() * FORMANTS.length) | 0] * v.bright;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
-      nodes.push(o);
-      t += dur + gap;
-      if (n % 5 === 4) t += 0.08; // a little breath between phrases
+      const dur = (0.85 + Math.random() * 0.35) / v.rate;
+      const progress = n / syllables;
+      // Sentence melody: drifts down, little ups and downs per syllable, lifts at the very end.
+      const semi = 2 - progress * 3 + (Math.random() * 3 - 1.5) + (n >= syllables - 2 ? 3 : 0);
+      src.frequency.setTargetAtTime(P(semi), t, dur * 0.35);
+      const [a1, a2] = VOWELS[(Math.random() * VOWELS.length) | 0];
+      f1.frequency.setTargetAtTime(a1 * v.size, t, 0.035);
+      f2.frequency.setTargetAtTime(a2 * v.size, t, 0.035);
+      // Loudness: swell into the vowel, dip at the consonant between syllables.
+      env.gain.setTargetAtTime(0.9, t, 0.025);
+      env.gain.setTargetAtTime(0.18, t + dur * 0.72, 0.02);
+      t += dur;
+      if (++word >= wordLen) { // a tiny gap between "words"
+        env.gain.setTargetAtTime(0.0001, t - 0.01, 0.015);
+        t += 0.05 + Math.random() * 0.06;
+        word = 0; wordLen = 1 + ((Math.random() * 3) | 0);
+      }
     }
-    babbleStop = () => { for (const o of nodes) { try { o.stop(); } catch {} } out.disconnect(); babbleStop = () => {}; };
+    env.gain.setTargetAtTime(0.0001, t, 0.04);
+    src.start(t0); vib.start(t0); src.stop(t + 0.4); vib.stop(t + 0.4);
+    babbleStop = () => { try { env.gain.cancelScheduledValues(c.currentTime); env.gain.setTargetAtTime(0.0001, c.currentTime, 0.02); src.stop(c.currentTime + 0.1); vib.stop(c.currentTime + 0.1); } catch {} setTimeout(() => out.disconnect(), 200); babbleStop = () => {}; };
   }
   hearBtn.addEventListener('click', () => { if (!hearing) { audio(); setHearing(true); babble(lastSpeaker, lastLine); } else setHearing(false); });
   // Remembered as on: start as soon as the visitor first touches the page (browsers need a click before sound).
