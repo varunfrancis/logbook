@@ -138,8 +138,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .way { border: 2px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 12px; padding: 7px 12px; font: 800 13.5px var(--f-body); cursor: pointer; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
 .way:hover { color: var(--ink); border-color: var(--ink-3); }
 .way:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
-.not-mac { display: none; background: var(--say-bg); border: 2px solid var(--say-line); border-radius: 16px; padding: 12px 16px; font-size: 15px; max-width: 46ch; }
+/* not on a Mac (phones, mostly): one action that gets the link to their Mac, instead of Mac-only steps */
+.not-mac, .send-mac { display: none; }
+.not-mac { font-size: 15px; color: var(--ink-2); max-width: 34ch; margin: 0; }
+.not-mac b { color: var(--ink); }
 .is-other .not-mac { display: block; }
+.is-other .send-mac { display: inline-flex; }
+.is-other #open-claude, .is-other .how, .is-other .ways, .is-other .promises li:first-child { display: none; }
 
 .stage { position: relative; height: 380px; margin-top: 48px; }
 .stars { position: absolute; inset: 0 0 120px; opacity: var(--stars); pointer-events: none; transition: opacity .4s; }
@@ -342,6 +347,15 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   .moon { right: 20px; }
   .hide-sm { display: none !important; }
 }
+@media (max-width: 640px) {
+  .hero { padding-top: 36px; }
+  .hero h1 { font-size: 42px; }
+  .hero .sub { font-size: 17px; margin-top: 12px; max-width: 30ch; }
+  .start { margin-top: 24px; gap: 12px; }
+  .start .btn.big { width: 100%; max-width: 340px; }
+  .promises { gap: 4px 12px; font-size: 13px; }
+  .stage { height: 290px; margin-top: 0; }
+}
 
 /* motion */
 @media (prefers-reduced-motion: no-preference) {
@@ -412,7 +426,8 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   <p class="sub">Every Claude Code chat becomes a little character in your own town.</p>
 
   <div class="start" id="start">
-    <p class="not-mac">Swarmville is made for Mac. Open this page on your Mac to set it up.</p>
+    <a class="btn big send-mac" id="send-mac" href="#">Send it to my Mac</a>
+    <p class="not-mac">Swarmville runs on your <b>Mac</b>, set it up there.</p>
     <a class="btn big" id="open-claude" href="#">
       Set up with Claude
     </a>
@@ -749,6 +764,16 @@ document.getElementById('theme').addEventListener('click', () => {
 const ua = navigator.userAgent;
 const onMac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad|iPod/.test(ua) && navigator.maxTouchPoints < 2;
 if (!onMac) document.getElementById('start').classList.add('is-other');
+// Phones get the share sheet (AirDrop, Messages, Mail); anything else copies the link.
+document.getElementById('send-mac').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const el = e.currentTarget, url = location.origin + location.pathname;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Swarmville', text: 'Set up Swarmville on my Mac', url }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  copyText(url, el, 'Link copied! Open it on your Mac.');
+});
 
 // Toast + confetti
 const toast = document.getElementById('toast'); let toastTimer;
