@@ -72,6 +72,7 @@ export type ProjectView = {
   ghPrivate: boolean | null;
   ghPushedAt: number | null;
   description: string | null;
+  summary: string | null; // one plain sentence on what the project does
   lot: [number, number];
   district: string | null; // neighborhood of similar projects
   state: ProjectState;
@@ -136,6 +137,25 @@ export type AgentDetail = {
   claims: { claim: string; verdict: 'true' | 'partly' | 'false' | 'unknown'; evidence: string }[];
   waitedMs: number;
   segments: { start: number; end: number; kind: 'work' | 'wait' | 'idle' }[];
+  profile: AgentProfile;
+};
+
+/** An agent's track record over the last 30 days, for judging them like a teammate. */
+export type AgentProfile = {
+  days: number;
+  shifts: number;
+  finished: number;      // closed shifts that set out to change something (excludes "just a chat")
+  delivered: number;     // shipped or sent for review
+  shipped: number;
+  scrapped: number;      // scrapped or left unfinished
+  saves: number;         // commits
+  workMs: number;
+  interruptions: number; // times they stopped to ask you something or wait for your OK
+  waitedMs: number;
+  costUsd: number;
+  checksOk: number;
+  checksFail: number;
+  recent: { id: string; title: string; stamp: Stamp | null; live: boolean; at: number | null }[];
 };
 
 export type DayView = {

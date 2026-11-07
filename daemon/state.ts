@@ -282,6 +282,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
       id: p.id, name: n.name, repo: n.repo, nameSource: n.source,
       root: p.root, ghFull: p.gh_full, ghUrl: p.gh_url, ghPrivate: p.gh_private == null ? null : !!p.gh_private, ghPushedAt: p.gh_pushed_at,
       description: p.gh_description,
+      summary: p.summary ?? p.gh_description ?? null,
       lot: plan.cells.get(p.id) ?? [0, 0],
       district: districtOf.get(p.id) ?? null,
       state,
@@ -372,6 +373,37 @@ export function agentDetail(db: Db, state: StateView, live: Map<string, LiveEntr
     claims: claimsFor(s, v),
     waitedMs: segments.filter((g) => g.kind === 'wait').reduce((n, g) => n + (g.end - g.start), 0),
     segments,
+    profile: profileFor(db, key, live, state.town.owner),
+  };
+}
+
+function profileFor(db: Db, key: string, live: Map<string, LiveEntry>, owner: string): AgentDetail['profile'] {
+  const days = 30, since = Date.now() - days * 24 * 3600_000;
+  const rows = db.prepare('SELECT * FROM sessions WHERE agent_key = ? AND COALESCE(last_event_at, started_at) >= ? ORDER BY COALESCE(last_event_at, started_at) DESC').all(key, since) as Row[];
+  const ids = rows.map((r) => r.id), ph = ids.map(() => '?').join(',');
+  const segs = ids.length ? (db.prepare(`SELECT kind, SUM(end - start) ms, COUNT(*) n FROM segments WHERE session_id IN (${ph}) GROUP BY kind`).all(...ids) as Row[]) : [];
+  const seg = (k: string) => segs.find((g) => g.kind === k) ?? { ms: 0, n: 0 };
+  const closed = rows.filter((r) => !live.has(r.id) && r.stamp);
+  // Projects with no GitHub remote can't ship or open a review, so a saved commit is as delivered as it gets there.
+  const localOnly = new Set((db.prepare('SELECT id FROM projects WHERE remote IS NULL AND gh_full IS NULL').all() as Row[]).map((r) => r.id));
+  const isDelivered = (r: Row) => r.stamp === 'shipped' || r.stamp === 'review' || (r.stamp === 'saved' && localOnly.has(r.project_id));
+  const finished = closed.filter((r) => r.stamp !== 'chat');
+  const sum = (f: (r: Row) => number) => rows.reduce((n, r) => n + (f(r) || 0), 0);
+  return {
+    days,
+    shifts: rows.length,
+    finished: finished.length,
+    delivered: finished.filter(isDelivered).length,
+    shipped: finished.filter((r) => r.stamp === 'shipped').length,
+    scrapped: finished.filter((r) => r.stamp === 'scrapped' || r.stamp === 'unfinished').length,
+    saves: sum((r) => r.commits),
+    workMs: seg('work').ms || 0,
+    interruptions: (seg('wait').n || 0) + sum((r) => r.asks),
+    waitedMs: seg('wait').ms || 0,
+    costUsd: sum((r) => costOf(db, r).usd),
+    checksOk: sum((r) => r.tests_ok),
+    checksFail: sum((r) => r.tests_fail),
+    recent: rows.slice(0, 5).map((r) => ({ id: r.id, title: toSessionView(db, r, live.get(r.id), Date.now(), owner).title, stamp: live.has(r.id) ? null : r.stamp ?? null, live: live.has(r.id), at: r.ended_at ?? r.last_event_at ?? null })),
   };
 }
 

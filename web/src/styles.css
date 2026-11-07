@@ -469,3 +469,37 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
   .city-actions { top: auto; bottom: 80px; }
   .seg-toggle { display: none; }
 }
+
+/* Agent profile: scorecard first, then who they are and what they're on. */
+.scorecard { display: flex; flex-direction: column; gap: 8px; }
+.verdict-line { font-weight: 800; font-size: 14px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.verdict-line.g-good { background: color-mix(in srgb, #2f9e66 16%, transparent); color: #1f7a4d; }
+.verdict-line.g-ok { background: color-mix(in srgb, #f5b301 18%, transparent); color: #8a6200; }
+.verdict-line.g-bad { background: color-mix(in srgb, #e5484d 15%, transparent); color: #b42318; }
+.scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.loading-scores { height: 96px; }
+.score { display: flex; flex-direction: column; gap: 3px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); border-top: 4px solid var(--line); background: var(--surface); }
+.score.g-good { border-top-color: #2f9e66; } .score.g-ok { border-top-color: #f5b301; } .score.g-bad { border-top-color: #e5484d; }
+.score-label { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.score-value { font-family: var(--f-display); font-size: 20px; line-height: 1.1; }
+.score.g-good .score-value { color: #1f7a4d; } .score.g-bad .score-value { color: #b42318; }
+.score-note { font-size: 11.5px; color: var(--ink-2); line-height: 1.3; }
+.profile-block { display: flex; flex-direction: column; gap: 4px; }
+.profile-block h3 { margin: 0; }
+.link.strong { font-size: 15px; font-weight: 800; color: var(--ink); text-decoration: none; align-self: flex-start; }
+.one-liner { margin: 0; font-size: 14px; line-height: 1.45; }
+.one-liner.latest { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.recent-jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.recent-jobs li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.recent-jobs .rj-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.stamp.st-live { color: var(--run); border-color: var(--run); }
+.small-stats dd { font-size: 16px; }
+.shift-detail { border-top: 1px solid var(--line); padding-top: 10px; }
+.shift-detail > summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--ink-2); }
+.shift-detail[open] > summary { margin-bottom: 10px; }
+.shift-detail section { margin-bottom: 12px; }
+.pill.s-away { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink-2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .verdict-line.g-good, :root:not([data-theme="light"]) .score.g-good .score-value { color: #6fd39c; } :root:not([data-theme="light"]) .verdict-line.g-ok { color: #f5c542; } :root:not([data-theme="light"]) .verdict-line.g-bad, :root:not([data-theme="light"]) .score.g-bad .score-value { color: #ff8a8e; } }
+:root[data-theme="dark"] .verdict-line.g-good, :root[data-theme="dark"] .score.g-good .score-value { color: #6fd39c; } :root[data-theme="dark"] .verdict-line.g-ok { color: #f5c542; } :root[data-theme="dark"] .verdict-line.g-bad, :root[data-theme="dark"] .score.g-bad .score-value { color: #ff8a8e; }
+.chips-sm .pill { color: #fff; }
+.chips-sm .pill.s-away { color: var(--ink-2); }

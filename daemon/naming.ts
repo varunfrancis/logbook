@@ -87,6 +87,35 @@ export async function nameNextProject(db: Db): Promise<boolean> {
   }
 }
 
+/** One plain sentence on what a project does, for agent profiles and project cards. One project per call. */
+export async function summarizeNextProject(db: Db): Promise<boolean> {
+  if (running) return false;
+  const p = db.prepare(`SELECT * FROM projects WHERE summary IS NULL AND root IS NOT NULL AND display_name IS NOT NULL AND (summary_tried_at IS NULL OR summary_tried_at < ?)
+    ORDER BY COALESCE(last_activity, 0) DESC LIMIT 1`).get(Date.now() - 24 * 3600_000) as Row | undefined;
+  if (!p) return false;
+  running = true;
+  try {
+    const recent = (db.prepare('SELECT ai_title, first_prompt FROM sessions WHERE project_id = ? ORDER BY last_event_at DESC LIMIT 6').all(p.id) as Row[])
+      .map((r) => `- ${(r.ai_title || '').slice(0, 60)} ${(r.first_prompt || '').replace(/\s+/g, ' ').slice(0, 140)}`).join('\n');
+    const prompt = [
+      'Describe this software project in ONE plain-English sentence of at most 14 words, for a non-technical reader.',
+      'Say what it does for people. No marketing words, no tech stack, no quotes. Reply with only the sentence.',
+      `Project name: ${p.display_name}`,
+      p.gh_description ? `GitHub description: ${p.gh_description}` : '',
+      pkgDescription(p.root) ? `package.json: ${pkgDescription(p.root)}` : '',
+      readSnippet(p.root) ? `README excerpt:\n${readSnippet(p.root).slice(0, 1200)}` : '',
+      recent ? `Recent work requests:\n${recent}` : '',
+    ].filter(Boolean).join('\n');
+    const raw = await askClaude(prompt);
+    const line = raw?.split('\n').map((l) => l.trim()).filter(Boolean).pop()?.replace(/^["'`]|["'`]$/g, '') ?? null;
+    const ok = line && line.length <= 140 && line.split(/\s+/).length <= 22 ? line : null;
+    db.prepare('UPDATE projects SET summary_tried_at = ?, summary = COALESCE(?, summary) WHERE id = ?').run(Date.now(), ok, p.id);
+    return !!ok;
+  } finally {
+    running = false;
+  }
+}
+
 export function renameProject(db: Db, id: string, name: string | null) {
   const n = name?.trim().slice(0, 40) || null;
   db.prepare('UPDATE projects SET display_name = ?, display_source = ? WHERE id = ?').run(n, n ? 'user' : null, id);

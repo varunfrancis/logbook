@@ -213,3 +213,15 @@ test('town labels say what an agent is doing in 2-3 words', async () => {
   assert.equal(shortDoing({ status: 'idle', away: true, action: null }), 'napping');
   assert.equal(shortDoing({ status: 'needs_input', action: 'x' }), 'needs you');
 });
+
+test('agent scorecard: deliver, work on their own, value for money', async () => {
+  const { scorecard } = await import('../web/src/crew/scorecard.ts');
+  const base = { days: 30, shifts: 6, finished: 5, delivered: 4, shipped: 3, scrapped: 1, saves: 9, workMs: 5 * 3600_000, interruptions: 2, waitedMs: 600_000, costUsd: 12, checksOk: 8, checksFail: 1, recent: [] };
+  const good = scorecard(base);
+  assert.deepEqual(good.scores.map((s) => s.grade), ['good', 'good', 'good']);
+  assert.equal(good.verdict.grade, 'good');
+  const bad = scorecard({ ...base, delivered: 0, shipped: 0, scrapped: 4, interruptions: 40, costUsd: 90 });
+  assert.equal(bad.scores[0].grade, 'bad'); assert.equal(bad.scores[1].grade, 'bad'); assert.equal(bad.verdict.grade, 'bad');
+  const fresh = scorecard({ ...base, shifts: 1, finished: 0, delivered: 0, workMs: 5 * 60_000, interruptions: 0 });
+  assert.equal(fresh.verdict.grade, 'none');
+});
