@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Db, Row } from './db.ts';
 import { kvGet, kvSet } from './db.ts';
-import { DATA_DIR } from './config.ts';
+import { DATA_DIR, OWN_MARK } from './config.ts';
 
 /* Plain-English project names ("Support Bot", "Sales Training") and the town's name. */
 
@@ -57,7 +57,7 @@ export function askClaude(prompt: string): Promise<string | null> {
   const cwd = path.join(DATA_DIR, 'namer');
   fs.mkdirSync(cwd, { recursive: true });
   return new Promise((resolve) => {
-    execFile(bin, ['-p', '--model', 'haiku', '--no-session-persistence', '--output-format', 'text', prompt], {
+    execFile(bin, ['-p', '--model', 'haiku', '--no-session-persistence', '--output-format', 'text', `${OWN_MARK}\n${prompt}`], {
       cwd, timeout: 90_000, env: { ...process.env, LOGBOOK_DISABLE: '1' }, maxBuffer: 1 << 20,
     }, (err, stdout, stderr) => {
       if (err) console.error('[logbook] naming: claude failed:', String(err.message).slice(0, 200), String(stderr).slice(0, 300));

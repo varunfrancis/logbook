@@ -550,3 +550,21 @@ test('current job label: follow-ups keep the label, real replies are tidied, jun
   assert.equal(parseFocusReply('Here is a long rambling answer that is clearly not a short label at all'), null);
   assert.equal(parseFocusReply(null), null);
 });
+
+test("Logbook's own background runs never become projects, even after a test folder is gone", async () => {
+  const { purgeOwnRuns } = await import('../daemon/transcripts.ts');
+  const { OWN_MARK } = await import('../daemon/config.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  db.prepare('INSERT INTO projects(id, name, root) VALUES(?, ?, ?)').run('local:/gone/tmp/lbdata/namer', 'namer', '/gone/tmp/lbdata/namer');
+  db.prepare('INSERT INTO projects(id, name, root) VALUES(?, ?, ?)').run('local:/w/app', 'app', '/w/app');
+  const ins = db.prepare('INSERT INTO sessions(id, project_id, first_prompt) VALUES(?, ?, ?)');
+  ins.run('own-new', 'local:/gone/tmp/lbdata/namer', `${OWN_MARK}\nYou name software projects…`);
+  ins.run('own-old', 'local:/gone/tmp/lbdata/namer', 'You name software projects for non-technical people.\nReply with ONLY…');
+  ins.run('real', 'local:/w/app', 'Describe the bug in the login page');
+  assert.equal(purgeOwnRuns(db), 2);
+  assert.deepEqual((db.prepare('SELECT id FROM sessions').all() as any[]).map((r) => r.id), ['real']);
+  assert.deepEqual((db.prepare('SELECT id FROM projects ORDER BY id').all() as any[]).map((r) => r.id), ['local:/w/app']);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
