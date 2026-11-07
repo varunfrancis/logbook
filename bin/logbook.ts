@@ -90,6 +90,42 @@ function uninstallDaemon() {
   console.log('Daemon login item removed.');
 }
 
+const VSCODE_CLI = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+
+/** Packages the tiny VS Code helper as a .vsix and installs it with VS Code's own CLI. */
+function installVscode() {
+  const cli = fs.existsSync(VSCODE_CLI) ? VSCODE_CLI : null;
+  if (!cli) return console.log('VS Code not found in /Applications. Skipping the VS Code helper.');
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'vscode', 'package.json'), 'utf8'));
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'logbook-vsix-'));
+  fs.mkdirSync(path.join(stage, 'extension'));
+  for (const f of ['package.json', 'extension.js']) fs.copyFileSync(path.join(REPO, 'vscode', f), path.join(stage, 'extension', f));
+  fs.writeFileSync(path.join(stage, '[Content_Types].xml'), '<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension=".json" ContentType="application/json"/><Default Extension=".js" ContentType="application/javascript"/><Default Extension=".vsixmanifest" ContentType="text/xml"/></Types>');
+  fs.writeFileSync(path.join(stage, 'extension.vsixmanifest'), `<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Language="en-US" Id="${pkg.name}" Version="${pkg.version}" Publisher="${pkg.publisher}"/>
+    <DisplayName>${pkg.displayName}</DisplayName>
+    <Description xml:space="preserve">${pkg.description.replace(/"/g, '&quot;')}</Description>
+    <Categories>Other</Categories>
+    <Properties>
+      <Property Id="Microsoft.VisualStudio.Code.Engine" Value="${pkg.engines.vscode}" />
+      <Property Id="Microsoft.VisualStudio.Code.ExtensionKind" Value="ui,workspace" />
+    </Properties>
+  </Metadata>
+  <Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation>
+  <Dependencies/>
+  <Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" /></Assets>
+</PackageManifest>`);
+  fs.mkdirSync(DATA, { recursive: true });
+  const vsix = path.join(DATA, `${pkg.name}-${pkg.version}.vsix`);
+  fs.rmSync(vsix, { force: true });
+  execFileSync('zip', ['-qr', vsix, '.'], { cwd: stage });
+  execFileSync(cli, ['--install-extension', vsix, '--force'], { stdio: 'inherit' });
+  fs.rmSync(stage, { recursive: true, force: true });
+  console.log('VS Code helper installed. Reload open VS Code windows (Command Palette → "Developer: Reload Window") so they pick it up.');
+}
+
 function build() {
   if (!fs.existsSync(path.join(REPO, 'web', 'dist', 'index.html'))) {
     console.log('Building the web UI…');
@@ -116,14 +152,16 @@ async function status() {
 const cmd = process.argv[2] ?? 'help';
 switch (cmd) {
   case 'install':
-    build(); installHooks(); installDaemon();
+    build(); installHooks(); installDaemon(); try { installVscode(); } catch (e: any) { console.log(`VS Code helper not installed: ${e.message}`); }
     console.log(`\nOpen http://localhost:${PORT}  (new Claude sessions report in real time; existing ones are picked up from their transcripts)`);
     break;
   case 'uninstall':
     uninstallHooks(); uninstallDaemon();
+    if (fs.existsSync(VSCODE_CLI)) { try { execFileSync(VSCODE_CLI, ['--uninstall-extension', 'logbook.logbook-jump'], { stdio: 'ignore' }); console.log('VS Code helper removed.'); } catch {} }
     console.log(`Your data in ${DATA} was left in place. Delete it to remove everything.`);
     break;
   case 'hooks': installHooks(); break;
+  case 'vscode': installVscode(); break;
   case 'start':
     build();
     spawn(process.execPath, ['--no-warnings', path.join(REPO, 'daemon', 'server.ts')], { stdio: 'inherit' });
@@ -137,5 +175,6 @@ switch (cmd) {
   logbook start       run the daemon in the foreground
   logbook open        open http://localhost:${PORT}
   logbook status      list live agents in the terminal
+  logbook vscode      install the VS Code helper so "Go to" opens the right terminal
   logbook uninstall   remove hooks and the login item (keeps ~/.logbook)`);
 }

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import type { ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
+import type { GraveEntry, ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
+import { buildCrew, type CrewMode } from './crew3d.ts';
+import type { Mood } from '../crew/Avatar.tsx';
 import { compact } from '../format.ts';
 
 // Pastel colors as authored (matches the prototype); no linear-space conversion.
@@ -13,13 +15,12 @@ THREE.ColorManagement.enabled = false;
 
 const LOT = 8, ROAD = 3, PITCH = LOT + ROAD, FH = 1.1, BASE = 0.24;
 const PALETTE = ['#f4b183', '#9fd9c6', '#b8a7e8', '#f6d36b', '#9cc7f0', '#f5a3b5', '#a8d8a0', '#f2c38b', '#c6b8f0', '#8fd3d9'];
-const VEST = ['#ff7a45', '#3f8efc', '#9b6bff', '#14b8a6', '#f472b6', '#f5b301', '#ef4444', '#22c55e'];
 const STATE_DOT: Record<string, string> = { site: '#17c3c3', needs: '#e5484d', construction: '#f5c542', recent: '#2f9e66', done: '#8a9099', lot: '#a8794f' };
 const LIFT = 1.6;
 
-type Mode = 'hammer' | 'walk' | 'carry' | 'read' | 'wave' | 'sit';
+type Mode = CrewMode;
 type Updater = (t: number, dt: number) => void;
-type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx'; pid: string };
+type Label = { el: HTMLElement; obj: THREE.Object3D; dy: number; kind: 'bb' | 'tag' | 'fx' | 'chat'; pid: string };
 
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
@@ -37,7 +38,7 @@ function modeFor(s: SessionView): Mode {
   }
 }
 
-export type CityOptions = { onSelect: (id: string | null) => void; onHover?: (id: string | null) => void };
+export type CityOptions = { onSelect: (id: string | null) => void; onAgent?: (sessionId: string) => void; onHover?: (id: string | null) => void };
 
 export class CityScene {
   private renderer: THREE.WebGLRenderer;
@@ -68,6 +69,11 @@ export class CityScene {
   private ray = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
   private disposeFns: (() => void)[] = [];
+  private chatEls = new Map<string, HTMLElement>();
+  private graveGroup: THREE.Group | null = null;
+  private graveLabels: Label[] = [];
+  private graveKey = '';
+  private elapsed = 0;
 
   private container: HTMLElement;
   private labelLayer: HTMLElement;
@@ -75,7 +81,7 @@ export class CityScene {
 
   constructor(container: HTMLElement, labelLayer: HTMLElement, opts: CityOptions) {
     this.container = container; this.labelLayer = labelLayer; this.opts = opts;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -114,21 +120,24 @@ export class CityScene {
   setState(data: StateView, showLots: boolean) {
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
-    for (const s of data.sessions) if (s.status !== 'ended' && s.projectId) {
+    for (const s of data.sessions) if (s.status !== 'ended' && !s.away && s.projectId) {
       if (!byProject.has(s.projectId)) byProject.set(s.projectId, []);
       byProject.get(s.projectId)!.push(s);
     }
     // ground
     const xs = visible.map((p) => p.lot[0]), zs = visible.map((p) => p.lot[1]);
     const b = xs.length ? { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) } : { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+    if (data.graveyard?.length) b.minX -= 1; // room for the graveyard at the edge of town
     const gk = JSON.stringify(b) + this.dark;
-    if (gk !== this.groundKey) { this.groundKey = gk; this.bounds = b; this.buildGround(); }
+    if (gk !== this.groundKey) { this.groundKey = gk; this.bounds = b; this.buildGround(); this.graveKey = ''; }
+    const grk = JSON.stringify((data.graveyard ?? []).map((e) => e.sessionId)) + this.groundKey;
+    if (grk !== this.graveKey) { this.graveKey = grk; this.buildGraveyard(data.graveyard ?? []); }
     // buildings
     const seen = new Set<string>();
     for (const p of visible) {
       seen.add(p.id);
       const sessions = (byProject.get(p.id) ?? []).sort((a, c) => a.id.localeCompare(c.id));
-      const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.tokens > 0 ? compact(p.tokens) : '', sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.title])]);
+      const key = JSON.stringify([p.state, p.floors, p.lot, p.name, p.prState, p.justShipped, p.stuck, p.checksFailing, p.justMerged, p.bricks, sessions.map((s) => [s.id, modeFor(s), s.helperActive, s.agent.title, !!s.stuck, !!s.chatter])]);
       const prev = this.buildings.get(p.id);
       if (prev && prev.key === key) continue;
       const celebrate = !!prev && (prev.state === 'site' || prev.state === 'needs') && !(p.state === 'site' || p.state === 'needs');
@@ -137,6 +146,7 @@ export class CityScene {
       if (celebrate) this.confetti(p);
     }
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
+    for (const s of data.sessions) { const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== s.chatter) el.textContent = s.chatter; }
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
   }
 
@@ -191,14 +201,22 @@ export class CityScene {
     this.sun.target.position.copy(this.target);
   }
 
-  private pick(clientX: number, clientY: number): string | null {
+  private pickAny(clientX: number, clientY: number): { kind: 'project' | 'agent'; id: string } | null {
     const r = this.renderer.domElement.getBoundingClientRect();
     this.ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(this.ndc, this.cam);
-    const hit = this.ray.intersectObjects([...this.buildings.values()].map((b) => b.group), true)[0];
+    const roots = [...this.buildings.values()].map((b) => b.group as THREE.Object3D);
+    if (this.graveGroup) roots.push(this.graveGroup);
+    const hit = this.ray.intersectObjects(roots, true)[0];
     let o: THREE.Object3D | null = hit?.object ?? null;
-    while (o && !o.userData.pid) o = o.parent;
-    return (o?.userData.pid as string) ?? null;
+    while (o && !o.userData.pid && !o.userData.sid) o = o.parent;
+    if (o?.userData.sid) return { kind: 'agent', id: o.userData.sid };
+    if (o?.userData.pid) return { kind: 'project', id: o.userData.pid };
+    return null;
+  }
+  private pick(clientX: number, clientY: number): string | null {
+    const h = this.pickAny(clientX, clientY);
+    return h?.kind === 'project' ? h.id : null;
   }
 
   private bindInput() {
@@ -240,7 +258,10 @@ export class CityScene {
     const up = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = 0;
-      if (drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) this.opts.onSelect(this.pick(e.clientX, e.clientY));
+      if (drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) {
+        const h = this.pickAny(e.clientX, e.clientY);
+        if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id); else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
+      }
       drag = null;
     };
     const wheel = (e: WheelEvent) => { e.preventDefault(); this.zoomBy(e.deltaY > 0 ? 0.9 : 1.1); };
@@ -361,7 +382,7 @@ export class CityScene {
     const b = this.buildings.get(id);
     if (!b) return;
     this.freeObject(b.group);
-    for (const l of b.labels) l.el.remove();
+    for (const l of b.labels) { l.el.remove(); if (l.kind === 'chat') for (const [k, v] of this.chatEls) if (v === l.el) this.chatEls.delete(k); }
     this.labels = this.labels.filter((l) => !b.labels.includes(l));
     this.buildings.delete(id);
   }
@@ -453,19 +474,24 @@ export class CityScene {
     const used = new Set<number>();
     sessions.forEach((s, i) => {
       const mode = modeFor(s);
-      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6] };
+      const pref: Record<Mode, number[]> = { hammer: [0, 4, 6], walk: [1, 7, 5], read: [2, 6, 5], carry: [3, 7, 5], wave: [5, 8, 6], sit: [8, 9, 5, 6], stuck: [0, 4, 6] };
       let idx = pref[mode].find((k) => !used.has(k) && slots[k]);
       if (idx === undefined) idx = slots.findIndex((sl, k) => sl && !used.has(k));
       if (idx === -1 || idx === undefined) idx = 9 + i;
       used.add(idx);
       const slot = slots[idx] ?? { pos: [(i % 3) - 1, 0, d / 2 + 2.2] as [number, number, number], face: Math.PI / 4 };
-      this.builder(g, p.id, s, mode, slot, VEST[hash(s.id) % VEST.length], updaters, labels);
+      this.builder(g, p.id, s, mode, slot, updaters, labels);
     });
+
+    // weather and events
+    if (p.stuck) this.rainCloud(g, (live || building ? roofY + 4.2 : roofY + 3), updaters);
+    if (p.checksFailing && !isLot) this.fire(g, roofY, w, d, updaters);
+    if (p.justMerged && !isLot) this.fireworks(g, roofY + 2, updaters);
 
     // billboard
     const pr = p.prState === 'merged' ? '<span class="pr merged">merged</span>' : p.prState === 'open' ? '<span class="pr open">PR open</span>' : '';
     const crew = live ? `<span class="crew">${p.state === 'needs' ? 'hand raised' : `${sessions.length} on site`}</span>` : '';
-    const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.tokens ? `<span class="tok">${compact(p.tokens)}</span>` : ''}${pr}`);
+    const bb = this.div('bb', `<span class="d" style="background:${STATE_DOT[p.state]}"></span><b>${esc(p.name)}</b>${crew}${p.bricks ? `<span class="tok">${compact(p.bricks)} bricks</span>` : ''}${pr}`);
     bb.dataset.state = p.state;
     if (live) { const leader = document.createElement('i'); leader.className = 'leader'; bb.appendChild(leader); }
     bb.onclick = () => this.opts.onSelect(p.id);
@@ -598,83 +624,121 @@ export class CityScene {
     return s;
   }
 
-  private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] }, color: string, updaters: Updater[], labels: Label[]) {
-    if (mode === 'walk' && !slot.walk) mode = 'hammer';
-    if (mode === 'carry' && !slot.walk) mode = 'hammer';
-    const g = new THREE.Group(); g.position.set(...slot.pos); g.rotation.y = mode === 'wave' ? Math.PI / 4 : slot.face; g.scale.setScalar(1.3); parent.add(g);
-    g.userData.pid = pid;
-    const body = new THREE.Group(); g.add(body);
-    const legL = this.bx(0.14, 0.34, 0.16, '#34405a', -0.08, 0, 0, body), legR = this.bx(0.14, 0.34, 0.16, '#34405a', 0.08, 0, 0, body);
-    this.bx(0.44, 0.42, 0.28, color, 0, 0.34, 0, body);
-    this.bx(0.45, 0.06, 0.29, '#fff2a8', 0, 0.5, 0, body);
-    this.mesh(new THREE.SphereGeometry(0.17, 14, 10), '#f2c59a', 0, 0.93, 0, body);
-    this.bx(0.035, 0.05, 0.02, '#1d232c', -0.06, 0.9, 0.165, body); this.bx(0.035, 0.05, 0.02, '#1d232c', 0.06, 0.9, 0.165, body);
-    this.mesh(new THREE.SphereGeometry(0.19, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#ffc928', 0, 0.98, 0, body);
-    this.mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 16), '#ffc928', 0, 0.98, 0.03, body);
-    const armR = new THREE.Group(); armR.position.set(0.28, 0.72, 0); body.add(armR);
-    const armL = new THREE.Group(); armL.position.set(-0.28, 0.72, 0); body.add(armL);
-    this.bx(0.11, 0.36, 0.11, color, 0, -0.36, 0, armR); this.bx(0.11, 0.36, 0.11, color, 0, -0.36, 0, armL);
-    const hammer = new THREE.Group(); hammer.position.set(0, -0.34, 0); armR.add(hammer);
-    this.bx(0.05, 0.05, 0.34, '#8b5a2b', 0, -0.02, 0.16, hammer); this.bx(0.1, 0.17, 0.1, '#6b7480', 0, -0.08, 0.32, hammer);
-    hammer.visible = mode === 'hammer';
-    if (mode === 'read') { const bp = this.bx(0.56, 0.02, 0.4, '#4a80d6', 0, 0.6, 0.42, body); bp.rotation.x = -0.5; }
-    if (mode === 'carry') this.bx(0.38, 0.26, 0.3, '#c27a4a', 0, 0.56, 0.36, body);
-    let mug: THREE.Mesh | null = null;
-    if (mode === 'sit') {
-      this.bx(0.5, 0.3, 0.4, '#a8774c', 0, 0, -0.12, g); // crate seat
-      body.position.y = 0.16;
-      legL.rotation.x = legR.rotation.x = -1.3;
-      legL.position.z = legR.position.z = 0.1;
-      mug = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), '#ffffff', 0, -0.36, 0.06, armR);
-    }
-    // helper drone for active subagents
-    let drone: THREE.Group | null = null;
+  private builder(parent: THREE.Object3D, pid: string, s: SessionView, mode: Mode, slot: { pos: [number, number, number]; face: number; walk?: [[number, number, number], [number, number, number]] }, updaters: Updater[], labels: Label[]) {
+    if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
+    const a = s.agent;
+    const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.status === 'idle' ? 'break' : 'working';
+    const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c));
+    const g = crew.root;
+    g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(1.35);
+    g.userData.sid = s.id;
+    parent.add(g);
+    // helpers: a half-size copy of the agent tagging along
+    let helper: ReturnType<typeof buildCrew> | null = null;
     if (s.helperActive) {
-      drone = new THREE.Group(); parent.add(drone);
-      this.bx(0.3, 0.14, 0.3, '#e8ecf2', 0, 0, 0, drone);
-      this.bx(0.08, 0.06, 0.02, '#3f8efc', 0, 0.04, 0.16, drone);
-      const prop = this.bx(0.6, 0.02, 0.06, '#59616b', 0, 0.18, 0, drone);
-      updaters.push((t) => { prop.rotation.y = t * 25; });
+      helper = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: 'none', mood: 'working', mode: 'walk' }, (c) => this.m(c));
+      helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
-    const anchor = new THREE.Object3D(); anchor.position.y = 1.35; g.add(anchor);
-    const tag = this.div('tag', esc(s.title));
-    this.label(labels, tag, anchor, 0.42, 'tag', pid);
+    const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
+    this.label(labels, this.div('tag', esc(a.title)), anchor, 0.42, 'tag', pid);
     if (mode === 'wave') this.label(labels, this.div('bubble', '!'), anchor, 0, 'fx', pid);
-    if (mode === 'sit') this.label(labels, this.div('steam', '☕'), anchor, -0.2, 'fx', pid).classList.add('hidden-until-zoom');
-
+    if (s.chatter) {
+      const chat = this.div('chat', esc(s.chatter));
+      chat.dataset.seed = String(hash(s.id) % 997);
+      this.label(labels, chat, anchor, 0.95, 'chat', pid);
+      this.chatEls.set(s.id, chat);
+    }
     const ph = (hash(s.id) % 1000) / 100;
     const pa = slot.walk ? new THREE.Vector3(...slot.walk[0]) : null, pb = slot.walk ? new THREE.Vector3(...slot.walk[1]) : null;
     updaters.push((t) => {
       const k = t + ph;
-      if (mode === 'hammer') {
-        const a = Math.abs(Math.sin(k * 2.6));
-        armR.rotation.x = -0.7 - a * 1.5; body.position.y = a * 0.03; armL.rotation.x = -0.2;
-      } else if ((mode === 'walk' || mode === 'carry') && pa && pb) {
+      if ((mode === 'walk' || mode === 'carry') && pa && pb) {
         const u = (Math.sin(k * 0.55) + 1) / 2, dir = Math.cos(k * 0.55);
         g.position.lerpVectors(pa, pb, u);
         const dx = pb.x - pa.x, dz = pb.z - pa.z;
         g.rotation.y = Math.atan2(dir > 0 ? dx : -dx, dir > 0 ? dz : -dz);
-        body.position.y = Math.abs(Math.sin(k * 5)) * 0.06;
-        legL.rotation.x = Math.sin(k * 5) * 0.5; legR.rotation.x = -Math.sin(k * 5) * 0.5;
-        if (mode === 'carry') armR.rotation.x = armL.rotation.x = -1.35;
-        else { armR.rotation.x = -Math.sin(k * 5) * 0.5; armL.rotation.x = Math.sin(k * 5) * 0.5; }
-      } else if (mode === 'wave') {
-        armR.rotation.z = 2.5 + Math.sin(k * 8) * 0.45;
-        body.position.y = Math.max(0, Math.sin(k * 4)) * 0.12;
-      } else if (mode === 'read') {
-        armR.rotation.x = armL.rotation.x = -1.15;
-        body.rotation.x = Math.sin(k * 1.2) * 0.06; body.rotation.y = Math.sin(k * 0.7) * 0.25;
-      } else if (mode === 'sit' && mug) {
-        const sip = Math.max(0, Math.sin(k * 0.8)) ** 4;
-        armR.rotation.x = -0.9 - sip * 1.2;
-        body.rotation.y = Math.sin(k * 0.3) * 0.15;
       }
-      if (drone) {
-        drone.position.set(g.position.x + Math.cos(k * 1.3) * 0.9, g.position.y + 2.1 + Math.sin(k * 3) * 0.12, g.position.z + Math.sin(k * 1.3) * 0.9);
-        drone.rotation.y = -k * 1.3;
+      crew.update(t);
+      if (helper) {
+        helper.root.position.set(g.position.x + Math.cos(k * 1.1) * 1.1, g.position.y, g.position.z + Math.sin(k * 1.1) * 1.1);
+        helper.root.rotation.y = -k * 1.1 + Math.PI;
+        helper.update(t * 1.3);
       }
     });
+    return g;
   }
+
+  /** Grey rain cloud over a building whose crew is stuck. */
+  private rainCloud(parent: THREE.Object3D, y: number, updaters: Updater[]) {
+    const c = new THREE.Group(); c.position.set(0, y, 0); parent.add(c);
+    for (const [x, z, r] of [[-0.9, 0, 0.7], [0, 0.2, 0.95], [0.9, -0.1, 0.65], [0.3, -0.5, 0.6]] as const) {
+      const s = this.mesh(new THREE.IcosahedronGeometry(r, 1), '#7d8796', x, 0, z, c); s.castShadow = false;
+    }
+    const drops: THREE.Mesh[] = [];
+    for (let i = 0; i < 14; i++) { const d = this.bx(0.04, 0.22, 0.04, '#5a8fd6', -1.2 + (i % 7) * 0.4, -0.6, -0.4 + Math.floor(i / 7) * 0.7, c); d.castShadow = false; drops.push(d); }
+    updaters.push((t) => { c.position.x = Math.sin(t * 0.5) * 0.3; drops.forEach((d, i) => { d.position.y = -0.5 - (((t * 1.2 + i * 0.137) % 1) * (y - 0.5)); }); });
+  }
+
+  /** Small flickering fire on the roof while the last check failed. */
+  private fire(parent: THREE.Object3D, y: number, w: number, d: number, updaters: Updater[]) {
+    const f = new THREE.Group(); f.position.set(w / 4, y, d / 4); parent.add(f);
+    const outer = this.mesh(new THREE.ConeGeometry(0.42, 1.1, 7), '#ff7a1a', 0, 0.55, 0, f);
+    const inner = this.mesh(new THREE.ConeGeometry(0.24, 0.7, 7), '#ffd84d', 0, 0.38, 0.05, f);
+    (outer.material as THREE.MeshStandardMaterial).emissive?.set('#ff5a00');
+    updaters.push((t) => { outer.scale.set(1 + Math.sin(t * 13) * 0.08, 1 + Math.sin(t * 17) * 0.15, 1); inner.scale.y = 1 + Math.sin(t * 21) * 0.2; f.rotation.y = t * 2; });
+  }
+
+  /** Fireworks over a building whose work was just approved and went live. */
+  private fireworks(parent: THREE.Object3D, y: number, updaters: Updater[]) {
+    const colors = ['#ff7aa8', '#ffd84d', '#3f8efc', '#17c3c3', '#9b6bff'];
+    const bursts = [0, 1, 2].map((i) => {
+      const g = new THREE.Group(); parent.add(g);
+      const sparks = Array.from({ length: 22 }, (_, j) => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 4, 3), new THREE.MeshBasicMaterial({ color: colors[(i + j) % colors.length], transparent: true }));
+        g.add(m); const a = (j / 22) * Math.PI * 2, b = (j % 5) * 0.5 - 1;
+        return { m, v: new THREE.Vector3(Math.cos(a) * Math.cos(b), Math.sin(b) + 0.4, Math.sin(a) * Math.cos(b)) };
+      });
+      return { g, sparks, off: i * 0.9, x: (i - 1) * 2.2 };
+    });
+    updaters.push((t) => bursts.forEach((b) => {
+      const k = ((t + b.off) % 2.7) / 2.7;
+      b.g.position.set(b.x, y + 2 + k * 0.5, (b.off - 1) * 0.8);
+      b.sparks.forEach((s) => { s.m.position.copy(s.v).multiplyScalar(k * 2.4); s.m.position.y -= k * k * 1.2; (s.m.material as THREE.MeshBasicMaterial).opacity = 1 - k; });
+    }));
+  }
+
+  /** A fenced plot at the edge of town with a tombstone for each scrapped or unfinished shift. */
+  private buildGraveyard(graves: GraveEntry[]) {
+    if (this.graveGroup) { this.freeObject(this.graveGroup); for (const l of this.graveLabels) l.el.remove(); this.labels = this.labels.filter((l) => !this.graveLabels.includes(l)); this.graveLabels = []; }
+    this.graveGroup = null;
+    if (!graves.length) return;
+    const { minX, maxZ } = this.bounds;
+    const g = new THREE.Group(); g.position.set(minX * PITCH, 0, maxZ * PITCH); this.scene.add(g); this.graveGroup = g;
+    this.bx(8.4, 0.18, 8.4, this.dark ? '#7d7a70' : '#c9c3b4', 0, 0, 0, g);
+    this.bx(7.6, 0.06, 7.6, this.dark ? '#3f5a3c' : '#7fa36b', 0, 0.18, 0, g);
+    for (let i = -3.6; i <= 3.6; i += 0.6) {
+      this.bx(0.08, 0.5, 0.08, '#e8e4dc', i, 0.24, 3.75, g); this.bx(0.08, 0.5, 0.08, '#e8e4dc', 3.75, 0.24, i, g);
+      this.bx(0.08, 0.5, 0.08, '#e8e4dc', i, 0.24, -3.75, g); this.bx(0.08, 0.5, 0.08, '#e8e4dc', -3.75, 0.24, i, g);
+    }
+    for (const z of [-3.75, 3.75]) this.bx(7.6, 0.06, 0.06, '#e8e4dc', 0, 0.6, z, g);
+    for (const x of [-3.75, 3.75]) this.bx(0.06, 0.06, 7.6, '#e8e4dc', x, 0.6, 0, g);
+    this.tree(-2.9, -2.9, g, 0.8);
+    const sign = new THREE.Object3D(); sign.position.set(0, 2.2, 3.4); g.add(sign);
+    this.label(this.graveLabels, this.div('grave-sign', 'Graveyard'), sign, 0, 'fx', '__grave');
+    graves.slice(0, 12).forEach((e, i) => {
+      const x = -2.4 + (i % 4) * 1.6, z = -2 + Math.floor(i / 4) * 1.8;
+      const st = new THREE.Group(); st.position.set(x, 0.24, z); st.userData.sid = e.sessionId; g.add(st);
+      this.bx(0.8, 0.7, 0.22, '#b8bec7', 0, 0, 0, st);
+      const top = this.mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.22, 14, 1, false, 0, Math.PI), '#b8bec7', 0, 0.7, 0, st); top.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+      this.bx(0.9, 0.06, 0.5, '#6f8f5f', 0, 0, 0.25, st);
+      const a = new THREE.Object3D(); a.position.y = 1.4; st.add(a);
+      this.label(this.graveLabels, this.div('rip hidden-until-zoom', `<b>RIP ${esc(e.agent.name)}</b><span>${esc(e.epitaph)}</span>`), a, 0, 'fx', '__grave');
+    });
+  }
+
+  /** PNG of the current frame (used for the README skyline). */
+  snapshot(): string { this.renderer.render(this.scene, this.cam); return this.renderer.domElement.toDataURL('image/png'); }
+  get canvas() { return this.renderer.domElement; }
 
   private confetti(p: ProjectView) {
     const b = this.buildings.get(p.id);
@@ -704,6 +768,7 @@ export class CityScene {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.reduce ? 0 : this.clock.elapsedTime;
+    this.elapsed = this.clock.elapsedTime;
     for (const f of this.globalUpdaters) f(t, dt);
     for (const b of this.buildings.values()) for (const f of b.updaters) f(t, dt);
     this.renderer.render(this.scene, this.cam);
@@ -714,6 +779,7 @@ export class CityScene {
       const st = L.el.dataset.state;
       let show = true;
       if (L.kind === 'tag') show = L.pid === this.selected || (zoomedIn && L.pid === this.hovered);
+      if (L.kind === 'chat') { const seed = Number(L.el.dataset.seed ?? 0); show = L.pid === this.selected || (this.zoom > 1.05 && Math.floor((this.elapsed + seed) / 6) % 3 === 0); }
       if (L.kind === 'bb') {
         const important = st === 'site' || st === 'needs' || L.pid === this.selected || L.pid === this.hovered;
         L.el.classList.toggle('mini', !important && !zoomedIn);

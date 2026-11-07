@@ -66,11 +66,48 @@ export function openDb(file = DB_PATH) {
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, session_id TEXT, ts INTEGER, kind TEXT, text TEXT);
     CREATE INDEX IF NOT EXISTS events_session ON events(session_id, ts);
     CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
+    CREATE TABLE IF NOT EXISTS agents(key TEXT PRIMARY KEY, name TEXT, shape TEXT, color TEXT, accessory TEXT, created_at INTEGER);
+    CREATE TABLE IF NOT EXISTS segments(session_id TEXT, start INTEGER, end INTEGER, kind TEXT);
+    CREATE INDEX IF NOT EXISTS segments_session ON segments(session_id);
+    CREATE INDEX IF NOT EXISTS segments_start ON segments(start);
   `);
+  migrate(db);
   return db;
 }
 
 export type Db = ReturnType<typeof openDb>;
+
+const SCHEMA = 2;
+const ADD: Record<string, Record<string, string>> = {
+  sessions: {
+    agent_key: 'TEXT', job: 'TEXT', err_sig: 'TEXT', err_count: 'INTEGER DEFAULT 0', err_at: 'INTEGER',
+    test_at: 'INTEGER', test_ok: 'INTEGER', tests_ok: 'INTEGER DEFAULT 0', tests_fail: 'INTEGER DEFAULT 0',
+    files: 'TEXT', edits: 'INTEGER DEFAULT 0', asks: 'INTEGER DEFAULT 0', reads: 'INTEGER DEFAULT 0', webs: 'INTEGER DEFAULT 0',
+    stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER',
+  },
+  projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER' },
+  offsets: { state: 'TEXT' },
+};
+
+/** Adds new columns, and on a schema bump re-derives everything from transcripts (keeps hook data). */
+function migrate(db: DatabaseSync) {
+  for (const [table, cols] of Object.entries(ADD)) {
+    const have = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Row[]).map((r) => r.name));
+    for (const [col, type] of Object.entries(cols)) if (!have.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS events_unique ON events(session_id, ts, kind, text)');
+  const v = (db.prepare("SELECT v FROM kv WHERE k = 'schema'").get() as Row | undefined)?.v;
+  if (Number(v ?? 1) < SCHEMA) {
+    db.exec(`
+      DELETE FROM offsets;
+      DELETE FROM segments;
+      DELETE FROM events WHERE kind LIKE 'm_%';
+      UPDATE sessions SET tok_in = 0, tok_out = 0, tok_cache_read = 0, tok_cache_write = 0, tok_sub = 0, prompts = 0, commits = 0, tools = 0,
+        edits = 0, asks = 0, reads = 0, webs = 0, tests_ok = 0, tests_fail = 0, err_count = 0, err_sig = NULL, files = NULL, first_prompt = NULL;
+    `);
+    db.prepare("INSERT INTO kv(k, v) VALUES('schema', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").run(String(SCHEMA));
+  }
+}
 
 export function kvGet<T>(db: Db, k: string, fallback: T): T {
   const r = db.prepare('SELECT v FROM kv WHERE k = ?').get(k) as Row | undefined;
@@ -81,5 +118,5 @@ export function kvSet(db: Db, k: string, v: unknown) {
 }
 
 export function logEvent(db: Db, sessionId: string, ts: number, kind: string, text: string) {
-  db.prepare('INSERT INTO events(session_id, ts, kind, text) VALUES(?, ?, ?, ?)').run(sessionId, ts, kind, text.slice(0, 400));
+  db.prepare('INSERT OR IGNORE INTO events(session_id, ts, kind, text) VALUES(?, ?, ?, ?)').run(sessionId, ts, kind, text.slice(0, 400));
 }

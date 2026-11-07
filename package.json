@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "A local logbook + game-world view of everything your Claude Code agents are doing.",
-  "bin": { "logbook": "bin/logbook.ts" },
+  "bin": {
+    "logbook": "bin/logbook.ts"
+  },
   "scripts": {
     "start": "node --no-warnings daemon/server.ts",
     "dev": "concurrently -k \"node --no-warnings --watch daemon/server.ts\" \"vite\"",
@@ -12,8 +14,11 @@
     "test": "node --no-warnings --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
+    "html-to-image": "^1.11.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "^0.175.0"

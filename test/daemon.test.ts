@@ -34,9 +34,9 @@ test('parseLines dedupes streamed assistant messages and tracks the latest actio
   const lines = [
     line({ type: 'user', sessionId: 's1', cwd: '/w/app', gitBranch: 'feat/x', timestamp: '2026-11-01T10:00:00Z', message: { role: 'user', content: 'add a city view' } }),
     line({ type: 'assistant', timestamp: '2026-11-01T10:00:05Z', message: { id: 'm1', model: 'claude-opus-5-5', usage, content: [{ type: 'thinking' }] } }),
-    line({ type: 'assistant', timestamp: '2026-11-01T10:00:06Z', message: { id: 'm1', usage, content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/w/app/City.tsx' } }] } }),
-    line({ type: 'assistant', timestamp: '2026-11-01T10:00:09Z', message: { id: 'm2', usage, content: [{ type: 'tool_use', name: 'Bash', input: { command: 'gh pr create --fill' } }] } }),
-    line({ type: 'user', timestamp: '2026-11-01T10:00:12Z', message: { content: [{ type: 'tool_result', content: 'https://github.com/acme/app/pull/42' }] } }),
+    line({ type: 'assistant', timestamp: '2026-11-01T10:00:06Z', message: { id: 'm1', usage, content: [{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: '/w/app/City.tsx' } }] } }),
+    line({ type: 'assistant', timestamp: '2026-11-01T10:00:09Z', message: { id: 'm2', usage, content: [{ type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'gh pr create --fill' } }] } }),
+    line({ type: 'user', timestamp: '2026-11-01T10:00:12Z', message: { content: [{ type: 'tool_result', tool_use_id: 't2', content: 'https://github.com/acme/app/pull/42' }] } }),
     line({ type: 'ai-title', aiTitle: 'city view', sessionId: 's1' }),
     'not json',
   ];
@@ -49,11 +49,33 @@ test('parseLines dedupes streamed assistant messages and tracks the latest actio
   assert.equal(d.prUrl, 'https://github.com/acme/app/pull/42');
   assert.equal(d.action?.text, 'Opening a pull request');
   assert.equal(d.branch, 'feat/x');
+  assert.deepEqual(d.files.map((f) => f.p), ['/w/app/City.tsx']);
+  assert.equal(d.edits, 1);
   // continuing from the last message id must not double count
-  const more = parseLines([line({ type: 'assistant', message: { id: 'm2', usage, stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done: shipped it.' }] } })], d.lastMsgId);
+  const more = parseLines([line({ type: 'assistant', timestamp: '2026-11-01T10:00:20Z', message: { id: 'm2', usage, stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done: shipped it.' }] } })], d.state);
   assert.equal(more.tokIn, 0);
   assert.equal(more.turnEnded, true);
   assert.equal(more.outcome, 'Done: shipped it.');
+  assert.deepEqual(more.segments.map((g) => g.kind), ['work']); // prompt at 10:00:00 until the turn ended
+});
+
+test('parser counts the same error three times, test runs and waits for answers', () => {
+  const at = (s: number) => new Date(Date.UTC(2026, 10, 1, 10, 0, s)).toISOString();
+  const err = (id: string, s: number) => [
+    line({ type: 'assistant', timestamp: at(s), message: { id: 'a' + id, content: [{ type: 'tool_use', id, name: 'Bash', input: { command: 'npm test' } }] } }),
+    line({ type: 'user', timestamp: at(s + 1), message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: true, content: 'Error: cannot read thread_ts of undefined at line 12' }] } }),
+  ];
+  const d = parseLines([
+    line({ type: 'user', timestamp: at(0), message: { content: 'fix the slack alert' } }),
+    ...err('x1', 2), ...err('x2', 5), ...err('x3', 8),
+    line({ type: 'assistant', timestamp: at(10), message: { id: 'q', content: [{ type: 'tool_use', id: 'ask1', name: 'AskUserQuestion', input: { questions: [{ question: 'Use the new channel?' }] } }] } }),
+    line({ type: 'user', timestamp: at(40), message: { content: [{ type: 'tool_result', tool_use_id: 'ask1', content: 'yes' }] } }),
+  ]);
+  assert.equal(d.errors.length, 3);
+  assert.equal(new Set(d.errors.map((e) => e.sig)).size, 1);
+  assert.equal(d.testsFail, 3);
+  assert.equal(d.asks, 1);
+  assert.deepEqual(d.segments.find((g) => g.kind === 'wait'), { start: Date.parse(at(10)), end: Date.parse(at(40)), kind: 'wait' });
 });
 
 test('git helpers parse remotes and collapse worktrees into their repo', () => {
@@ -81,11 +103,11 @@ test('status rules', () => {
   assert.equal(sessionStatus({ hook_state: 'running', hook_state_at: now - 2000 }, undefined, now), 'running'); // registry lag grace
   assert.equal(floorsFor(1e5), 3);
   assert.equal(floorsFor(1e7), 7);
-  assert.equal(projectState({ root: '/x', sessionsTotal: 3, lastActivity: now }, ['ended', 'needs_input'], now), 'needs');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 3, lastActivity: now }, [{ status: 'ended' }, { status: 'needs_input' }], now), 'needs');
   assert.equal(projectState({ root: null, sessionsTotal: 0, lastActivity: null }, [], now), 'lot');
   const day = 24 * 3600_000, T = 100 * day;
-  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T }, ['running'], T), 'site');
-  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 2 * day }, ['ended'], T), 'construction');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T }, [{ status: 'running' }], T), 'site');
+  assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 2 * day }, [{ status: 'ended' }], T), 'construction');
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 10 * day }, [], T), 'recent');
   assert.equal(projectState({ root: '/x', sessionsTotal: 1, lastActivity: T - 40 * day }, [], T), 'done');
 });

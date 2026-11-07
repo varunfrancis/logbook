@@ -86,10 +86,12 @@ export async function checkPullRequests(db: Db, liveIds: Set<string>) {
   const rows = db.prepare(`
     SELECT s.id, s.branch, s.pr_url, s.pr_checked_at, p.gh_full, p.gh_account
     FROM sessions s JOIN projects p ON p.id = s.project_id
-    WHERE p.gh_full IS NOT NULL AND s.last_event_at > ? AND (s.branch IS NOT NULL OR s.pr_url IS NOT NULL)
-    ORDER BY s.last_event_at DESC LIMIT 60`).all(now - 3 * 24 * 3600_000) as Row[];
+    WHERE p.gh_full IS NOT NULL AND (
+      (s.last_event_at > ? AND (s.branch IS NOT NULL OR s.pr_url IS NOT NULL))
+      OR (s.pr_url IS NOT NULL AND COALESCE(s.pr_state, 'open') = 'open' AND s.last_event_at > ?))
+    ORDER BY s.last_event_at DESC LIMIT 80`).all(now - 3 * 24 * 3600_000, now - 45 * 24 * 3600_000) as Row[];
   const logins = listAccountsCached();
-  let budget = 15;
+  let budget = 25;
   for (const s of rows) {
     if (budget <= 0) break;
     const ttl = liveIds.has(s.id) ? 3 * 60_000 : 30 * 60_000;
@@ -110,8 +112,10 @@ export async function checkPullRequests(db: Db, liveIds: Set<string>) {
         if (r.status === 200) { found = Array.isArray(r.body) ? r.body[0] ?? false : r.body; break; }
       } catch {}
     }
-    db.prepare('UPDATE sessions SET pr_checked_at = ?, pr_url = COALESCE(?, pr_url), pr_state = COALESCE(?, pr_state) WHERE id = ?').run(
-      now, found ? found.html_url : null, found ? (found.merged_at ? 'merged' : found.state) : null, s.id);
+    const newState = found ? (found.merged_at ? 'merged' : found.state) : null;
+    db.prepare(`UPDATE sessions SET pr_checked_at = ?, pr_url = COALESCE(?, pr_url),
+        pr_merged_at = CASE WHEN ? = 'merged' AND COALESCE(pr_state, '') != 'merged' THEN ? ELSE pr_merged_at END,
+        pr_state = COALESCE(?, pr_state) WHERE id = ?`).run(now, found ? found.html_url : null, newState, found?.merged_at ? Date.parse(found.merged_at) : now, newState, s.id);
   }
 }
 

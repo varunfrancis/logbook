@@ -1,0 +1,12 @@
+{
+  "name": "logbook-jump",
+  "displayName": "Logbook Jump",
+  "description": "Lets Logbook bring an agent's terminal forward when you click \"Go to\".",
+  "publisher": "logbook",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "extensionKind": ["ui", "workspace"]
+}

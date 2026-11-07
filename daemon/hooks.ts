@@ -3,6 +3,7 @@ import { kvSet, logEvent } from './db.ts';
 import { describeTool } from './describe.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
 import { cleanPrompt } from './transcripts.ts';
+import { DATA_DIR } from './config.ts';
 
 const PR_RE = /https:\/\/github\.com\/[^/\s"]+\/[^/\s"]+\/pull\/\d+/;
 
@@ -12,8 +13,13 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
   const event = p?.hook_event_name;
   if (typeof sid !== 'string' || typeof event !== 'string') return;
 
+  if (typeof p.cwd === 'string' && p.cwd.startsWith(DATA_DIR)) return; // Logbook's own helper runs
   db.prepare('INSERT OR IGNORE INTO sessions(id, transcript, cwd, started_at) VALUES(?, ?, ?, ?)').run(sid, p.transcript_path ?? null, p.cwd ?? null, now);
-  const s = db.prepare('SELECT project_id FROM sessions WHERE id = ?').get(sid) as Row;
+  const s = db.prepare('SELECT project_id, hook_state, hook_state_at FROM sessions WHERE id = ?').get(sid) as Row;
+  // A raised hand ends when anything else happens: record how long the agent waited for you.
+  if (s.hook_state === 'needs_input' && s.hook_state_at && event !== 'Notification' && event !== 'SubagentStop' && now > s.hook_state_at) {
+    db.prepare('INSERT INTO segments(session_id, start, end, kind) VALUES(?, ?, ?, ?)').run(sid, s.hook_state_at, now, 'wait');
+  }
   let projectId: string | null = s.project_id;
   if (!projectId && p.cwd) {
     const r = ensureProjectForCwd(db, p.cwd);
@@ -59,6 +65,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
     case 'Notification': {
       const msg = String(p.message ?? '');
       const needs = p.notification_type === 'permission_prompt' || /permission|approve|needs your/i.test(msg);
+      if (needs && s.hook_state === 'needs_input') break; // still the same raised hand
       set(needs ? { hook_state: 'needs_input', hook_state_at: now, needs_message: msg } : { hook_state: 'idle', hook_state_at: now });
       logEvent(db, sid, now, needs ? 'needs' : 'idle', msg || 'Waiting for you');
       break;

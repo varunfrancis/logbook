@@ -1,0 +1,99 @@
+import type { Row } from './db.ts';
+
+/*
+ * Every agent gets a stable character. The key is its workbench (worktree, or a non-default branch),
+ * so a new session picking up the same work is the same character, with a career. Plain sessions on
+ * main fall back to the session id.
+ */
+
+export const SHAPES = ['bean', 'pebble', 'pear', 'capsule', 'cube', 'triangle', 'cloud', 'acorn', 'drop', 'bun'] as const;
+export const COLORS = ['#2fb36b', '#3f8efc', '#ff8a3d', '#9b6bff', '#f472b6', '#14b8a6', '#f5b301', '#ef5350', '#7c8cff', '#c08457', '#84cc16', '#7b8aa0'] as const;
+export const ACCESSORIES = ['bow', 'glasses', 'headphones', 'beanie', 'scarf', 'freckles'] as const;
+export const JOBS = ['builder', 'plumber', 'painter', 'librarian', 'inspector', 'scout'] as const;
+export type Job = (typeof JOBS)[number];
+
+export const JOB_TITLE: Record<Job, string> = {
+  builder: 'Builder', plumber: 'Plumber', painter: 'Painter', librarian: 'Librarian', inspector: 'Inspector', scout: 'Scout',
+};
+export const JOB_MEANING: Record<Job, string> = {
+  builder: 'building something new', plumber: 'fixing something', painter: 'working on how it looks',
+  librarian: 'writing docs', inspector: 'checking things work', scout: 'researching',
+};
+
+const NAMES = [
+  'Pip', 'Juno', 'Bolt', 'Rio', 'Nova', 'Moss', 'Kit', 'Fern', 'Wren', 'Clay', 'Ember', 'Ash', 'Ivy', 'Dot', 'Bram', 'Echo',
+  'Lux', 'Sol', 'Fig', 'Oki', 'Tad', 'Bea', 'Zuri', 'Milo', 'Pell', 'Rue', 'Sage', 'Tilly', 'Wim', 'Yuki', 'Ada', 'Bix',
+  'Coco', 'Dax', 'Elo', 'Finn', 'Gus', 'Hazel', 'Iggy', 'Jojo', 'Kai', 'Lumi', 'Mabel', 'Nell', 'Otto', 'Pia', 'Quill', 'Remy',
+  'Suki', 'Toby', 'Uma', 'Vito', 'Wally', 'Xia', 'Yara', 'Ziggy', 'Arlo', 'Birdie', 'Cosmo', 'Dune', 'Effie', 'Flint', 'Gemma', 'Hugo',
+  'Indie', 'Jett', 'Kiki', 'Lolo', 'Momo', 'Noor', 'Ozzy', 'Peg', 'Rafa', 'Tink', 'Vera', 'Waldo', 'Zed', 'Bun', 'Nib', 'Olive',
+  'Pax', 'Rory', 'Skye', 'Teo', 'Una', 'Viggo', 'Willa', 'Yoyo', 'Zola', 'Benny', 'Cleo', 'Dash', 'Edie', 'Fizz', 'Goose', 'Hank',
+  'Iris', 'June', 'Koko', 'Lark', 'Mint', 'Nico', 'Oona', 'Pogo', 'Quinn', 'Rocco', 'Sunny', 'Tofu', 'Ulla', 'Vinny', 'Wiggs', 'Yogi',
+  'Ziggy', 'Bubba', 'Chip', 'Dolly', 'Elmo', 'Frankie', 'Gigi', 'Honey', 'Ike', 'Jazz', 'Kip', 'Loki', 'Maple', 'Nugget', 'Opal', 'Pickle',
+  'Rusty', 'Sprout', 'Tiki', 'Waffle', 'Bean', 'Cricket', 'Doodle', 'Emmy', 'Fable', 'Gizmo', 'Hopper', 'Inky', 'Jelly', 'Kiwi', 'Lulu', 'Mochi',
+];
+
+function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+export type Identity = { key: string; name: string; shape: string; color: string; accessory: string };
+
+export function agentKey(s: Row): string {
+  const wb = s.worktree || (s.branch && !/^(main|master|develop|dev|trunk|HEAD)$/.test(s.branch) ? s.branch : null);
+  return wb ? `${s.project_id ?? ''}#${wb}` : s.id;
+}
+
+const registry = new Map<string, Identity>();
+
+/** Loads saved identities and gives every new agent key a name nobody recent is using. */
+export function allocateIdentities(db: { prepare: (sql: string) => any }, keys: string[]) {
+  if (!registry.size) for (const r of db.prepare('SELECT key, name, shape, color, accessory FROM agents').all() as Identity[]) registry.set(r.key, r);
+  const fresh = keys.filter((k) => !registry.has(k));
+  if (!fresh.length) return;
+  const recent = new Set((db.prepare('SELECT name FROM agents WHERE created_at > ?').all(Date.now() - 45 * 24 * 3600_000) as { name: string }[]).map((r) => r.name));
+  const ins = db.prepare('INSERT OR IGNORE INTO agents(key, name, shape, color, accessory, created_at) VALUES(?, ?, ?, ?, ?, ?)');
+  for (const key of fresh) {
+    const base = hashIdentity(key);
+    const h = hash(key);
+    let name = base.name;
+    for (let i = 0; i < NAMES.length && recent.has(name); i++) name = NAMES[(h + i) % NAMES.length];
+    const id = { ...base, name };
+    recent.add(name);
+    registry.set(key, id);
+    ins.run(key, id.name, id.shape, id.color, id.accessory, Date.now());
+  }
+}
+
+export function identityFor(key: string): Identity {
+  return registry.get(key) ?? hashIdentity(key);
+}
+
+function hashIdentity(key: string): Identity {
+  const h = hash(key);
+  return {
+    key,
+    name: NAMES[h % NAMES.length],
+    shape: SHAPES[(h >>> 7) % SHAPES.length],
+    color: COLORS[(h >>> 11) % COLORS.length],
+    accessory: ACCESSORIES[(h >>> 17) % ACCESSORIES.length],
+  };
+}
+
+const FIX_RE = /\b(fix|bug|broken|error|crash|issue|failing|fails|doesn'?t work|not working|debug|wrong|regression|can'?t see)\b/i;
+const LOOK_RE = /\b(design|ui|ux|css|style|layout|color|colour|font|spacing|visual|animation|icon|theme|responsive|pixel)\b/i;
+const DOCS_RE = /\b(docs?|readme|document|write[- ]?up|blog|copy|changelog|spec|plan)\b/i;
+const TEST_RE = /\b(tests?|coverage|qa|verify|audit|review)\b/i;
+const RESEARCH_RE = /\b(research|investigate|explore|find out|look into|compare|analy[sz]e|how (do|does|can)|what is|why)\b/i;
+
+/** What kind of work a session is doing, from its brief and what it touched. */
+export function jobFor(s: Row): Job {
+  const brief = `${s.ai_title ?? ''} ${s.first_prompt ?? ''}`;
+  const files: string[] = s.files ? (JSON.parse(s.files) as { p: string }[]).map((f) => f.p) : [];
+  const share = (re: RegExp) => (files.length ? files.filter((f) => re.test(f)).length / files.length : 0);
+  if (share(/(\.test\.|\.spec\.|__tests__|\/tests?\/)/) > 0.5) return 'inspector';
+  if (share(/\.(md|mdx|txt|rst)$/i) > 0.6) return 'librarian';
+  if (FIX_RE.test(brief)) return 'plumber';
+  if (LOOK_RE.test(brief) || share(/\.(css|scss|sass|less)$/i) > 0.4) return 'painter';
+  if (DOCS_RE.test(brief) && share(/\.(md|mdx)$/i) >= 0.3) return 'librarian';
+  if (TEST_RE.test(brief)) return 'inspector';
+  if ((s.edits ?? 0) === 0 && ((s.reads ?? 0) + (s.webs ?? 0) > 3 || RESEARCH_RE.test(brief))) return 'scout';
+  return 'builder';
+}
