@@ -387,18 +387,29 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
 @supports (corner-shape: superellipse(1.4)) {
   .btn, .way, .gh-btn, .theme, .tab, .key, .cmd, .browser, .browser .url, .mini-chat, .mini-chat .me, .mini-chat .typing,
   .panel, .panel .opt, .allow, .allow .row span, .bubble, .not-mac, .say, .toast, .opening, .faq details, .faq summary:focus-visible,
-  .talk, .card, .oss-card, .step, .art, .frame, .frame .clip { corner-shape: superellipse(1.4); }
+  .talk, .card, .oss-card, .step, .art, .frame, .frame .clip, .prompt, .prompt .row span { corner-shape: superellipse(1.4); }
 }
 
 /* setup page only */
 .setup-hero { padding-bottom: 10px; }
-.watch { max-width: 900px; margin: 40px auto 0; }
-/* The video sits in a card like the step cards; .clip rounds the video itself (overflow + mask, so Safari clips it too). */
-.frame { padding: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 30px; box-shadow: 0 6px 0 var(--line), var(--shadow); }
-.frame .clip { border-radius: 22px; overflow: hidden; isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); background: #000; }
-.watch video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+/* step illustrations: small drawings of what you'll see on screen */
+.prompt { border: 2px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; background: var(--surface); }
+.prompt b { font-size: 15px; }
+.prompt small { color: var(--ink-2); font-size: 13px; }
+.prompt .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.prompt .row span { border-radius: 10px; padding: 7px 12px; font-weight: 800; }
+.prompt .yes { background: var(--cta); color: var(--cta-ink); box-shadow: 0 3px 0 var(--cta-edge); }
+.prompt .no { background: var(--surface-2); color: var(--ink-2); }
+.result { max-width: 900px; margin: 56px auto 0; text-align: center; }
+.result h3 { font-size: clamp(24px, 3vw, 30px); text-transform: lowercase; }
+.result p { margin: 6px auto 0; opacity: .95; }
+.frame { margin-top: 22px; padding: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 30px; box-shadow: 0 6px 0 var(--line), var(--shadow); }
+.frame .clip { border-radius: 22px; overflow: hidden; isolation: isolate; }
+.frame img { display: block; width: 100%; height: auto; }
+.frame .night { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .frame .day { display: none; } :root:not([data-theme="light"]) .frame .night { display: block; } }
+:root[data-theme="dark"] .frame .day { display: none; } :root[data-theme="dark"] .frame .night { display: block; }
 @media (max-width: 640px) { .frame { padding: 5px; border-radius: 22px; } .frame .clip { border-radius: 16px; } }
-.watch .how { margin-top: 14px; font-size: 15px; color: var(--ink-2); }
 .promise .step { text-align: left; }
 .step code { font: 600 .9em ui-monospace, Menlo, monospace; }
 .faq code { font: 600 .9em ui-monospace, Menlo, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
@@ -426,16 +437,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
 
 <header class="hero setup-hero gutter" id="top">
   <h1>how to set up swarmville</h1>
-  <p class="sub">About one minute on your Mac. Claude does the setup for you.</p>
-  <div class="watch">
-    <div class="frame"><div class="clip">
-      <video controls preload="metadata" playsinline poster="setup-poster.jpg">
-        <source src="setup-video.mp4" type="video/mp4">
-        Your browser can't play this video. The steps below say the same thing.
-      </video>
-    </div></div>
-    <p class="how">A one-minute video with narration. The same steps are written out below.</p>
-  </div>
+  <p class="sub">About one minute on your Mac. Claude does the setup for you. Here it is, step by step.</p>
 </header>
 
 <section class="promise gutter" aria-labelledby="need-title">
@@ -456,11 +458,21 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
     <h2 id="get-title">three steps</h2>
     <p class="lead">Click, press Enter, click Allow. Claude does the rest.</p>
     <div class="steps">
-      <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>Claude opens with our message typed in. If your browser asks, click <b>Open</b>.</p><a class="btn" data-open="app" href="#">Set up with Claude</a></div>
+      <div class="step pop"><span class="num">1</span><h3>Click the button</h3><p>Claude opens with our message typed in. If your browser asks, click <b>Open</b>.</p>
+        <div class="prompt" aria-hidden="true"><b>Open Claude?</b><small>This site wants to open the Claude app.</small><div class="row"><span class="no">Cancel</span><span class="yes">Open</span></div></div>
+        <a class="btn" data-open="app" href="#">Set up with Claude</a></div>
       <div class="step pop"><span class="num">2</span><h3>Press Enter</h3><p>Claude explains what it will do before it does anything.</p>
         <div class="mini-chat" aria-hidden="true"><span class="me">Install Swarmville for me: https://raw.github…</span><span class="typing"><i></i><i></i><i></i></span></div></div>
       <div class="step pop"><span class="num">3</span><h3>Click Allow</h3><p>Your town opens about a minute later, with a short welcome tour.</p>
         <div class="allow" aria-hidden="true"><span>Allow Claude to install Swarmville?</span><div class="row"><span class="no">Deny</span><span class="yes">Allow</span></div></div></div>
+    </div>
+    <div class="result pop">
+      <h3>then your town opens</h3>
+      <p>In your browser, about a minute later. A short tour introduces the crew.</p>
+      <div class="frame"><div class="clip">
+        <img class="day" src="town-day.jpg" width="1800" height="1069" alt="A Swarmville town: buildings for each project, with little characters working on them." loading="lazy">
+        <img class="night" src="town-night.jpg" width="1800" height="1069" alt="The same town at night." loading="lazy">
+      </div></div>
     </div>
     <p class="new-to-claude">New to Claude Code? <a href="https://claude.ai/download">Get the Claude app first</a>.</p>
   </div>
