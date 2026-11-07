@@ -59,9 +59,7 @@ code { font-family: var(--f-mono); font-size: 0.92em; background: var(--surface-
 .sum.needs b { color: var(--needs); }
 .bar-right { display: flex; align-items: center; gap: 12px; }
 .toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); font-weight: 700; cursor: pointer; }
-.conn { width: 9px; height: 9px; border-radius: 50%; background: var(--ended); }
-.conn.c-live { background: var(--done); box-shadow: 0 0 0 3px color-mix(in srgb, var(--done) 25%, transparent); }
-.conn.c-offline { background: var(--needs); }
+.conn-off { font-size: 12px; font-weight: 800; color: var(--needs); }
 .ghost { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-weight: 700; color: var(--ink-2); }
 .ghost:hover { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 25%, transparent); }
 .ghost.small { font-size: 12px; padding: 3px 8px; }
@@ -483,7 +481,6 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 @media (max-width: 720px) {
   .view-town .main:has(.panel) .city-actions { right: 16px; }
   .city-actions { top: auto; bottom: 80px; }
-  .seg-toggle { display: none; }
 }
 
 /* Agent profile: who they are, how they're doing, what they're on. One spacing scale: 4 / 8 / 12 / 20. */

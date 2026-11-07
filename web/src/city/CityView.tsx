@@ -5,9 +5,9 @@ import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.
 import { isoDate, post, useDay } from '../useLogbook.ts';
 import { PROJECT, useVoice } from '../copy.ts';
 
-export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, dark, onShare }: {
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare }: {
   state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
-  focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; dark: boolean; onShare: () => void;
+  focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: 'project' | 'task'; dark: boolean; onShare: () => void;
 }) {
   const voice = useVoice();
   const host = useRef<HTMLDivElement>(null);
@@ -26,6 +26,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     scene.current = s;
     return () => { s.dispose(); scene.current = null; };
   }, []);
+  useEffect(() => { scene.current?.setBubble(bubble); }, [bubble]);
   useEffect(() => { scene.current?.setTheme(dark); if (!busy) scene.current?.setState(state, showLots); }, [dark]);
   useEffect(() => { if (!busy) scene.current?.setState(state, showLots); }, [state, showLots, busy]);
   useEffect(() => { scene.current?.setSelected(selected); }, [selected]);

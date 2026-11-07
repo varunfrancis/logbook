@@ -37,6 +37,7 @@ export function App() {
   const [sel, setSel] = useState<Sel>(null);
   const [showLots, setShowLots] = useState(store.get('logbook.lots') !== '0');
   const [voice, setVoice] = useState<Voice>((store.get('logbook.voice') as Voice) || 'plain');
+  const [bubble, setBubble] = useState<'project' | 'task'>(store.get('logbook.bubble') === 'task' ? 'task' : 'project');
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
   const theme = useTheme();
   // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
@@ -46,6 +47,7 @@ export function App() {
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { store.set('logbook.lots', showLots ? '1' : '0'); }, [showLots]);
   useEffect(() => { store.set('logbook.voice', voice); }, [voice]);
+  useEffect(() => { store.set('logbook.bubble', bubble); }, [bubble]);
   useEffect(() => {
     const n = state?.totals.needs ?? 0;
     document.title = `${n ? `(${n}) ` : ''}${state?.town.name ?? 'Logbook'}`;
@@ -97,21 +99,16 @@ export function App() {
           ) : <div className="summary" />}
           <div className="bar-right">
             {t ? <button className="link hide-sm" onClick={() => go('day')} title="See the day's numbers">Today's cost: {money(t.costToday)}</button> : null}
-            {view === 'town' ? <label className="toggle hide-sm"><input type="checkbox" id="show-lots" checked={showLots} onChange={(e) => setShowLots(e.target.checked)} /> For-sale lots</label> : null}
-            <div className="seg-toggle" role="group" aria-label="Language">
-              <button className={voice === 'plain' ? 'on' : ''} onClick={() => setVoice('plain')}>Plain</button>
-              <button className={voice === 'technical' ? 'on' : ''} onClick={() => setVoice('technical')}>Technical</button>
-            </div>
             <button className="ghost small" onClick={theme.cycle} aria-label="Toggle day and night">{theme.dark ? 'Day' : 'Night'}</button>
             <button className="ghost small" onClick={() => setModal('settings')} aria-label="Settings">Settings</button>
-            <span className={`conn c-${conn}`} title={conn === 'live' ? 'Connected' : conn === 'offline' ? 'Logbook isn’t running. Start it with `npm start`.' : 'Connecting'} />
+            {state && conn === 'offline' ? <span className="conn-off" title="Logbook isn’t running. Start it with `npm start`.">Offline</span> : null}
           </div>
         </header>
         <main className="main">
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Logbook on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} dark={theme.dark} onShare={() => setModal('share')} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={open.agent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} />
           ) : view === 'crew' ? (
             <CrewView state={crewState!} open={open} />
           ) : (
@@ -122,7 +119,7 @@ export function App() {
           {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
         </main>
         {state && (firstLaunch || modal === 'town') ? <TownPicker state={state} onDone={() => setModal(null)} /> : null}
-        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} /> : null}
+        {state && modal === 'settings' ? <Settings state={state} onClose={() => setModal(null)} renameTown={() => setModal('town')} prefs={{ voice, setVoice, bubble, setBubble, showLots, setShowLots }} /> : null}
         {state && modal === 'share' ? <ShareSheet state={state} onClose={() => setModal(null)} /> : null}
         {t && voice === 'plain' && view !== 'town' ? <div className="sr">{bricks(t.bricksToday)}</div> : null}
       </div>

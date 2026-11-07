@@ -79,6 +79,9 @@ export class CityScene {
   private disposeFns: (() => void)[] = [];
   private chatEls = new Map<string, HTMLElement>();
   private doingEls = new Map<string, HTMLElement>();
+  /** What each agent's always-on bubble says: the project they're on, or their current task in 2–3 words. */
+  private bubble: 'project' | 'task' = 'project';
+  private projectNames = new Map<string, string>();
   private hl: { sessions: Set<string> | null; projects: Set<string> | null } = { sessions: null, projects: null };
   private graveGroup: THREE.Group | null = null;
   private parkGroup: THREE.Group | null = null;
@@ -177,6 +180,7 @@ export class CityScene {
 
   setState(data: StateView, showLots: boolean) {
     this.last = { data, showLots };
+    this.projectNames = new Map(data.projects.map((p) => [p.id, p.name]));
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
     const breaks = new Map<string, number>();
@@ -220,9 +224,25 @@ export class CityScene {
     for (const id of [...this.buildings.keys()]) if (!seen.has(id)) this.removeBuilding(id);
     for (const s of data.sessions) {
       const el = this.chatEls.get(s.id); if (el && s.chatter && el.textContent !== s.chatter) el.textContent = s.chatter;
-      const d = this.doingEls.get(s.id)?.querySelector('.doing'); const txt = shortDoing(s); if (d && d.textContent !== txt) d.textContent = txt;
     }
+    this.refreshBubbles(data);
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
+  }
+
+  setBubble(mode: 'project' | 'task') {
+    if (mode === this.bubble) return;
+    this.bubble = mode;
+    if (this.last) this.refreshBubbles(this.last.data);
+  }
+
+  private bubbleText(s: SessionView) {
+    return this.bubble === 'project' ? this.projectNames.get(s.projectId ?? '') ?? shortDoing(s) : shortDoing(s);
+  }
+
+  private refreshBubbles(data: StateView) {
+    for (const s of data.sessions) {
+      const d = this.doingEls.get(s.id)?.querySelector('.doing'); const txt = this.bubbleText(s); if (d && d.textContent !== txt) d.textContent = txt;
+    }
   }
 
   fit() {
@@ -786,8 +806,8 @@ export class CityScene {
       helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
-    // Always-on label: what they're doing in 2–3 words; their name appears when you hover or select the building.
-    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(shortDoing(s))}</span><span class="who">${esc(a.name)}</span>`);
+    // Always-on label: the project they're on (or what they're doing, in 2–3 words — a setting); their name appears when you hover or select the building.
+    const tag = this.div(`tag doing-${s.status === 'needs_input' ? 'needs' : s.status === 'running' ? 'run' : 'rest'}`, `<span class="doing">${esc(this.bubbleText(s))}</span><span class="who">${esc(a.name)}</span>`);
     tag.dataset.sid = s.id; tag.dataset.status = s.away ? 'away' : s.status;
     this.label(labels, tag, anchor, 0.42, 'tag', pid);
     this.doingEls.set(s.id, tag);
