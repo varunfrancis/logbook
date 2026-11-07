@@ -490,9 +490,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .slip-total b { font: 600 56px var(--f-display); line-height: 1; }
 .slip-total .paid { border-top: 3px solid #25303d; padding-top: 14px; }
 .slip-total .paid b { color: #1d7a45; }
-.stamp { transform: rotate(-10deg); border: 7px solid #d9363e; color: #d9363e; border-radius: 20px; padding: 10px 24px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; margin-left: 6px; }
-.stamp b { font: 600 110px var(--f-display); line-height: .95; letter-spacing: -3px; }
-.stamp span { font-size: 17px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
+.payroll .stamp { transform: rotate(-10deg); border: 7px solid #d9363e; color: #d9363e; border-radius: 20px; padding: 10px 24px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; margin-left: 6px; }
+.payroll .stamp b { font: 600 110px var(--f-display); line-height: .95; letter-spacing: -3px; }
+.payroll .stamp span { font-size: 17px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
 
 /* town additions */
 .city-labels > .chat { max-width: 220px; white-space: normal; font-size: 12.5px; font-weight: 700; background: #fff; color: #25303d; padding: 6px 10px; border-radius: 12px; box-shadow: 0 3px 0 #25303d22, 0 6px 14px #25303d22; }
