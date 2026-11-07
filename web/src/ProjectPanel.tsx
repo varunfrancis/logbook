@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { AgentAvatar, moodFor } from './crew/Avatar.tsx';
-import { money, PROJECT, plainAction, STATUS, useVoice } from './copy.ts';
+import { PLAN_NOTE, priced, PROJECT, useCostView, plainAction, STATUS, useVoice } from './copy.ts';
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
 import { post, useNow, useProject } from './useSwarmville.ts';
 
 export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; state: StateView; onClose: () => void; openAgent: (id: string) => void }) {
   const voice = useVoice();
+  const cost = useCostView();
   const now = useNow(15000);
   const detail = useProject(id, state.generatedAt);
   const p = state.projects.find((x) => x.id === id);
@@ -55,7 +56,7 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
       {voice === 'technical' && p.root ? <div className="path">{tildify(p.root)}</div> : null}
       <dl className="stats">
         <div><dt>{voice === 'plain' ? 'Bricks' : 'Tokens'}</dt><dd>{voice === 'plain' ? p.bricks.toLocaleString() : compact(p.tokens)}</dd></div>
-        <div><dt>Cost</dt><dd>{money(p.costUsd)}</dd></div>
+        <div><dt>Cost</dt><dd title={cost === 'plan' ? PLAN_NOTE : 'At API prices'}>{priced(cost, p.costUsd)}</dd></div>
         <div><dt>Shifts</dt><dd>{p.sessionsTotal}</dd></div>
         <div><dt>{voice === 'plain' ? 'Saves' : 'Commits'}</dt><dd>{p.commits}</dd></div>
       </dl>

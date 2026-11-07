@@ -1,11 +1,21 @@
 import type { StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from '../crew/Avatar.tsx';
-import { money } from '../copy.ts';
+import { money, PLAN_NOTE, useCostView } from '../copy.ts';
 
-/** Today's cost, split by project and then by the agents who worked on it. */
+/** Today's cost, split by project and then by the agents who worked on it. On the plan, it's simply $0. */
 export function CostPanel({ state, onClose, openProject, openAgent }: { state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent: (id: string) => void }) {
+  const view = useCostView();
   const rows = state.costBreakdown ?? [];
   const total = state.totals.costToday;
+  if (view === 'plan') return (
+    <aside className="panel cost-panel" aria-label="Today's cost">
+      <header className="panel-head">
+        <div><h2>Today's cost: $0</h2></div>
+        <button className="ghost close" onClick={onClose} aria-label="Close cost breakdown">×</button>
+      </header>
+      <p className="muted">{PLAN_NOTE}</p>
+    </aside>
+  );
   const est = (e: boolean) => (e ? <span className="muted" title="Includes shifts still running, whose cost is estimated from tokens"> est.</span> : null);
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '');
 
@@ -14,7 +24,7 @@ export function CostPanel({ state, onClose, openProject, openAgent }: { state: S
       <header className="panel-head">
         <div>
           <h2>Today's cost: {money(total)}</h2>
-          <div className="panel-sub">By project, then by agent. Biggest first.</div>
+          <div className="panel-sub">At API prices, by project, then by agent. Biggest first.</div>
         </div>
         <button className="ghost close" onClick={onClose} aria-label="Close cost breakdown">×</button>
       </header>

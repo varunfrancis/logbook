@@ -5,7 +5,7 @@ export type Grade = 'good' | 'ok' | 'bad' | 'none';
 export type Score = { label: string; value: string; note: string; grade: Grade; help: string };
 
 /** The three numbers you'd judge a teammate on: do they deliver, can they work without you, and are they worth what they cost. */
-export function scorecard(p: AgentProfile): { scores: Score[]; verdict: { grade: Grade; text: string } } {
+export function scorecard(p: AgentProfile, api = false): { scores: Score[]; verdict: { grade: Grade; text: string } } {
   const rate = p.finished ? p.delivered / p.finished : null;
   const delivery: Score = rate == null || p.finished < 2
     ? { label: 'Delivers', value: p.finished ? `${p.delivered} of ${p.finished}` : '—', note: p.finished ? 'too few jobs to judge' : 'no finished jobs yet', grade: 'none', help: 'Share of finished jobs that shipped or went for review.' }
@@ -24,7 +24,8 @@ export function scorecard(p: AgentProfile): { scores: Score[]; verdict: { grade:
     : perHour != null
     ? { label: 'Cost', value: `${money(perHour)}/h`, note: `nothing delivered yet · ${money(p.costUsd)} total`, grade: p.finished >= 2 ? 'bad' : 'none', help: 'Cost per hour of work, until they deliver something.' }
     : { label: 'Cost', value: money(p.costUsd), note: 'spent so far', grade: 'none', help: 'What their work has cost in tokens.' };
-  const scores = [delivery, independence, cost];
+  // On the plan the work cost nothing, so there's no cost to judge them on.
+  const scores = api ? [delivery, independence, cost] : [delivery, independence];
   const graded = scores.filter((s) => s.grade !== 'none');
   const bad = graded.filter((s) => s.grade === 'bad').length, good = graded.filter((s) => s.grade === 'good').length;
   const verdict = graded.length < 2 ? { grade: 'none' as Grade, text: 'Too early to tell. Check back after a few finished jobs.' }

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { CrewDay, CrewNote, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from './Avatar.tsx';
 import { chime } from '../audio.ts';
-import { mins, money } from '../copy.ts';
+import { mins, money, useCostView } from '../copy.ts';
 import { ago } from '../format.ts';
 import { post } from '../useSwarmville.ts';
 import { handovers, jobsText, medals, type MedalId } from './medals.ts';
@@ -55,7 +55,7 @@ function Notes({ notes, now, openProject }: { notes: CrewNote[]; now: number; op
 }
 
 type Col = { key: string; label: string; get: (c: CrewDay) => number; show: (c: CrewDay) => string; tip?: (c: CrewDay) => string };
-const COLS: Col[] = [
+const ALL_COLS: Col[] = [
   { key: 'delivered', label: 'Delivered', get: (c) => c.delivered + c.points / 1000, show: (c) => (c.delivered ? String(c.delivered) : '—'), tip: (c) => (c.delivered ? jobsText(c) : '') },
   { key: 'rate', label: 'Hit rate', get: (c) => (c.finished ? c.delivered / c.finished : -1), show: (c) => (c.finished ? `${c.delivered}/${c.finished}` : '—') },
   { key: 'lost', label: 'Scrapped', get: (c) => c.lost, show: (c) => String(c.lost || '—') },
@@ -78,7 +78,9 @@ function Agents({ c }: { c: CrewDay }) {
 /** Today's crews as one table: the project, its agents, the numbers, and whatever awards it holds. */
 export function Leaderboard({ state, now, openProject }: { state: StateView; now: number; openProject: (id: string) => void }) {
   const crews = state.crews ?? [];
-  const board = useMemo(() => medals(crews), [crews]);
+  const api = useCostView() === 'api';
+  const COLS = api ? ALL_COLS : ALL_COLS.filter((c) => c.key !== 'cost');
+  const board = useMemo(() => medals(crews, api), [crews, api]);
   const fresh = useFreshMedals(board);
   const notes = state.notes ?? [];
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: 'awards', desc: true });
@@ -151,8 +153,8 @@ let toastQueue: { key: string; text: string; projectId: string }[] = [];
 let trackedDay = '';
 
 /** Compares medal holders with last time; returns how many medals changed hands. The first look each day only records them. */
-function track(state: StateView): number {
-  const board = medals(state.crews ?? []);
+function track(state: StateView, api: boolean): number {
+  const board = medals(state.crews ?? [], api);
   const today = new Date().toDateString();
   if (trackedDay !== today) { trackedDay = today; holders.clear(); for (const m of board) holders.set(m.id, m.holder?.projectId ?? null); return 0; }
   const moved = handovers(holders, board);
@@ -163,6 +165,7 @@ function track(state: StateView): number {
     toastQueue = [...toastQueue, { key: `${medal.id}-${Date.now()}`, projectId: medal.holder!.projectId, text: from ? `${medal.icon} ${who} took ${medal.label} from ${names.get(from) ?? 'another project'}` : `${medal.icon} ${who} won ${medal.label}` }].slice(-3);
   }
   for (const m of board) holders.set(m.id, m.holder?.projectId ?? null);
+  for (const id of [...holders.keys()]) if (!board.some((m) => m.id === id)) holders.delete(id); // Best value sits out on the plan; forget its holder so turning API prices back on isn't news
   if (moved.length) listeners.forEach((f) => f());
   return moved.length;
 }
@@ -174,13 +177,14 @@ function useFreshMedals(board: ReturnType<typeof medals>) {
 
 /** Toasts anywhere in the app when a medal changes hands. */
 export function MedalToasts({ state, openProject }: { state: StateView; openProject: (id: string) => void }) {
+  const api = useCostView() === 'api';
   const [, force] = useState(0);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   useEffect(() => { const f = () => force((n) => n + 1); listeners.add(f); return () => { listeners.delete(f); }; }, []);
   useEffect(() => {
-    if (track(state)) chime();
+    if (track(state, api)) chime();
     for (const t of toastQueue) if (!timers.current.has(t.key)) timers.current.set(t.key, setTimeout(() => dismiss(t.key), 9000));
-  }, [state]);
+  }, [state, api]);
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
   const dismiss = (key: string) => { toastQueue = toastQueue.filter((t) => t.key !== key); timers.current.delete(key); force((n) => n + 1); };
   if (!toastQueue.length) return null;
