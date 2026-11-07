@@ -31,7 +31,7 @@ function bumpsIn(state: StateView): Bump[] {
 }
 
 /** Small, self-dismissing FYI cards on the Town when two agents start working on the same file. */
-export function BumpToasts({ state, onAgent, offset }: { state: StateView; onAgent: (id: string) => void; offset: boolean }) {
+export function BumpToasts({ state, onAgent }: { state: StateView; onAgent: (id: string) => void }) {
   const voice = useVoice();
   const [toasts, setToasts] = useState<(Bump & { at: number })[]>([]);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -60,7 +60,7 @@ export function BumpToasts({ state, onAgent, offset }: { state: StateView; onAge
   const who = (p: { id: string | null; name: string }) =>
     p.id ? <button className="bump-name" onClick={() => onAgent(p.id!)}>{p.name}</button> : <b>{p.name}</b>;
   return (
-    <div className={`bump-toasts${offset ? ' below-clock' : ''}`} role="status" aria-live="polite">
+    <div className="bump-toasts" role="status" aria-live="polite">
       {toasts.map((t) => (
         <div key={t.key} className="bump-toast">
           <span className="bump-icon" aria-hidden="true">!</span>

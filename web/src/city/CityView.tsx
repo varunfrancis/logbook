@@ -5,6 +5,7 @@ import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.
 import { isoDate, post, useDay } from '../useLogbook.ts';
 import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
+import { LiveFeed } from './LiveFeed.tsx';
 
 export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null }: {
   /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
@@ -89,7 +90,10 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     <div className="city">
       <div className="city-canvas" ref={host} />
       <div className="city-labels" ref={labels} />
-      <BumpToasts state={state} onAgent={onAgent} offset={!!replay} />
+      <div className={`town-left${replay ? ' below-clock' : ''}`}>
+        {replay ? null : <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />}
+        <BumpToasts state={state} onAgent={onAgent} />
+      </div>
       {replay ? (
         <div className="replay-clock" aria-live="off">
           <b>{new Date(replay.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</b>
