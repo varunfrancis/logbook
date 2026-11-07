@@ -46,6 +46,8 @@ export class CityScene {
   private cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -400, 800);
   private target = new THREE.Vector3(0, 2, 0);
   private OFF = new THREE.Vector3(30, 26, 30);
+  private az = Math.PI / 4; // camera bearing around the town; π/4 is the classic isometric corner
+  private anim: { t0: number; dur: number; from: { x: number; z: number; az: number; zoom: number }; to: { x: number; z: number; az: number; zoom: number } } | null = null;
   private zoom = 1;
   private viewSize = 40;
   private hemi = new THREE.HemisphereLight('#ffffff', '#9cc483', 0.62);
@@ -119,7 +121,39 @@ export class CityScene {
     for (const m of this.winMats) { m.emissive.set(dark ? '#ffc861' : '#000000'); m.emissiveIntensity = dark ? 0.55 : 0; }
   }
 
-  setSelected(id: string | null) { this.selected = id; }
+  setSelected(id: string | null) {
+    const changed = id !== this.selected;
+    this.selected = id;
+    if (id && changed) this.focus(id);
+  }
+
+  /** Turns the camera around the town by `deg` (positive = clockwise as seen from above). */
+  rotateBy(deg: number) {
+    const base = this.anim ? this.anim.to : { x: this.target.x, z: this.target.z, az: this.az, zoom: this.zoom };
+    this.flyTo({ ...base, az: base.az + (deg * Math.PI) / 180 });
+  }
+  /** Back to the classic north-up corner view. */
+  resetView() { this.flyTo({ x: this.target.x, z: this.target.z, az: Math.round((this.az - Math.PI / 4) / (2 * Math.PI)) * 2 * Math.PI + Math.PI / 4, zoom: this.zoom }); }
+
+  private flyTo(to: { x: number; z: number; az: number; zoom: number }, dur = 650) {
+    if (this.reduce) { this.target.x = to.x; this.target.z = to.z; this.az = to.az; this.zoom = to.zoom; this.anim = null; this.placeCam(); this.resize(); return; }
+    this.anim = { t0: performance.now(), dur, from: { x: this.target.x, z: this.target.z, az: this.az, zoom: this.zoom }, to };
+  }
+  private stepAnim() {
+    if (!this.anim) return;
+    const { t0, dur, from, to } = this.anim;
+    const u = Math.min(1, (performance.now() - t0) / dur), e = u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+    this.target.x = from.x + (to.x - from.x) * e; this.target.z = from.z + (to.z - from.z) * e;
+    this.az = from.az + (to.az - from.az) * e; this.zoom = from.zoom + (to.zoom - from.zoom) * e;
+    if (u >= 1) this.anim = null;
+    this.placeCam(); this.resize();
+  }
+  /** Horizontal unit vectors for the current bearing: screen-right and into-the-screen. */
+  private axes() {
+    const right = new THREE.Vector3(Math.cos(this.az), 0, -Math.sin(this.az));
+    const fwd = new THREE.Vector3(-Math.sin(this.az), 0, -Math.cos(this.az));
+    return { right, fwd };
+  }
 
   setState(data: StateView, showLots: boolean) {
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
@@ -159,6 +193,7 @@ export class CityScene {
   fit() {
     const { minX, maxX, minZ, maxZ } = this.bounds;
     this.target.set(((minX + maxX) / 2) * PITCH, 2, ((minZ + maxZ) / 2) * PITCH);
+    this.anim = null;
     this.viewSize = 60; this.zoom = 1;
     this.placeCam(); this.resize();
     // Measure where the town's corners land on screen, then scale so it just fills the view.
@@ -172,16 +207,24 @@ export class CityScene {
     this.resize();
   }
 
-  zoomBy(f: number) { this.zoom = Math.max(0.35, Math.min(4, this.zoom * f)); this.resize(); }
+  zoomBy(f: number) {
+    if (this.anim) { this.anim.to.zoom = Math.max(0.35, Math.min(4, this.anim.to.zoom * f)); return; }
+    this.zoom = Math.max(0.35, Math.min(4, this.zoom * f)); this.resize();
+  }
 
   focus(id: string) {
     const b = this.buildings.get(id);
     if (!b) return;
     b.group.getWorldPosition(this.v);
-    this.target.set(this.v.x, 2, this.v.z);
-    this.zoom = Math.max(this.zoom, 1.8);
-    this.placeCam();
-    this.resize();
+    const zoom = Math.max(this.zoom, 1.8);
+    // Center the building in the part of the town the side panel doesn't cover.
+    const W = this.container.clientWidth || 1, H = this.container.clientHeight || 1, a = W / H;
+    const panel = W > 720 ? Math.min(380, W - 24) + 12 : 0;
+    const vh = Math.max(this.viewSize / Math.max(a, 1) * 0.9, this.viewSize / a * 0.9, 24) / zoom;
+    const shift = (panel / 2) * (vh / H);
+    const { right, fwd } = this.axes();
+    void fwd;
+    this.flyTo({ x: this.v.x + right.x * shift, z: this.v.z + right.z * shift, az: this.az, zoom });
   }
 
   dispose() {
@@ -203,6 +246,7 @@ export class CityScene {
   }
 
   private placeCam() {
+    this.OFF.set(Math.sin(this.az) * 42.43, 26, Math.cos(this.az) * 42.43);
     this.cam.position.copy(this.target).add(this.OFF);
     this.cam.lookAt(this.target);
     // keep the shadow camera centered on what we look at
@@ -234,13 +278,16 @@ export class CityScene {
   private bindInput() {
     const el = this.renderer.domElement;
     el.style.touchAction = 'none';
-    let drag: { x: number; y: number; sx: number; sy: number } | null = null;
+    let drag: { x: number; y: number; sx: number; sy: number; rotate: boolean } | null = null;
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
     const pointers = new Map<number, { x: number; y: number }>();
     let pinch = 0;
     const down = (e: PointerEvent) => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); drag = null; return; }
-      drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
+      this.anim = null;
+      drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, rotate: e.button === 2 || e.shiftKey || e.altKey };
+      el.style.cursor = drag.rotate ? 'ew-resize' : 'grabbing';
       el.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
@@ -257,10 +304,18 @@ export class CityScene {
         if (id !== this.hovered) { this.hovered = id; el.style.cursor = id ? 'pointer' : 'grab'; this.opts.onHover?.(id); }
         return;
       }
+      if (drag.rotate) {
+        this.az -= ((e.clientX - drag.x) / (el.clientWidth || 1)) * Math.PI * 2;
+        drag.x = e.clientX; drag.y = e.clientY;
+        this.placeCam();
+        return;
+      }
       const upp = (this.cam.top - this.cam.bottom) / (el.clientHeight || 1);
       const dx = (e.clientX - drag.x) * upp, dy = (e.clientY - drag.y) * upp;
-      this.target.x += -dx * 0.707 - dy * 0.707 * 1.4;
-      this.target.z += dx * 0.707 - dy * 0.707 * 1.4;
+      const { right, fwd } = this.axes();
+      // the view looks down at ~31°, so screen-vertical drags cover more ground
+      this.target.x += -right.x * dx + fwd.x * dy * 1.9;
+      this.target.z += -right.z * dx + fwd.z * dy * 1.9;
       const { minX, maxX, minZ, maxZ } = this.bounds;
       this.target.x = Math.max((minX - 1) * PITCH, Math.min((maxX + 1) * PITCH, this.target.x));
       this.target.z = Math.max((minZ - 1) * PITCH, Math.min((maxZ + 1) * PITCH, this.target.z));
@@ -275,7 +330,16 @@ export class CityScene {
         if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id); else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
       }
       drag = null;
+      el.style.cursor = this.hovered ? 'pointer' : 'grab';
     };
+    const key = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest('input, textarea, [contenteditable]') || e.metaKey || e.ctrlKey) return;
+      if (!this.container.isConnected || !this.container.offsetParent) return;
+      if (e.key === 'q' || e.key === 'Q') this.rotateBy(-45);
+      if (e.key === 'e' || e.key === 'E') this.rotateBy(45);
+    };
+    addEventListener('keydown', key);
+    this.disposeFns.push(() => removeEventListener('keydown', key));
     const wheel = (e: WheelEvent) => { e.preventDefault(); this.zoomBy(e.deltaY > 0 ? 0.9 : 1.1); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
@@ -811,6 +875,7 @@ export class CityScene {
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.reduce ? 0 : this.clock.elapsedTime;
     this.elapsed = this.clock.elapsedTime;
+    this.stepAnim();
     for (const f of this.globalUpdaters) f(t, dt);
     for (const b of this.buildings.values()) for (const f of b.updaters) f(t, dt);
     // Keep every character at least ~30px tall on screen, however far out you zoom.

@@ -94,6 +94,8 @@ export function CityView({ state, selected, onSelect, onAgent, showLots, dark, o
       <div className="city-tools">
         <button className="tool" onClick={() => scene.current?.zoomBy(1.25)} aria-label="Zoom in">+</button>
         <button className="tool" onClick={() => scene.current?.zoomBy(0.8)} aria-label="Zoom out">−</button>
+        <button className="tool" onClick={() => scene.current?.rotateBy(-45)} aria-label="Turn the town left (Q)" title="Turn left (Q) · or right-drag / shift-drag to spin">⟲</button>
+        <button className="tool" onClick={() => scene.current?.rotateBy(45)} aria-label="Turn the town right (E)" title="Turn right (E) · or right-drag / shift-drag to spin">⟳</button>
         <button className="tool" onClick={() => scene.current?.fit()} aria-label="Fit whole town">⤢</button>
       </div>
       <div className="legend">
