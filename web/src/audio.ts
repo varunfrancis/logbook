@@ -5,7 +5,9 @@ import { useSyncExternalStore } from 'react';
  *  - a slow, warm lo-fi loop (soft pad chords, a round bass note, sparse plucked melody with an echo)
  *  - a gentle two-note chime used as an FYI (e.g. two agents bumping into each other)
  * Browsers only allow sound after the first click or key press, so everything waits for that.
- * Music keeps playing when the browser tab is in the background.
+ * Music keeps playing when the browser tab is in the background, and carries on through a reload:
+ * the song position is kept in sessionStorage, and if the browser lets the reloaded page play sound
+ * (Chrome does once you've clicked the page before), it picks up where it was instead of waiting for a click.
  */
 
 type Prefs = { music: boolean; chime: boolean; voices: boolean };
@@ -65,12 +67,12 @@ function ensure() {
   return ctx;
 }
 
-function pad(notes: number[], t: number, dur: number) {
+function pad(notes: number[], t: number, dur: number, attack = 1.8) {
   const c = ctx!;
   const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 850; lp.Q.value = 0.3;
   const g = c.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(1, t + 1.8);
+  g.gain.linearRampToValueAtTime(1, t + attack);
   g.gain.setValueAtTime(1, t + dur - 0.2);
   g.gain.linearRampToValueAtTime(0, t + dur + 1.6); // overlaps into the next chord
   lp.connect(g); g.connect(musicBus);
@@ -121,7 +123,26 @@ function schedule() {
     }
     nextTime += EIGHTH; step++;
   }
+  savePos();
 }
+
+// ---------- carrying on through a reload ----------
+const POS_KEY = 'logbook.musicPos';
+type Pos = { step: number; lastNote: number; at: number }; // `at`: wall-clock ms when `step` plays
+function savePos() {
+  if (!ctx || !timer) return;
+  const pos: Pos = { step, lastNote, at: Date.now() + (nextTime - ctx.currentTime) * 1000 };
+  try { sessionStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch {}
+}
+function clearPos() { try { sessionStorage.removeItem(POS_KEY); } catch {} }
+/** Where the song was before this page loaded, if it was playing in this tab moments ago. */
+function savedPos(): Pos | null {
+  try {
+    const p = JSON.parse(sessionStorage.getItem(POS_KEY) || 'null') as Pos | null;
+    return p && Date.now() - p.at < 10 * 60_000 ? p : null;
+  } catch { return null; }
+}
+let resumeFrom = typeof window !== 'undefined' ? savedPos() : null;
 
 let ducked = false;
 /** Turns the music down while someone is speaking, and back up after. */
@@ -136,16 +157,26 @@ function sync() {
   if (want) {
     const c = ensure(); if (!c) return;
     c.resume().catch(() => {});
+    let fade = 0.8;
     if (!timer) {
       step = 0; nextTime = c.currentTime + 0.1;
+      if (resumeFrom) {
+        // Pick the song up where it would be now, and bring in the chord already underway.
+        step = resumeFrom.step + Math.max(0, Math.ceil((Date.now() - resumeFrom.at) / 1000 / EIGHTH));
+        lastNote = resumeFrom.lastNote;
+        const left = STEPS_PER_CHORD - (step % STEPS_PER_CHORD);
+        if (left < STEPS_PER_CHORD) pad(CHORDS[Math.floor(step / STEPS_PER_CHORD) % CHORDS.length].pad, nextTime, left * EIGHTH, 0.4);
+        resumeFrom = null; fade = 0.3;
+      }
       schedule(); timer = setInterval(schedule, 250);
     }
     musicBus.gain.cancelScheduledValues(c.currentTime);
-    musicBus.gain.setTargetAtTime(ducked ? MUSIC_LEVEL * 0.25 : MUSIC_LEVEL, c.currentTime, 0.8);
+    musicBus.gain.setTargetAtTime(ducked ? MUSIC_LEVEL * 0.25 : MUSIC_LEVEL, c.currentTime, fade);
   } else if (ctx && timer) {
     musicBus.gain.cancelScheduledValues(ctx.currentTime);
     musicBus.gain.setTargetAtTime(0, ctx.currentTime, 0.25);
     clearInterval(timer); timer = null; // already-scheduled notes fade out under the bus
+    clearPos();
   }
 }
 
@@ -176,6 +207,18 @@ if (typeof window !== 'undefined') {
   };
   addEventListener('pointerdown', unlock, true);
   addEventListener('keydown', unlock, true);
+  // Reloaded while the music was playing: start straight away if the browser allows sound without a new click.
+  if (prefs.music && resumeFrom) {
+    const c = ensure();
+    c?.resume().then(() => { if (c.state === 'running' && !unlocked) unlock(); }).catch(() => {});
+  }
+  addEventListener('pagehide', savePos);
+  // Chrome keeps "you've clicked this page" across a reload the page itself starts, but not across one started by the
+  // browser (⌘R / Ctrl+R / F5), so sound would be blocked again. While music is playing, do those reloads from the page.
+  addEventListener('keydown', (e) => {
+    const reloadKey = e.key === 'F5' || ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r');
+    if (reloadKey && timer && !e.defaultPrevented) { e.preventDefault(); savePos(); location.reload(); }
+  });
   // Some browsers suspend the audio context in the background; nudge it back (and top up the queue) on any visibility change.
   document.addEventListener('visibilitychange', () => { sync(); if (ctx && timer) schedule(); });
 }
