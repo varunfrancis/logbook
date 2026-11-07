@@ -308,7 +308,9 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     const scope = scopeOf(a), size = buildingSize(scope, maxScope);
     const state = projectState({ root: p.root, sessionsTotal: a.total, lastActivity: p.last_activity ?? null }, a.crew, now);
     const n = projectNames(p);
-    const liveCount = a.crew.filter((s) => s.status !== 'ended' && !s.away).length;
+    // "On site" counts the crew working in the building; agents on a coffee break are at the café.
+    const liveCount = a.crew.filter((s) => (s.status === 'running' || s.status === 'needs_input') && !s.away).length;
+    const present = a.crew.some((s) => s.status !== 'ended' && !s.away);
     return {
       id: p.id, name: n.name, repo: n.repo, nameSource: n.source,
       root: p.root, ghFull: p.gh_full, ghUrl: p.gh_url, ghPrivate: p.gh_private == null ? null : !!p.gh_private, ghPushedAt: p.gh_pushed_at,
@@ -322,7 +324,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
       tokens: a.tokens, bricks: Math.round(a.tokens / BRICK), tokensToday: a.today, costUsd: a.cost,
       sessionsTotal: a.total, liveSessions: liveCount, lastActivity: p.last_activity ?? null,
       prState: a.pr?.pr_state ?? (a.pr ? 'open' : null), prUrl: a.pr?.pr_url ?? null,
-      justShipped: liveCount === 0 && a.lastEnded > 0 && now - a.lastEnded < 6 * 3600_000,
+      justShipped: !present && a.lastEnded > 0 && now - a.lastEnded < 6 * 3600_000,
       justMerged: merged.has(p.id), stuck: a.stuck, checksFailing: a.failing,
       linesAdded: a.lines, commits: a.commits,
     };
