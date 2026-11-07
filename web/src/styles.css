@@ -480,6 +480,23 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .view-town .main:has(.panel) .city-actions { right: 408px; }
 .action-msg { flex-basis: 100%; text-align: right; font-size: 13px; color: var(--ink); background: var(--surface); padding: 6px 10px; border-radius: 10px; box-shadow: var(--shadow); }
 .view-town .main:has(.panel) .city-tools { right: 408px; }
+
+/* ---------- sound toggle + "bumping into each other" heads-ups ---------- */
+.ghost.music { min-width: 92px; }
+.ghost.music.on { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.bump-toasts { position: absolute; z-index: 6; left: max(16px, env(safe-area-inset-left, 0px)); top: 16px; display: flex; flex-direction: column; gap: 8px; width: min(340px, calc(100% - 32px)); pointer-events: none; transition: top .2s; }
+.bump-toasts.below-clock { top: 128px; }
+.bump-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 8px 10px 12px; box-shadow: var(--shadow); font-size: 13px; animation: bump-in .28s ease-out; }
+.bump-icon { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 900; font-size: 12px; margin-top: 1px; }
+.bump-body { flex: 1; min-width: 0; }
+.bump-title { font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-2); }
+.bump-title small { text-transform: none; letter-spacing: 0; font-weight: 700; color: var(--ink-3); font-size: 12px; }
+.bump-text { margin-top: 2px; line-height: 1.4; overflow-wrap: anywhere; }
+.bump-name { border: 0; background: none; padding: 0; font-weight: 800; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 25%, transparent); text-underline-offset: 2px; }
+.bump-name:hover { text-decoration-color: currentColor; }
+.bump-x { flex: none; border: 0; background: none; color: var(--ink-3); font-size: 18px; line-height: 1; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
+.bump-x:hover { color: var(--ink); background: var(--surface-2); }
+@keyframes bump-in { from { opacity: 0; transform: translateY(-6px); } }
 @media (max-width: 720px) {
   .view-town .main:has(.panel) .city-actions { right: 16px; }
   .city-actions { top: auto; bottom: 80px; }
