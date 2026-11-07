@@ -26,6 +26,17 @@ export function duration(from: number | null | undefined, to: number | null | un
   return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+/** Time since `from`, down to the second: "31s", "31m", "1h 12m", "2d 3h". */
+export function elapsed(from: number | null | undefined, now = Date.now()): string {
+  if (!from) return '';
+  const s = Math.max(0, Math.floor((now - from) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 /** First meaningful line of an agent's final message, with markdown stripped. */
 export function firstLine(text: string | null | undefined, max = 160): string {
   if (!text) return '';
