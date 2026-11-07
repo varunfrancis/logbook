@@ -8,7 +8,7 @@ Everything your Claude Code agents are doing, told as a little town. (Formerly L
 - **Crew**: who raised a hand (and what they need), who's building, who's on a coffee break, and who clocked out today, stamped from git as *Shipped / Sent for review / Saved, not sent / Left unfinished / Scrapped / Just a chat*. Warnings when an agent is stuck on the same problem or two agents are changing the same file.
 - **Today** (on the Crew tab): how many things shipped today, per project, with the full list one click away in a drawer; then what still needs a decision from you (reviews waiting to merge, work left unfinished or scrapped, with *Resume* and *Let it go*). A background job whose review merged counts as shipped.
 - **Agent profiles**: what you asked for, how it went, what the agent said vs. what actually happened, and the shift in numbers.
-- **Share your team**: two cards built to post. *My team* is an org chart, you on top and your AI crew underneath ("1 human. 108 AI employees."). *Payroll* is a payslip: what each agent's work would cost at API prices, against what your plan actually cost. Repo names, branches, files and prompts never appear in anything you share.
+- **Show off** (Town, top right): two cards of your AI crew, built to post. *My team* is an org chart, you on top and your AI crew underneath ("1 human. 108 AI employees."). *Payroll* is a payslip: what each agent's work would cost at API prices, against what your plan actually cost. Repo names, branches, files and prompts never appear in anything you share.
 
 Everything runs on your machine. Swarmville talks to GitHub with your own `gh` login, and asks the small Claude model (through your own Claude Code login) for one plain-English name per project.
 

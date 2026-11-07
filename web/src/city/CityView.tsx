@@ -45,7 +45,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
       </div>
       <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />
       <div className="city-actions">
-        <button className="btn dark" onClick={onShare}>Share your team</button>
+        <button className="btn dark" onClick={onShare} title="Post a card of your AI crew: your org chart or their payroll">Show off</button>
       </div>
       <div className="city-tools">
         <span className="tool-hint">Pan <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd></span>
