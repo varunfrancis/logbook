@@ -25,12 +25,13 @@
   /* Swarmville brand: Pip blue for actions and bands, hard-hat yellow for highlights, warm paper, slate ink */
   --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --line: #e6e1d6;
   --ink: #25303d; --ink-2: #5c6878; --ink-3: #8b94a1;
-  --headline: #3f8efc;
-  --cta: #3f8efc; --cta-edge: #295ca4; --cta-ink: #ffffff;
-  --btn2: #ffffff; --btn2-edge: #e6e1d6; --btn2-ink: #295ca4;
-  --band: #3f8efc; --band-edge: #295ca4; --band-ink: #ffffff; --band-deep: #295ca4; --band-soft: #e3efff;
+  --headline: #25303d; --logo: #2f80ee;
+  --cta: #2563c9; --cta-edge: #1a4590; --cta-ink: #ffffff;
+  --btn2: #ffffff; --btn2-edge: #e6e1d6; --btn2-ink: #2563c9;
+  --band: #2563c9; --band-edge: #1a4590; --band-ink: #ffffff; --band-deep: #1a4590; --band-soft: #e3efff;
+  --grass-ink: #25303d; --t-red: #c8323a; --t-sun: #8a6200; --t-pink: #b8306f; --t-teal: #0b7a7a; --t-sky: #1a6fb0; --t-orange: #b0560a; --t-purple: #6d3fd1;
   --sky-band: #ffc928; --num-ink: #3c2a00; --cloud: #ffffff55;
-  --hill-a: #5ac33a; --hill-b: #4fb12f; --stage-sky: transparent;
+  --hill-a: #b9e29b; --hill-b: #a4d684; --stage-sky: transparent;
   --window: #ffffff99; --window-glow: none;
   --art-sky: #e5f5fe; --art-sky-g: #cdeefe; --art-sun: #fff6dc; --art-sun-g: #ffe9a8;
   --art-pink: #ffeef7; --art-pink-g: #ffd9ec; --art-green: #e9f8e1; --art-green-g: #d4f2c4;
@@ -47,7 +48,7 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
   --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
-  --headline: #ffd772;
+  --headline: #ffd772; --logo: #ffd772; --grass-ink: #eaf2ff; --t-red: #ff7b7f; --t-sun: #ffd34d; --t-pink: #ff86c8; --t-teal: #5fe0e0; --t-sky: #7cc8ff; --t-orange: #ffb067; --t-purple: #c4a8ff;
   --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
   --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
   --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
@@ -65,7 +66,7 @@
 :root[data-theme="dark"] {
   --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --line: #2c394b;
   --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
-  --headline: #ffd772;
+  --headline: #ffd772; --logo: #ffd772; --grass-ink: #eaf2ff; --t-red: #ff7b7f; --t-sun: #ffd34d; --t-pink: #ff86c8; --t-teal: #5fe0e0; --t-sky: #7cc8ff; --t-orange: #ffb067; --t-purple: #c4a8ff;
   --cta: #4b97ff; --cta-edge: #2563c9; --cta-ink: #ffffff;
   --btn2: #1c2532; --btn2-edge: #0d131b; --btn2-ink: #9cc4ff;
   --band: #1a2b45; --band-edge: #0f1a2b; --band-ink: #eaf2ff; --band-deep: #0f1a2b; --band-soft: #233a5c;
@@ -111,7 +112,7 @@ a { color: var(--btn2-ink); }
 .nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(8px); border-bottom: 2px solid var(--line); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--bg); }
 .nav .inner { display: flex; align-items: center; justify-content: space-between; height: 70px; gap: 12px; }
-.logo { display: flex; align-items: center; gap: 8px; font: 700 30px/1 var(--f-display); color: var(--headline); text-decoration: none; letter-spacing: -0.02em; }
+.logo { display: flex; align-items: center; gap: 8px; font: 700 30px/1 var(--f-display); color: var(--logo); text-decoration: none; letter-spacing: -0.02em; }
 .nav-right { display: flex; gap: 10px; align-items: center; }
 .theme { width: 44px; height: 44px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 0 var(--line); }
 .theme:active { transform: translateY(3px); box-shadow: none; }
@@ -168,7 +169,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 
 /* the town, drawn: a close-up of four buildings inside a browser window that matches the visitor's browser */
-.real { background: var(--hill-b); color: var(--band-ink); padding-block: 40px 140px; text-align: center; position: relative; }
+.real { background: var(--hill-b); color: var(--grass-ink); padding-block: 40px 140px; text-align: center; position: relative; }
 .real h2 { font-size: clamp(34px, 5vw, 50px); text-transform: lowercase; }
 .real .lead { font-size: 19px; opacity: .95; margin: 10px auto 0; max-width: 44ch; }
 .browser { margin: 40px auto 0; max-width: 1000px; border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 8px 0 rgba(0,0,0,.18), 0 30px 60px rgba(0,0,0,.2); text-align: left; }
@@ -460,7 +461,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
       <div class="art sky pop" aria-hidden="true"><span class="ground"></span>
         <div style="position:relative;display:grid;justify-items:center;gap:8px"><span class="bubble red pulse" style="font-size:16px">I need your OK!</span><span class="wobble" data-char="juno-needs" data-size="150"></span></div>
       </div>
-      <div><span class="tag" style="color:var(--red)">Never miss a question</span><h2>know when claude needs you</h2>
+      <div><span class="tag" style="color:var(--t-red)">Never miss a question</span><h2>know when claude needs you</h2>
         <p>A raised hand and a gentle ping the moment Claude needs you.</p></div>
     </section>
     <section class="feature flip">
@@ -474,7 +475,7 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
           <rect x="110" y="160" width="20" height="30" rx="10" fill="#0003"/>
         </svg>
       </div>
-      <div><span class="tag" style="color:var(--sun-dark)">Celebrate the wins</span><h2>see what got done</h2>
+      <div><span class="tag" style="color:var(--t-sun)">Celebrate the wins</span><h2>see what got done</h2>
         <p>Fireworks when work ships. A clear label when it doesn't.</p></div>
     </section>
     <section class="feature">
@@ -485,14 +486,14 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
             <svg width="60" height="34" viewBox="0 0 60 34"><path class="wave-sound" d="M8 6 Q20 17 8 28" stroke="#ff86c8" stroke-width="5" fill="none" stroke-linecap="round"/><path class="wave-sound d1" d="M24 2 Q42 17 24 32" stroke="#ff86c8" stroke-width="5" fill="none" stroke-linecap="round"/></svg></div>
         </div>
       </div>
-      <div><span class="tag" style="color:#e5609f">A crew, not a log file</span><h2>meet your crew</h2>
+      <div><span class="tag" style="color:var(--t-pink)">A crew, not a log file</span><h2>meet your crew</h2>
         <p>Every helper has a name, a face and a voice.</p></div>
     </section>
     <section class="feature flip">
       <div class="art green pop" aria-hidden="true"><span class="ground"></span>
         <div class="panel"><b style="font-family:var(--f-display);font-size:19px">What should we do next?</b><span class="opt">Brainstorm with me</span><span class="opt on">Plan with me ✓</span><span class="btn small" style="justify-self:end">Start planning</span></div>
       </div>
-      <div><span class="tag" style="color:var(--teal)">Start without typing commands</span><h2>give the next job in one click</h2>
+      <div><span class="tag" style="color:var(--t-teal)">Start without typing commands</span><h2>give the next job in one click</h2>
         <p>Say what you want. Claude plans it first, then builds when you say yes.</p></div>
     </section>
   </div>
@@ -512,9 +513,9 @@ footer .tm { text-align: center; margin-top: 14px; font-size: 12px; font-weight:
   <div class="inner">
     <h2 id="promise-title">your work stays yours</h2>
         <div class="cards">
-      <div class="card pop"><span class="badge" style="background:var(--sky)"><span data-char="moss" data-size="84" class="bob"></span></span><h3 style="color:var(--sky)">Stays on your Mac</h3><p>Nothing is uploaded. No account.</p></div>
-      <div class="card pop"><span class="badge" style="background:var(--orange)"><span data-char="pip" data-size="88" class="bob d1"></span></span><h3 style="color:var(--orange)">Uses your own Claude</h3><p>Friendly names use a tiny bit of your own plan.</p></div>
-      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--purple)">Open for anyone to check</h3><p>The code is public and free to use.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--sky)"><span data-char="moss" data-size="84" class="bob"></span></span><h3 style="color:var(--t-sky)">Stays on your Mac</h3><p>Nothing is uploaded. No account.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--orange)"><span data-char="pip" data-size="88" class="bob d1"></span></span><h3 style="color:var(--t-orange)">Uses your own Claude</h3><p>Friendly names use a tiny bit of your own plan.</p></div>
+      <div class="card pop"><span class="badge" style="background:var(--purple)"><span data-char="bolt" data-size="84" class="bob d2"></span></span><h3 style="color:var(--t-purple)">Open for anyone to check</h3><p>The code is public and free to use.</p></div>
     </div>
   </div>
 </section>
