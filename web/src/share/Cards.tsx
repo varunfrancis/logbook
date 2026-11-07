@@ -1,6 +1,6 @@
 import type { DayView, GraveEntry, StateView, WrappedView } from '../../../daemon/types.ts';
 import { AgentAvatar } from '../crew/Avatar.tsx';
-import { mins, money, STAMP } from '../copy.ts';
+import { money, STAMP } from '../copy.ts';
 
 /*
  * Share cards. They only ever see plain names (or "Project A, B…" when names are hidden):
@@ -15,35 +15,6 @@ function useAlias(state: StateView, privacy: Privacy) {
 }
 
 const dateLabel = (ts: number) => new Date(ts).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-
-export function WaitedCard({ state, day }: { state: StateView; day: DayView; privacy: Privacy }) {
-  const per = day.lanes.map((l) => ({ s: l.session, ms: l.segments.filter((g) => g.kind === 'wait').reduce((n, g) => n + g.end - g.start, 0) }))
-    .filter((x) => x.ms > 0).sort((a, b) => b.ms - a.ms).slice(0, 4);
-  const max = per[0]?.ms || 1;
-  const pctDay = day.stats.crewMs ? Math.round((day.stats.waitedMs / (day.stats.crewMs + day.stats.waitedMs)) * 100) : 0;
-  return (
-    <div className="card waited">
-      <div className="waited-main">
-        <div className="lead">Today my agents waited on me for</div>
-        <div className="huge">{mins(day.stats.waitedMs).replace(' min', 'm').replace(' h ', 'h ')}</div>
-        <div className="note">That's {pctDay}% of their day spent with a hand raised, waiting for me to say yes.</div>
-      </div>
-      <div className="waited-side">
-        <div className="kicker">Most patient crew</div>
-        {per.length ? per.map((x) => (
-          <div className="wrow" key={x.s.id}>
-            <AgentAvatar agent={x.s.agent} mood="needs" size={48} />
-            <b>{x.s.agent.name}</b>
-            <div className="bar"><i style={{ width: `${(x.ms / max) * 100}%` }} /></div>
-            <span>{mins(x.ms)}</span>
-          </div>
-        )) : <div className="note">Nobody waited today. Suspicious.</div>}
-        {per[0] ? <div className="note">{per[0].s.agent.title} waited {mins(per[0].ms)} for an answer.</div> : null}
-      </div>
-      <footer><span>{state.town.name} · {dateLabel(day.start)} · a crew of {day.stats.crew} · {day.stats.projects} project{day.stats.projects === 1 ? '' : 's'}</span><b>swarmville</b></footer>
-    </div>
-  );
-}
 
 export function GraveyardCard({ state, graves, privacy }: { state: StateView; graves: GraveEntry[]; privacy: Privacy }) {
   const name = useAlias(state, privacy);
@@ -92,7 +63,6 @@ export function ReceiptCard({ state, day, privacy }: { state: StateView; day: Da
         ))}
         {rest.length ? <div className="rc-item"><div><b>ODD JOBS ({rest.length} MORE)</b><span>{price(rest.reduce((n, s) => n + s.costUsd, 0))}</span></div></div> : null}
         <hr />
-        <div className="rc-line"><span>HANDS RAISED, WAITING ON YOU {mins(day.stats.waitedMs).toUpperCase()}</span><span>NO CHARGE</span></div>
         <div className="rc-line"><span>BRICKS LAID</span><span>{day.stats.bricks.toLocaleString()}</span></div>
         <div className="rc-line"><span>CREW ON SHIFT</span><span>{day.stats.crew}</span></div>
         <div className="rc-line"><span>{Object.entries(sizes).map(([k, v]) => `${v} ${k.toUpperCase()}${v > 1 ? 'S' : ''}`).join(' · ') || 'NO CHANGES'}</span><span /></div>
@@ -134,7 +104,7 @@ export function WrappedCards({ state, w }: { state: StateView; w: WrappedView })
       <div className="story s3">
         <div className="bars"><i className="on" /><i className="on" /><i className="on" /></div>
         <div className="big-q">Your {month} in {state.town.name}</div>
-        {[['Shifts worked', w.stats.shifts], ['Things shipped', w.stats.shipped], ['In the graveyard', w.stats.graveyard], ['Hands raised, waiting on you', mins(w.stats.waitedMs)], ['Busiest hour', hour], ['Bricks laid', w.stats.bricks.toLocaleString()], ['New buildings', w.stats.newBuildings]].map(([k, v]) => (
+        {[['Shifts worked', w.stats.shifts], ['Things shipped', w.stats.shipped], ['In the graveyard', w.stats.graveyard], ['Busiest hour', hour], ['Bricks laid', w.stats.bricks.toLocaleString()], ['New buildings', w.stats.newBuildings]].map(([k, v]) => (
           <div className="kv" key={String(k)}><span>{k}</span><b>{v}</b></div>
         ))}
         <footer><span /><b>swarmville</b></footer>

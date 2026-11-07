@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLogbook } from './useLogbook.ts';
 import { CrewView } from './views/CrewView.tsx';
 import { MedalToasts } from './crew/Leaderboard.tsx';
-import { DayView } from './views/DayView.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
 import { AskPopup } from './views/AskPopup.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
@@ -20,9 +19,11 @@ import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
 import { SavedToast } from './SavedToast.tsx';
 import { AgentAvatar, FOREMAN } from './crew/Avatar.tsx';
 import { PipFavicon, townMood } from './crew/PipFavicon.tsx';
+import { shippedToday } from './crew/today.ts';
 
-type View = 'town' | 'crew' | 'day';
-const readView = (): View => (location.hash === '#crew' ? 'crew' : location.hash === '#day' ? 'day' : 'town');
+type View = 'town' | 'crew';
+// The Day tab is gone: old #day links land on Crew, at its Today section.
+const readView = (): View => (location.hash === '#crew' || location.hash === '#day' ? 'crew' : 'town');
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} } };
 
 function useTheme() {
@@ -59,6 +60,11 @@ export function App() {
   const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('logbook.hiddenProjects') || '[]')); } catch { return new Set(); } });
   const setHidden = (s: Set<string>) => { setHiddenRaw(s); store.set('logbook.hiddenProjects', JSON.stringify([...s])); };
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
+  useEffect(() => { // an old #day bookmark: show Crew scrolled to Today
+    if (location.hash !== '#day' || !state) return;
+    history.replaceState(null, '', '#crew');
+    requestAnimationFrame(() => document.getElementById('today')?.scrollIntoView({ block: 'start' }));
+  }, [!!state]);
   useEffect(() => { store.set('logbook.lots', showLots ? '1' : '0'); }, [showLots]);
   useEffect(() => { store.set('logbook.voice', voice); }, [voice]);
   useEffect(() => { store.set('logbook.bubbleMode', bubble); }, [bubble]);
@@ -79,13 +85,12 @@ export function App() {
   }, []);
   const selectProject = useCallback((id: string | null) => setSel(id ? { kind: 'project', id } : null), []);
   const t = state?.totals;
-  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const focus = useMemo(() => {
     if (!state) return { sessions: null, projects: null, sessionProjects: new Set<string>() };
     const projects = hidden.size ? new Set(state.projects.filter((p) => !hidden.has(p.id)).map((p) => p.id)) : null;
     if (!only) return { sessions: null, projects, sessionProjects: new Set<string>() };
     const match = state.sessions.filter((s) => only === 'needs' ? s.status === 'needs_input' : only === 'building' ? s.status === 'running' : only === 'break' ? s.status === 'idle'
-      : s.status === 'ended' && s.stamp === 'shipped' && (s.endedAt ?? 0) >= today0.getTime());
+      : shippedToday(s));
     return { sessions: new Set(match.map((s) => s.id)), projects, sessionProjects: new Set(match.map((s) => s.projectId ?? '')) };
   }, [state, only, hidden]);
   // The Crew view lists only what the filters let through.
@@ -108,14 +113,13 @@ export function App() {
           <nav className="tabs" aria-label="View">
             <button className={view === 'town' ? 'on' : ''} onClick={() => go('town')}>Town</button>
             <button className={view === 'crew' ? 'on' : ''} onClick={() => go('crew')}>Crew</button>
-            <button className={view === 'day' ? 'on' : ''} onClick={() => go('day')}>Day</button>
           </nav>
           {t ? (
             <div className="summary" aria-live="polite">
               {t.needs ? chip('needs', t.needs, 'raised a hand', 'needs') : null}
               {chip('building', t.running, 'building')}
               {chip('break', t.idle, 'on a coffee break')}
-              {chip('shipped', t.shippedToday, 'shipped today')}
+              {chip('shipped', state ? state.sessions.filter((s) => shippedToday(s)).length : t.shippedToday, 'shipped today')}
               {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} /> : null}
               <TourPill api={welcome} />
               <span className="sum hide-sm"><b>{voice === 'plain' ? t.bricksToday.toLocaleString() : compact(t.tokensToday)}</b> {voice === 'plain' ? 'bricks laid' : 'tokens'}</span>
@@ -135,10 +139,8 @@ export function App() {
             <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `logbook start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
             <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} />
-          ) : view === 'crew' ? (
-            <CrewView state={crewState!} open={open} />
           ) : (
-            <DayView state={state} openAgent={open.agent} />
+            <CrewView state={crewState!} open={open} />
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}

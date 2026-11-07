@@ -16,7 +16,7 @@ export function scorecard(p: AgentProfile): { scores: Score[]; verdict: { grade:
     ? { label: 'On their own', value: '—', note: 'not enough work yet', grade: 'none', help: 'How long they work before needing you.' }
     : every == null
     ? { label: 'On their own', value: 'Always', note: `never needed you in ${mins(p.workMs)}`, grade: 'good', help: 'How long they work before stopping to ask you something or wait for your OK.' }
-    : { label: 'On their own', value: mins(every), note: `between questions · ${mins(p.waitedMs)} waited`, grade: every >= 60 * 60_000 ? 'good' : every >= 20 * 60_000 ? 'ok' : 'bad', help: 'How long they work before stopping to ask you something or wait for your OK.' };
+    : { label: 'On their own', value: mins(every), note: 'between questions', grade: every >= 60 * 60_000 ? 'good' : every >= 20 * 60_000 ? 'ok' : 'bad', help: 'How long they work before stopping to ask you something or wait for your OK.' };
   const perJob = p.delivered ? p.costUsd / p.delivered : null;
   const perHour = hours >= 0.25 ? p.costUsd / hours : null;
   const cost: Score = perJob != null

@@ -1,6 +1,5 @@
 import type { DayView, ProjectView, SessionView, StateView } from '../../../daemon/types.ts';
 import type { CityScene } from './scene.ts';
-import { mins } from '../copy.ts';
 
 const KINDS: SessionView['actionKind'][] = ['edit', 'edit', 'run', 'read', 'edit', 'web'];
 
@@ -80,7 +79,7 @@ export function recordTimelapse(scene: CityScene, base: StateView, day: DayView,
       ctx.fillText(new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 46, 84);
       ctx.font = `700 15px "Nunito", system-ui, sans-serif`; ctx.fillStyle = '#aab4c2';
       ctx.fillText(`${base.town.name} · ${new Date(t).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}`, 46, 112);
-      const pills = [`${working} crew on site`, `${shipped} shipped so far`, `Waited on you: ${mins(day.stats.waitedMs * p)}`];
+      const pills = [`${working} crew on site`, `${shipped} shipped so far`];
       ctx.font = `800 17px "Nunito", system-ui, sans-serif`;
       pills.forEach((txt, i) => {
         const w = ctx.measureText(txt).width + 28;
