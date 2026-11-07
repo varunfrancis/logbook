@@ -656,6 +656,42 @@ test('one project, one building: sub-folders of a plain folder, and repos that g
   assert.deepEqual(one("SELECT project_id, agent_key FROM sessions WHERE id = 's1'"), { project_id: after, agent_key: `${after}#resident` });
   assert.equal(one('SELECT name FROM agents WHERE key = ?', `${after}#resident`).name, 'Ada');
   assert.equal(one('SELECT project_id FROM notes').project_id, after);
+
+  // A repo renamed on GitHub: origin moves to the new name, but it's the same folder and the same building.
+  const renamed = path.join(dir, 'logbook');
+  fs.mkdirSync(path.join(renamed, 'web'), { recursive: true });
+  sh(renamed, 'init', '-q');
+  sh(renamed, 'remote', 'add', 'origin', 'https://github.com/someone/logbook.git');
+  const oldId = ensureProjectForCwd(db, renamed).projectId;
+  assert.equal(oldId, 'gh:someone/logbook');
+  db.prepare("UPDATE projects SET display_name = 'Agent Logbook', display_source = 'ai', lot = 3 WHERE id = ?").run(oldId);
+  db.prepare("INSERT INTO sessions(id, project_id, started_at, agent_key) VALUES('r1', ?, 10, ?)").run(oldId, `${oldId}#resident`);
+  db.prepare("INSERT INTO agents(key, name) VALUES(?, 'Grace')").run(`${oldId}#resident`);
+  sh(renamed, 'remote', 'set-url', 'origin', 'https://github.com/someone/swarmville.git');
+  const newId = ensureProjectForCwd(db, path.join(renamed, 'web')).projectId; // a new cwd, so git is asked again
+  assert.equal(newId, 'gh:someone/swarmville');
+  assert.equal(db.prepare('SELECT 1 FROM projects WHERE id = ?').get(oldId), undefined);
+  assert.deepEqual(one('SELECT display_name, lot FROM projects WHERE id = ?', newId), { display_name: 'Agent Logbook', lot: 3 });
+  assert.deepEqual(one("SELECT project_id, agent_key FROM sessions WHERE id = 'r1'"), { project_id: newId, agent_key: `${newId}#resident` });
+  assert.equal(one('SELECT name FROM agents WHERE key = ?', `${newId}#resident`).name, 'Grace');
+
+  // Already split by an older version (the new name got its own building and crew): the startup pass joins them,
+  // and the building and crew that were there first keep their name and look.
+  const split = path.join(dir, 'town');
+  fs.mkdirSync(split);
+  sh(split, 'init', '-q');
+  sh(split, 'remote', 'add', 'origin', 'git@github.com:someone/town.git');
+  db.prepare("INSERT INTO projects(id, name, root, display_name, display_source, lot) VALUES('gh:someone/village', 'town', ?, 'Agent Logbook', 'ai', 4)").run(split);
+  db.prepare("INSERT INTO projects(id, name, root, display_name, display_source, lot) VALUES('gh:someone/town', 'town', ?, 'Agent Town', 'ai', 9)").run(split);
+  db.prepare("INSERT INTO sessions(id, project_id, started_at, agent_key) VALUES('v0', 'gh:someone/village', 1, 'gh:someone/village#resident')").run();
+  db.prepare("INSERT INTO sessions(id, project_id, started_at, agent_key) VALUES('t0', 'gh:someone/town', 50, 'gh:someone/town#resident')").run();
+  db.prepare("INSERT INTO agents(key, name) VALUES('gh:someone/village#resident', 'Ada'), ('gh:someone/town#resident', 'Bob')").run();
+  consolidateProjects(db);
+  assert.equal(db.prepare("SELECT 1 FROM projects WHERE id = 'gh:someone/village'").get(), undefined);
+  assert.deepEqual(one("SELECT display_name, lot FROM projects WHERE id = 'gh:someone/town'"), { display_name: 'Agent Logbook', lot: 4 });
+  assert.equal(one("SELECT project_id FROM sessions WHERE id = 'v0'").project_id, 'gh:someone/town');
+  assert.equal(one("SELECT name FROM agents WHERE key = 'gh:someone/town#resident'").name, 'Ada');
+  assert.equal(db.prepare("SELECT 1 FROM agents WHERE key LIKE 'gh:someone/village#%'").get(), undefined);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
