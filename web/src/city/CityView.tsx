@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { StateView } from '../../../daemon/types.ts';
 import { CityScene } from './scene.ts';
-import { frameState, recordTimelapse, dayRange, type Replay } from './timelapse.ts';
-import { isoDate, post, useDay } from '../useSwarmville.ts';
 import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 import { LiveFeed } from './LiveFeed.tsx';
@@ -19,11 +17,6 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   const scene = useRef<CityScene | null>(null);
   const cb = useRef({ onSelect, onAgent, onGraveyard });
   cb.current = { onSelect, onAgent, onGraveyard };
-  const day = useDay(isoDate(), state.generatedAt);
-  const [replay, setReplay] = useState<Replay | null>(null);
-  const [busy, setBusy] = useState<'preview' | 'record' | 'skyline' | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const abort = useRef<AbortController | null>(null);
   const activeCount = state.projects.filter((p) => p.state === 'site' || p.state === 'needs').length;
 
   useEffect(() => {
@@ -32,8 +25,8 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     return () => { s.dispose(); scene.current = null; };
   }, []);
   useEffect(() => { scene.current?.setBubble(bubble); }, [bubble]);
-  useEffect(() => { scene.current?.setTheme(dark); if (!busy) scene.current?.setState(state, showLots); }, [dark]);
-  useEffect(() => { if (!busy) scene.current?.setState(state, showLots); }, [state, showLots, busy]);
+  useEffect(() => { scene.current?.setTheme(dark); scene.current?.setState(state, showLots); }, [dark]);
+  useEffect(() => { scene.current?.setState(state, showLots); }, [state, showLots]);
   useEffect(() => { scene.current?.setSelected(selected); }, [selected]);
   useEffect(() => {
     if (!tourFocus) return;
@@ -43,71 +36,16 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   }, [tourFocus]);
   useEffect(() => { scene.current?.setFocus(focus.sessions, focus.projects, focus.sessionProjects); }, [focus]);
 
-  const stop = () => { abort.current?.abort(); };
-  const preview = () => {
-    if (!day || !scene.current) return;
-    const [from, to] = dayRange(day);
-    const ctrl = new AbortController(); abort.current = ctrl;
-    setBusy('preview');
-    const t0 = performance.now(), dur = 20_000;
-    const loop = () => {
-      if (ctrl.signal.aborted || !scene.current) { setBusy(null); setReplay(null); return; }
-      const p = Math.min(1, (performance.now() - t0) / dur);
-      const t = from + p * (to - from);
-      scene.current.setState(frameState(state, day, t), true);
-      setReplay({ from, to, t });
-      if (p < 1) setTimeout(loop, 120); else { setBusy(null); setReplay(null); }
-    };
-    loop();
-  };
-  const record = async () => {
-    if (!day || !scene.current) return;
-    const ctrl = new AbortController(); abort.current = ctrl;
-    setBusy('record'); setMsg(null);
-    try {
-      const { blob, ext } = await recordTimelapse(scene.current, state, day, { seconds: 20, onFrame: setReplay, signal: ctrl.signal });
-      if (!ctrl.signal.aborted) {
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${state.town.name.replace(/\W+/g, '-')}-${isoDate()}.${ext}`; a.click();
-        setMsg(`Saved a 20-second ${ext.toUpperCase()} to your Downloads.`);
-      }
-    } catch (e: any) { setMsg(`Recording failed: ${e?.message ?? e}`); }
-    setBusy(null); setReplay(null);
-  };
-  const skyline = async () => {
-    if (!scene.current) return;
-    setBusy('skyline'); setMsg(null);
-    scene.current.fit();
-    await new Promise((r) => setTimeout(r, 400));
-    const png = scene.current.snapshot();
-    const a = document.createElement('a'); a.href = png; a.download = 'swarmville-skyline.png'; a.click();
-    const r = await post('/api/skyline', { png, push: !!state.settings.skylineRepo });
-    setMsg(r.pushed ? `Skyline updated in your profile repo and pushed. Add ${r.markdown} to your README once (skip if it is already there).`
-      : r.error ? r.error : 'Saved the skyline image. Set your profile repo in Settings to update your README automatically.');
-    setBusy(null);
-  };
-
   return (
     <div className="city">
       <div className="city-canvas" ref={host} />
       <div className="city-labels" ref={labels} />
-      <div className={`town-left${replay ? ' below-clock' : ''}`}>
+      <div className="town-left">
         <BumpToasts state={state} onAgent={onAgent} />
       </div>
-      {replay ? null : <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />}
-      {replay ? (
-        <div className="replay-clock" aria-live="off">
-          <b>{new Date(replay.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</b>
-          <span>{busy === 'record' ? 'Recording time-lapse…' : 'Replaying today'}</span>
-          <div className="replay-bar"><i style={{ width: `${((replay.t - replay.from) / (replay.to - replay.from)) * 100}%` }} /></div>
-          <button className="ghost small" onClick={stop}>Stop</button>
-        </div>
-      ) : null}
+      <LiveFeed state={state} visible={focus.projects} onAgent={onAgent} />
       <div className="city-actions">
-        <button className="btn dark" onClick={onShare}>Share</button>
-        <button className="ghost" onClick={preview} disabled={!!busy || !day?.lanes.length}>Replay today</button>
-        <button className="ghost" onClick={record} disabled={!!busy || !day?.lanes.length}>Export time-lapse</button>
-        <button className="ghost" onClick={skyline} disabled={!!busy}>README skyline</button>
-        {msg ? <span className="action-msg" role="status">{msg}</span> : null}
+        <button className="btn dark" onClick={onShare}>Share your team</button>
       </div>
       <div className="city-tools">
         <span className="tool-hint">Pan <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd></span>

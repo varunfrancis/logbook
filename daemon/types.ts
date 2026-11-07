@@ -169,7 +169,7 @@ export type StateView = {
   };
   github: GithubMeta;
   hooks: { lastEventAt: number | null };
-  settings: { skylineRepo: string | null; vscodeConnected: boolean; terminalIntros: boolean; welcome: Welcome };
+  settings: { vscodeConnected: boolean; terminalIntros: boolean; welcome: Welcome };
   setup: Setup;
 };
 
@@ -260,11 +260,11 @@ export type DayView = {
   stats: { waitedMs: number; longestWait: { agent: string; ms: number; at: number } | null; crewMs: number; crew: number; projects: number; peak: number; peakAt: number | null; shipped: number; closed: number; unfinished: number; scrapped: number; bricks: number; costUsd: number };
 };
 
-export type WrappedView = {
-  month: string;
-  label: string;
-  mvp: { agent: Agent; shipped: number; scrapped: number; bricks: number; project: string | null } | null;
-  peak: number;
-  peakAt: number | null;
-  stats: { shifts: number; shipped: number; graveyard: number; waitedMs: number; busiestHour: number | null; bricks: number; newBuildings: number; costUsd: number };
+/** Everyone who worked for you over the last N days, for the "My team" and "Payroll" share cards. */
+export type TeamView = {
+  from: number;
+  to: number;
+  days: number;
+  members: { agent: Agent; projectId: string | null; project: string | null; shifts: number; delivered: number; workMs: number; costUsd: number }[]; // busiest first
+  totals: { members: number; shifts: number; delivered: number; workMs: number; costUsd: number; projects: number; peak: number };
 };
