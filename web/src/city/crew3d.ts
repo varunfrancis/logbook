@@ -39,6 +39,19 @@ export function setCrewNight(root: THREE.Object3D, dark: boolean) {
   root.traverse((o) => { if ((o as THREE.Sprite).isSprite && o.userData.avatar) ((o as THREE.Sprite).material as THREE.SpriteMaterial).color.setScalar(dark ? 0.72 : 1); });
 }
 
+/** Soft white radial blob; tinted per use through the material color. */
+const glowTex = (() => {
+  let t: THREE.CanvasTexture | null = null;
+  return () => {
+    if (t) return t;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!; const grd = g.createRadialGradient(64, 64, 0, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.35, 'rgba(255,255,255,.55)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+    return (t = new THREE.CanvasTexture(c));
+  };
+})();
+
 const shadowTex = (() => {
   let t: THREE.CanvasTexture | null = null;
   return () => {
@@ -51,7 +64,8 @@ const shadowTex = (() => {
   };
 })();
 
-export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean } = {}) {
+/** `glow`: accent color for crew who are actively at work (turquoise) or waiting on you (red): a halo, a spotlight on the ground and, when hammering, sparks. */
+export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean; glow?: string } = {}) {
   const S = 1.45; // world size of the avatar square (the body fills ~80% of it)
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
@@ -66,6 +80,22 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean } = {})
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5), new THREE.MeshBasicMaterial({ map: shadowTex(), transparent: true, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.02; shadow.renderOrder = -1; root.add(shadow);
 
+  // Working glow: a pulsing halo behind the figure and a pool of light at their feet.
+  let halo: THREE.Sprite | null = null, pool: THREE.Mesh | null = null;
+  const sparks: THREE.Sprite[] = [];
+  if (opts.glow) {
+    // additive light reads at night; on a bright day it washes out, so paint the halo as a colored glow instead
+    const hm = new THREE.SpriteMaterial({ map: glowTex(), color: opts.glow, transparent: true, blending: opts.dark ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, opacity: 0.8 });
+    halo = new THREE.Sprite(hm); halo.center.set(0.5, 0.3); halo.scale.set(S * 1.9, S * 1.9, 1); halo.renderOrder = -1; body.add(halo);
+    pool = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: glowTex(), color: opts.glow, transparent: true, blending: opts.dark ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false }));
+    pool.rotation.x = -Math.PI / 2; pool.position.y = 0.03; pool.renderOrder = -1; root.add(pool);
+    if (spec.mode === 'hammer' || spec.mode === 'carry' || spec.mode === 'walk') {
+      for (let i = 0; i < 5; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: i % 2 ? '#ffd84d' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        sp.scale.setScalar(0.16); body.add(sp); sparks.push(sp);
+      }
+    }
+  }
   const mesh = (geo: THREE.BufferGeometry, c: string, x = 0, y = 0, z = 0, parent: THREE.Object3D = root) => {
     const me = new THREE.Mesh(geo, m(c)); me.position.set(x, y, z); me.castShadow = true; parent.add(me); return me;
   };
@@ -90,6 +120,18 @@ export function buildCrew(spec: CrewSpec, m: Mat, opts: { dark?: boolean } = {})
     fig.scale.set(S * (1 + sq), S * (1 - sq), 1);
     mat.rotation = rot;
     shadow.scale.setScalar(1 - Math.min(0.3, (y - seat) * 2));
+    if (halo && pool) {
+      const p = 0.5 + 0.5 * Math.sin(k * 3);
+      halo.position.y = y; (halo.material as THREE.SpriteMaterial).opacity = (opts.dark ? 0.75 : 0.5) + (opts.dark ? 0.35 : 0.3) * p;
+      halo.scale.set(S * (1.8 + 0.25 * p), S * (1.8 + 0.25 * p), 1);
+      (pool.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * p; pool.scale.setScalar(0.9 + 0.15 * p);
+    }
+    sparks.forEach((sp, i) => {
+      const u = (k * 1.6 + i / sparks.length) % 1; // each spark: pop out from the hands, arc up and fade
+      const a = i * 2.4;
+      sp.position.set(Math.cos(a) * (0.25 + u * 0.45), S * 0.45 + u * 0.55 - u * u * 0.4, Math.sin(a) * 0.2 + 0.25);
+      (sp.material as THREE.SpriteMaterial).opacity = (1 - u) * 0.95; sp.scale.setScalar(0.18 * (1 - u * 0.6));
+    });
   };
   return { root, body, update, height: S * 0.95 + seat };
 }

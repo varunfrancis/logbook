@@ -80,6 +80,7 @@ export class CityScene {
   private parkKey = '';
   private crewFigures: { g: THREE.Object3D; base: number; h: number }[] = [];
   private crewRings: THREE.Object3D[] = [];
+  private last: { data: StateView; showLots: boolean } | null = null;
   private graveLabels: Label[] = [];
   private graveKey = '';
   private elapsed = 0;
@@ -113,6 +114,7 @@ export class CityScene {
 
   // ---------- public ----------
   setTheme(dark: boolean) {
+    const changed = dark !== this.dark;
     this.dark = dark;
     this.scene.background = new THREE.Color(dark ? '#1b2636' : '#d4ebf2');
     // three.js r155+ uses physical light units: these are the prototype's values × π.
@@ -122,6 +124,8 @@ export class CityScene {
     this.sun.intensity = dark ? 0.9 : 2.6;
     this.sun.color.set(dark ? '#b9c6ff' : '#fff1dc');
     for (const c of this.crewFigures) setCrewNight(c.g, dark);
+    // glows and site lights are tuned per theme: rebuild what's on screen
+    if (changed && this.last) { for (const b of this.buildings.values()) b.key = ''; this.setState(this.last.data, this.last.showLots); }
     for (const m of this.winMats) { m.emissive.set(dark ? '#ffc861' : '#000000'); m.emissiveIntensity = dark ? 0.55 : 0; }
   }
 
@@ -160,6 +164,7 @@ export class CityScene {
   }
 
   setState(data: StateView, showLots: boolean) {
+    this.last = { data, showLots };
     const visible = data.projects.filter((p) => showLots || p.state !== 'lot');
     const byProject = new Map<string, SessionView[]>();
     for (const s of data.sessions) if (s.status !== 'ended' && s.projectId) {
@@ -599,8 +604,15 @@ export class CityScene {
     }
     const ringMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
     const ring = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.2, 48), ringMat); ring.rotation.x = -Math.PI / 2; outer.add(ring);
+    // A soft column of light over the site and a real light that warms the building and its crew.
+    const beamMat = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 18, 32, 1, true), beamMat); beam.position.y = 9; beam.renderOrder = -1; outer.add(beam);
+    const lamp = new THREE.PointLight(this.tint(accent, 0.45), this.dark ? 70 : 14, 16, 1.6); lamp.position.set(2.5, 6, 3.5); outer.add(lamp);
     outer.position.y = 0;
     updaters.push((t, dt) => {
+      const b = 0.5 + 0.5 * Math.sin(t * 2);
+      beamMat.opacity = (this.dark ? 0.14 : 0.08) + 0.06 * b;
+      lamp.intensity = (this.dark ? 70 : 14) * (0.85 + 0.15 * b);
       outer.position.y += (LIFT - outer.position.y) * Math.min(1, dt * 2.5);
       const y = outer.position.y;
       plinth.scale.y = Math.max(0.001, y); plinth.position.y = -y / 2;
@@ -716,7 +728,7 @@ export class CityScene {
     if ((mode === 'walk' || mode === 'carry') && !slot.walk) mode = 'hammer';
     const a = s.agent;
     const mood: Mood = s.status === 'needs_input' ? 'needs' : s.stuck ? 'stuck' : s.away ? 'out' : s.status === 'idle' ? 'break' : 'working';
-    const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c), { dark: this.dark });
+    const crew = buildCrew({ shape: a.shape, color: a.color, accessory: a.accessory, job: a.job, mood, mode: s.stuck && mode !== 'wave' ? 'stuck' : mode }, (c) => this.m(c), { dark: this.dark, glow: s.status === 'needs_input' ? '#e5484d' : s.status === 'running' ? '#17c3c3' : undefined });
     const g = crew.root;
     g.position.set(...slot.pos); g.rotation.y = mode === 'wave' || mode === 'sit' ? Math.PI / 4 : slot.face; g.scale.setScalar(a.role === 'helper' ? 0.95 : 1.35);
     g.userData.sid = s.id;
