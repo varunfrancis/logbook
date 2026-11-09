@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StateView } from '../../../daemon/types.ts';
-import { chime } from '../audio.ts';
 import { useVoice } from '../copy.ts';
 
 type Bump = { key: string; a: { id: string; name: string }; b: { id: string | null; name: string }; file: string; project: string | null };
@@ -51,7 +50,6 @@ export function BumpToasts({ state, onAgent }: { state: StateView; onAgent: (id:
       clearTimeout(timers.current.get(f.key));
       timers.current.set(f.key, setTimeout(() => dismiss(f.key), SHOW_MS));
     }
-    chime();
   }, [state]);
 
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);

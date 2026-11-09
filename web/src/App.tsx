@@ -20,6 +20,7 @@ import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
 import { SavedToast } from './SavedToast.tsx';
 import { AgentAvatar, FOREMAN } from './crew/Avatar.tsx';
 import { PipFavicon, townMood } from './crew/PipFavicon.tsx';
+import { useAgentSounds } from './crew/agentSounds.ts';
 import { shippedToday } from './crew/today.ts';
 
 type View = 'town' | 'crew';
@@ -45,6 +46,7 @@ type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped
 export function App() {
   const { state, conn } = useSwarmville();
   const stateRef = useRef(state); stateRef.current = state;
+  useAgentSounds(state?.sessions);
   const [view, setView] = useState<View>(readView);
   const [sel, setSel] = useState<Sel>(null);
   const [showLots, setShowLots] = useState(store.get('swarmville.lots') !== '0');

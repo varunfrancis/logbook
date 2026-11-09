@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 /*
  * Sound for the town, made live with Web Audio (no audio files):
  *  - a slow, warm lo-fi loop (soft pad chords, a round bass note, sparse plucked melody with an echo)
- *  - a gentle two-note chime used as an FYI (e.g. two agents bumping into each other)
+ *  - short cues when an agent raises a hand, a new agent starts work, or an agent finishes (the `chime` setting)
  * Browsers only allow sound after the first click or key press, so everything waits for that.
  * Music keeps playing when the browser tab is in the background, and carries on through a reload:
  * the song position is kept in sessionStorage, and if the browser lets the reloaded page play sound
@@ -180,22 +180,34 @@ function sync() {
   }
 }
 
-/** A soft two-note "ding-dong" for low-key heads-ups. Silent until the page has been clicked once. */
-export function chime() {
+export type AgentSound = 'hand' | 'start' | 'finish';
+// [midi note, delay in seconds, level] for each cue.
+const CUES: Record<AgentSound, [number, number, number][]> = {
+  hand: [[83, 0, 0.13], [88, 0.13, 0.13]],                 // B5 → E6, rising: "look here"
+  start: [[72, 0, 0.08], [79, 0.09, 0.07]],                // C5 → G5, a light "off we go"
+  finish: [[84, 0, 0.09], [79, 0.12, 0.08], [72, 0.24, 0.1]], // C6 → G5 → C5, settling: "all done"
+};
+const lastPlayed = new Map<AgentSound, number>();
+
+/** A short cue for what an agent just did. Silent until the page has been clicked once, and at most once every 1.5 s per kind. */
+export function agentSound(kind: AgentSound) {
   if (!prefs.chime || !unlocked) return;
+  const now = Date.now();
+  if (now - (lastPlayed.get(kind) ?? 0) < 1500) return;
+  lastPlayed.set(kind, now);
   const c = ensure(); if (!c) return;
   c.resume().catch(() => {});
   const t0 = c.currentTime + 0.02;
-  [[88, 0], [83, 0.16]].forEach(([m, dt]) => { // E6 then B5
+  for (const [m, dt, level] of CUES[kind]) {
     const t = t0 + dt;
     const g = c.createGain();
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0008, t + 1.1);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0008, t + 1.1);
     g.connect(out);
     for (const [mult, lvl] of [[1, 1], [2.01, 0.12]]) {
       const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = hz(m) * mult;
       const v = c.createGain(); v.gain.value = lvl; o.connect(v); v.connect(g); o.start(t); o.stop(t + 1.2);
     }
-  });
+  }
 }
 
 if (typeof window !== 'undefined') {

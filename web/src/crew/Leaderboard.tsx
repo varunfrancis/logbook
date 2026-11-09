@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { CrewDay, CrewNote, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from './Avatar.tsx';
-import { chime } from '../audio.ts';
 import { mins, money, useCostView } from '../copy.ts';
 import { ago } from '../format.ts';
 import { post } from '../useSwarmville.ts';
@@ -182,7 +181,7 @@ export function MedalToasts({ state, openProject }: { state: StateView; openProj
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   useEffect(() => { const f = () => force((n) => n + 1); listeners.add(f); return () => { listeners.delete(f); }; }, []);
   useEffect(() => {
-    if (track(state, api)) chime();
+    track(state, api);
     for (const t of toastQueue) if (!timers.current.has(t.key)) timers.current.set(t.key, setTimeout(() => dismiss(t.key), 9000));
   }, [state, api]);
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
