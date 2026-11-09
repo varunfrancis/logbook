@@ -12,7 +12,8 @@ import { ancestry, readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, teamView } from './state.ts';
 import { handleHook } from './hooks.ts';
 import { stopProcess, systemDeps } from './stop.ts';
-import { checkPullRequests, syncGithub } from './github.ts';
+import { checkPullRequests, mergePullRequest, syncGithub } from './github.ts';
+import { clearShip, hotShipIds, shipBrief, startShip } from './ship.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
 import { labelNextFocus } from './focus.ts';
@@ -193,6 +194,26 @@ async function resume(sessionId: string): Promise<Opened> {
   return { ok: true, via, message: via === 'vscode' ? `Reopening it in VS Code.${moved}` : `Reopening it in Terminal.${moved}` };
 }
 
+/**
+ * "Ship it": the agent behind a finished job comes back in VS Code or Terminal, like Resume, with a brief to take it all
+ * the way to review (ship.ts). "fix" sends the shift doing the work back to get failing checks green.
+ */
+function shipIt(sessionId: string, mode: 'ship' | 'fix'): Opened {
+  const ship = state.ships.find((x) => x.id === sessionId || x.ids.includes(sessionId));
+  const target = mode === 'fix' && ship ? ship.sessionId : sessionId;
+  if (live.has(target)) return { ok: false, via: 'none', message: 'They’re still open in their terminal. Use Go to and ask them to finish it there.' };
+  const s = db.prepare('SELECT s.id, s.cwd, p.root, p.gh_full FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(target) as Row | undefined;
+  if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
+  const root = s.root && fs.existsSync(s.root) ? s.root : null;
+  const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
+  if (!cwd) return { ok: false, via: 'none', message: 'Its folder no longer exists on this machine.' };
+  startShip(db, sessionId, mode, cwd);
+  const command = `claude --resume ${shq(target)} ${shq(shipBrief(mode, !!s.gh_full))}`;
+  const via = openInTerminal(`ship-${target}-${Date.now()}`, cwd, root ?? cwd, command, 'Claude (shipping)');
+  refresh();
+  return { ok: true, via, message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening it in Terminal. If your Mac asks whether Swarmville may control Terminal, click OK.' };
+}
+
 /** Starts a new Claude Code session in a project with an opening prompt. Plan mode means nothing changes until you approve. */
 function launch(projectId: string, prompt: string, plan: boolean): Opened {
   const p = db.prepare('SELECT root FROM projects WHERE id = ?').get(projectId) as Row | undefined;
@@ -302,6 +323,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && /^\/api\/notes\/\d+\/remove$/.test(p)) { removeNote(db, Number(p.split('/')[3])); refresh(); return json(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/crews/dismiss') { const body = await readJson(req); dismissFlag(db, String(body.projectId ?? '')); refresh(); return json(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/today/letgo') { const body = await readJson(req); const id = String(body.id ?? ''); if (!id) return json(res, 400, { ok: false, message: 'Which job?' }); letGo(db, id, body.undo === true); refresh(); return json(res, 200, { ok: true }); }
+    if (req.method === 'POST' && p.startsWith('/api/ship/')) {
+      const [id, action] = decodeURIComponent(p.slice('/api/ship/'.length)).split('/');
+      if (!id) return json(res, 400, { ok: false, message: 'Which job?' });
+      if (action === 'live') { const r = await mergePullRequest(db, id); refresh(); return json(res, 200, r); }
+      if (action === 'clear') { clearShip(db, id); refresh(); return json(res, 200, { ok: true }); }
+      return json(res, 200, shipIt(id, action === 'fix' ? 'fix' : 'ship'));
+    }
     if (p === '/api/day') return json(res, 200, dayView(db, state, live, url.searchParams.get('date') || today()));
     if (p === '/api/team') return json(res, 200, teamView(db, state, Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30))));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
@@ -442,7 +470,7 @@ async function githubLoop() {
   catch (e) { console.error('[swarmville] github sync failed', e); }
 }
 async function prLoop() {
-  try { await checkPullRequests(db, new Set(live.keys())); soon(); } catch (e) { console.error('[swarmville] PR check failed', e); }
+  try { await checkPullRequests(db, new Set(live.keys()), hotShipIds(state.ships)); soon(); } catch (e) { console.error('[swarmville] PR check failed', e); }
 }
 /** Keeps each live agent's "current job" label in step with your newest instruction. */
 async function focusLoop() {
@@ -455,7 +483,7 @@ githubLoop();
 setInterval(githubLoop, 10 * 60_000);
 function startLoops() {
   setTimeout(prLoop, 5000);
-  setInterval(prLoop, 2 * 60_000);
+  setInterval(prLoop, 30_000); // each review keeps its own pace (checkPullRequests): every 30s while shipping, minutes otherwise
   if (!env('NO_NAMING')) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); }
 }
 
