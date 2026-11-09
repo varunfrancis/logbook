@@ -59,8 +59,17 @@ export function App() {
   const sound = useSound();
   // Header filters: one of the counts (who to highlight) and a set of hidden projects (remembered).
   const [only, setOnly] = useState<'needs' | 'building' | 'break' | 'shipped' | null>(null);
-  const [hidden, setHiddenRaw] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('swarmville.hiddenProjects') || '[]')); } catch { return new Set(); } });
-  const setHidden = (s: Set<string>) => { setHiddenRaw(s); store.set('swarmville.hiddenProjects', JSON.stringify([...s])); };
+  const [picked, setPicked] = useState<Set<string>>(() => { try { return new Set(JSON.parse(store.get('swarmville.hiddenProjects') || '[]')); } catch { return new Set(); } });
+  // By default the picker follows who's on site: only projects with crew there right now (all of them when nobody is).
+  // Ticking projects by hand switches to that hand-picked set until you choose "Only with crew on site" again.
+  const [liveOnly, setLiveOnlyRaw] = useState(() => { const m = store.get('swarmville.projectsMode'); return m ? m === 'live' : !picked.size; });
+  const setLiveOnly = () => { setLiveOnlyRaw(true); store.set('swarmville.projectsMode', 'live'); };
+  const setHidden = (s: Set<string>) => { setPicked(s); setLiveOnlyRaw(false); store.set('swarmville.projectsMode', 'pick'); store.set('swarmville.hiddenProjects', JSON.stringify([...s])); };
+  const hidden = useMemo(() => {
+    if (!liveOnly || !state) return liveOnly ? new Set<string>() : picked;
+    const live = state.projects.some((p) => p.liveSessions > 0);
+    return live ? new Set(state.projects.filter((p) => !p.liveSessions).map((p) => p.id)) : new Set<string>();
+  }, [liveOnly, picked, state]);
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { // an old #day bookmark: show Crew scrolled to Today
     if (location.hash !== '#day' || !state) return;
@@ -123,7 +132,7 @@ export function App() {
               {chip('building', t.running, 'building')}
               {chip('break', t.idle, 'on a coffee break')}
               {chip('shipped', state ? state.sessions.filter((s) => shippedToday(s)).length : t.shippedToday, 'shipped today')}
-              {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} /> : null}
+              {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} liveOnly={liveOnly} setLiveOnly={setLiveOnly} /> : null}
               <TourPill api={welcome} />
               <span className="sum hide-sm"><b>{voice === 'plain' ? t.bricksToday.toLocaleString() : compact(t.tokensToday)}</b> {voice === 'plain' ? 'bricks laid' : 'tokens'}</span>
             </div>
