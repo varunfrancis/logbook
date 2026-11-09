@@ -760,3 +760,12 @@ test('an install from before the rename (~/.logbook) moves to the new folder, le
   assert.equal(fs.lstatSync(other).isDirectory(), true);
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+test('"Go to" looks for the terminal above a background agent, not only its direct parent', async () => {
+  const { ancestry } = await import('../daemon/live.ts');
+  // bg agent 10615 <- claude 10608 <- claude 10579 <- parent agent 10452 <- terminal shell 9720 <- VS Code 9682 <- launchd 1
+  const up: Record<number, number> = { 10615: 10608, 10608: 10579, 10579: 10452, 10452: 9720, 9720: 9682, 9682: 1 };
+  assert.deepEqual(ancestry(10615, (p) => up[p] ?? null), [10615, 10608, 10579, 10452, 9720, 9682]);
+  assert.deepEqual(ancestry(5, () => 5), [5]); // a loop stops
+  assert.deepEqual(ancestry(7, () => null), [7]);
+});
