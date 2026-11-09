@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { bricks, PROJECT, SIZE, plainAction, useVoice } from '../copy.ts';
-import { ago, compact, duration, every, firstLine, nextRunText, tildify } from '../format.ts';
+import { ago, compact, duration, didSummary, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useNow } from '../useSwarmville.ts';
 import { jobLabel } from '../city/liveJobs.ts';
@@ -186,7 +186,7 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
                 <AgentAvatar agent={s.agent} mood={moodFor(s)} size={36} />
                 <div className="closed-body">
                   <div><b>{s.title}</b> <span className="sub">· {s.agent.title} · {projects.get(s.projectId ?? '')?.name}{s.size ? ` · ${SIZE[s.size]}` : ''} · {dayWord(finishedAt(s), now)}</span></div>
-                  <div className="said" title={s.outcome ?? ''}>{firstLine(s.outcome, 200) || WHY[why]}</div>
+                  <div className="said" title={s.outcome ?? ''}>{didSummary(s.outcome, 200) || WHY[why]}</div>
                 </div>
                 <span className="today-acts" onClick={(e) => e.stopPropagation()}>
                   {why === 'unfinished' || why === 'saved' ? <button className="btn ship small" onClick={() => setSheet(s)}>Ship it</button> : null}
@@ -217,7 +217,7 @@ function FinishedList({ items, projects, now, open }: { items: SessionView[]; pr
     <>
       <ul className="closed finished">
         {shown.map((s) => {
-          const said = firstLine(s.outcome, 220);
+          const said = didSummary(s.outcome, 220);
           return (
             <li key={s.id} onClick={() => open.agent(s.id)}>
               <AgentAvatar agent={s.agent} mood={s.status === 'ended' ? moodFor(s) : 'break'} size={36} />

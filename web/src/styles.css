@@ -570,6 +570,17 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .right-now { margin: 0; font-size: 12.5px; line-height: 20px; height: 20px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
 .right-now .stamp { min-width: 0; transform: none; font-size: 9.5px; padding: 1px 6px; }
 .profile-block .actions { margin-top: 4px; }
+/* the job: what you asked, what they did, and what they left behind */
+.job-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.job-k { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-block.done .one-liner.latest { height: auto; }
+.job-row.did .one-liner { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.made-links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 92px; }
+.made-link { font-size: 12px; font-weight: 700; color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 9px; }
+.made-link:hover { background: var(--surface-2); }
+.full-reply { padding-left: 92px; }
+.full-reply summary { font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+@media (max-width: 420px) { .job-row { grid-template-columns: 1fr; gap: 2px; } .made-links, .full-reply { padding-left: 0; } }
 
 .recent-jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .recent-jobs li { position: relative; display: flex; align-items: center; }

@@ -74,3 +74,61 @@ export const STATUS_LABEL: Record<string, string> = {
 export const PROJECT_LABEL: Record<string, string> = {
   site: 'Crew on site', needs: 'Raised a hand', construction: 'Under construction', recent: 'Just completed', done: 'Complete', lot: 'For sale',
 };
+
+const plain = (s: string) => s
+  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/[`*_>]+/g, '')
+  .replace(/^\s*#+\s*/, '').replace(/^\s*([-•]|\d+\.)\s+/, '').replace(/\s+/g, ' ').replace(/\s+([.,:;])/g, '$1').trim();
+
+/**
+ * What an agent did, in a sentence or two, from its final reply: the `result:` line when it wrote one,
+ * otherwise its opening paragraph. Empty when the reply has nothing readable.
+ */
+export function didSummary(text: string | null | undefined, max = 240): string {
+  if (!text) return '';
+  const result = text.match(/^\s*\**result:?\**:?\s*(.+)$/im);
+  let out = result ? plain(result[1]) : '';
+  if (!out) {
+    const para = text.split(/\n\s*\n/).map((p) => p.trim()).find((p) => p && !/^(```|---|\|)/.test(p)) ?? '';
+    out = plain(para.split('\n').filter((l) => !/^\s*\|/.test(l)).join(' '));
+  }
+  if (out.length <= max) return out;
+  const cut = out.slice(0, max);
+  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  return stop > max * 0.5 ? cut.slice(0, stop + 1) : cut.slice(0, max - 1).trimEnd() + '…';
+}
+
+export type MadeLink = { url: string; label: string };
+
+/** A short name for a link an agent left behind: "ST-7785", "PR #441", "Slack message". */
+export function linkLabel(url: string): string {
+  let u: URL;
+  try { u = new URL(url); } catch { return url; }
+  const h = u.hostname.replace(/^www\./, ''), p = u.pathname;
+  let m: RegExpMatchArray | null;
+  if (h === 'linear.app' && (m = p.match(/\/issue\/([A-Z][A-Z0-9]*-\d+)/i))) return m[1].toUpperCase();
+  if (h === 'github.com' && (m = p.match(/\/(pull|issues)\/(\d+)/))) return `${m[1] === 'pull' ? 'PR' : 'Issue'} #${m[2]}`;
+  if (h === 'github.com' && (m = p.match(/\/commit\/([0-9a-f]{7})/))) return `Commit ${m[1]}`;
+  if (h.endsWith('slack.com')) return 'Slack message';
+  if (h === 'claude.ai' && /\/artifact\//.test(p)) return 'Page';
+  if (h === 'docs.google.com') return /\/spreadsheets\//.test(p) ? 'Sheet' : /\/presentation\//.test(p) ? 'Slides' : 'Doc';
+  if (h.endsWith('notion.so') || h.endsWith('notion.site')) return 'Notion page';
+  if (h.endsWith('vercel.app')) return h;
+  if (h === 'localhost' || h === '127.0.0.1') return `${h}:${u.port || '80'}`;
+  return h;
+}
+
+/** The links in an agent's final reply (tickets, reviews, messages, docs), labelled, newest mention order kept, no repeats. */
+export function madeLinks(text: string | null | undefined, max = 4): MadeLink[] {
+  if (!text) return [];
+  const out: MadeLink[] = [];
+  const seen = new Set<string>();
+  for (const m of text.matchAll(/https?:\/\/[^\s)<>\]"'`]+/g)) {
+    const url = m[0].replace(/[.,;:!?]+$/, '');
+    const label = linkLabel(url);
+    if (seen.has(url) || seen.has(label)) continue;
+    seen.add(url); seen.add(label);
+    out.push({ url, label });
+    if (out.length >= max) break;
+  }
+  return out;
+}
