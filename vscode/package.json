@@ -3,7 +3,7 @@
   "displayName": "Swarmville Jump",
   "description": "Lets Swarmville bring an agent's terminal forward when you click \"Go to\", close it when you clock them out, reopen past jobs, and start new ones.",
   "publisher": "swarmville",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],

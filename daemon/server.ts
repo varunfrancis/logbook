@@ -97,41 +97,44 @@ const json = (res: http.ServerResponse, code: number, body: unknown) => {
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
 };
 
-const VSCODE_BIN = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
 const parentPid = (pid: number): number | null => {
   try { return Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim()) || null; } catch { return null; }
 };
 
+const command = (pid: number): string => {
+  try { return execFileSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { return ''; }
+};
+
 /*
- * "Go to": brings the agent's VS Code terminal forward. Every connected VS Code window gets the agent's process ancestry,
- * and the one with a matching terminal shows it and claims the jump. If no window claims it (an old helper, an agent in the
- * Claude panel rather than a terminal, or one started outside VS Code), open the project's folder in VS Code instead,
- * so the button always lands somewhere and never claims a success that didn't happen.
+ * "Go to": brings the agent's VS Code terminal forward, in the window it already lives in (never a new window).
+ * The terminal's shell is the process just below VS Code in the agent's ancestry: for a background agent that's its
+ * parent agent's terminal, several levels up. Every VS Code window gets it; the one that has it shows it and claims the jump.
+ * If none does (an agent in the Claude panel, or outside VS Code), the window that has the project open raises itself,
+ * and VS Code comes to the front.
  */
 const pendingJumps = new Map<string, () => void>();
 async function jump(sessionId: string): Promise<{ ok: boolean; via: string; message: string }> {
   const e = live.get(sessionId);
   if (!e) return { ok: false, via: 'none', message: 'That agent is not running right now.' };
   const pids = ancestry(e.pid, parentPid);
+  const terminal = pids.find((p, i) => i > 0 && /Visual Studio Code|Code Helper|Electron/.test(command(parentPid(p) ?? 0)));
+  const p = db.prepare('SELECT p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
   if (vscodeClients.size) {
-    const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid: pids[1] ?? null, pids, cwd: e.cwd });
+    const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid: terminal ?? pids[1] ?? null, pids, cwd: e.cwd });
     const claimed = new Promise<boolean>((resolve) => {
       const t = setTimeout(() => { pendingJumps.delete(sessionId); resolve(false); }, 1500);
       pendingJumps.set(sessionId, () => { clearTimeout(t); pendingJumps.delete(sessionId); resolve(true); });
     });
     for (const c of vscodeClients) c.write(`event: jump\ndata: ${payload}\n\n`);
     if (await claimed) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' };
-  }
-  const p = db.prepare('SELECT p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
-  const folder = [p?.root, e.cwd].find((d): d is string => !!d && fs.existsSync(d));
-  if (folder && fs.existsSync(VSCODE_BIN)) {
-    execFile(VSCODE_BIN, [folder], () => {});
-    return { ok: true, via: 'folder', message: vscodeClients.size
-      ? 'Couldn’t find their terminal in VS Code, so opened the project there.'
-      : 'Opened the project in VS Code. Install the Swarmville VS Code helper to jump straight to the terminal.' };
+    const raise = JSON.stringify({ sessionId, cwd: e.cwd, root: p?.root ?? null });
+    for (const c of vscodeClients) c.write(`event: raise\ndata: ${raise}\n\n`);
   }
   execFile('open', ['-a', 'Visual Studio Code'], () => {});
-  return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Swarmville VS Code helper to jump straight to the terminal.' };
+  if (terminal) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' }; // an older helper shows it without claiming
+  return { ok: true, via: 'app', message: vscodeClients.size
+    ? 'Brought VS Code forward. This agent isn’t in a VS Code terminal (it may be in the Claude panel or another app).'
+    : 'Brought VS Code forward. Install the Swarmville VS Code helper to jump straight to the terminal.' };
 }
 
 /** "Clock out": the VS Code helper closes the agent's terminal tab, and the daemon makes sure Claude itself stops. */
@@ -150,7 +153,7 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
 /*
  * Opening a Claude conversation in a terminal in a project folder: resuming a past shift (claude --resume <id>),
  * or starting a new one from the welcome tour or an agent's "Work with me" buttons.
- * With the VS Code helper: focus (or open) the project's VS Code window, then that window claims the request and opens a terminal.
+ * With the VS Code helper: the window that has the project open (or else any open window) claims it, comes forward and opens a terminal.
  * Without it, or if no window claims it within a few seconds: a new Terminal.app window.
  */
 type PendingResume = { id: string; cwd: string; root: string; at: number; claimed: boolean; command: string; name: string };
@@ -163,14 +166,15 @@ function openInTerminal(id: string, cwd: string, root: string, command: string, 
     const script = `tell application "Terminal"\n activate\n do script ${JSON.stringify(`cd ${shq(cwd)} && ${command}`)}\nend tell`;
     execFile('osascript', ['-e', script], () => {});
   };
-  if (vscodeClients.size && fs.existsSync(VSCODE_BIN)) {
+  if (vscodeClients.size) {
+    // Never open or swap a VS Code window: the window that has the project open claims it; if none does, any open window
+    // opens the terminal in that folder; if no helper answers at all, a Terminal.app window.
     const r: PendingResume = { id, cwd, root, at: Date.now(), claimed: false, command, name };
     pendingResumes.set(id, r);
-    execFile(VSCODE_BIN, ['-r', root], () => {});
-    const payload = JSON.stringify({ sessionId: id, cwd, root });
-    for (const c of vscodeClients) c.write(`event: resume\ndata: ${payload}\n\n`);
-    // A freshly opened window needs a moment to load the helper; it asks for pending requests when it connects.
-    setTimeout(() => { if (!r.claimed) { pendingResumes.delete(id); viaTerminal(); } }, 12_000);
+    const send = (any: boolean) => { const payload = JSON.stringify({ sessionId: id, cwd, root, any }); for (const c of vscodeClients) c.write(`event: resume\ndata: ${payload}\n\n`); };
+    send(false);
+    setTimeout(() => { if (!r.claimed) send(true); }, 1500);
+    setTimeout(() => { if (!r.claimed) { pendingResumes.delete(id); viaTerminal(); } }, 5000);
     return 'vscode';
   }
   viaTerminal();
