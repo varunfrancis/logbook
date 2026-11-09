@@ -39,15 +39,26 @@ async function handle(block) {
   try { j = JSON.parse(data); } catch { return; }
   if (ev === 'resume') return maybeResume(j);
   if (ev !== 'jump' && ev !== 'close') return;
+  // "Go to" matches any process above the agent (a background agent runs under its parent agent's terminal);
+  // "Clock out" only ever closes the agent's own terminal.
+  const pids = ev === 'jump' && Array.isArray(j.pids) ? j.pids : [j.shellPid, j.pid];
   for (const t of vscode.window.terminals) {
     const pid = await t.processId;
-    if (pid && (pid === j.shellPid || pid === j.pid)) {
+    if (pid && pids.includes(pid)) {
       if (ev === 'close') { t.dispose(); return; } // "Clock out" in Swarmville: close the agent's terminal tab
       t.show(false);
       raiseWindow();
+      claimJump(j.sessionId);
       return;
     }
   }
+}
+
+/** Tells Swarmville this window found the terminal, so it doesn't fall back to opening the project folder. */
+function claimJump(sessionId) {
+  const r = http.request({ host: '127.0.0.1', port: PORT, method: 'POST', path: '/api/jump/claim/' + encodeURIComponent(sessionId) }, (res) => res.resume());
+  r.on('error', () => {});
+  r.end();
 }
 
 /** Is this window's workspace the project (or contains the folder) the job ran in? */

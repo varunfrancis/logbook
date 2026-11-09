@@ -8,7 +8,7 @@ import { kvGet, kvSet, openDb, type Row } from './db.ts';
 import { purgeOwnRuns, scanProgress, scanTranscripts, transcriptsLeft } from './transcripts.ts';
 import { backfillEntrypoints } from './routines.ts';
 import { consolidateProjects } from './projects.ts';
-import { readLive, type LiveEntry } from './live.ts';
+import { ancestry, readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, teamView } from './state.ts';
 import { handleHook } from './hooks.ts';
 import { stopProcess, systemDeps } from './stop.ts';
@@ -97,15 +97,39 @@ const json = (res: http.ServerResponse, code: number, body: unknown) => {
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
 };
 
-/** Brings the agent's VS Code terminal forward: the companion extension owns the terminal; without it, just focus VS Code. */
-function jump(sessionId: string): { ok: boolean; via: string; message: string } {
+const VSCODE_BIN = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+const parentPid = (pid: number): number | null => {
+  try { return Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim()) || null; } catch { return null; }
+};
+
+/*
+ * "Go to": brings the agent's VS Code terminal forward. Every connected VS Code window gets the agent's process ancestry,
+ * and the one with a matching terminal shows it and claims the jump. If no window claims it (an old helper, an agent in the
+ * Claude panel rather than a terminal, or one started outside VS Code), open the project's folder in VS Code instead,
+ * so the button always lands somewhere and never claims a success that didn't happen.
+ */
+const pendingJumps = new Map<string, () => void>();
+async function jump(sessionId: string): Promise<{ ok: boolean; via: string; message: string }> {
   const e = live.get(sessionId);
   if (!e) return { ok: false, via: 'none', message: 'That agent is not running right now.' };
-  let shellPid: number | null = null;
-  try { shellPid = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(e.pid)], { encoding: 'utf8' }).trim()) || null; } catch {}
-  const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid, cwd: e.cwd });
-  for (const c of vscodeClients) c.write(`event: jump\ndata: ${payload}\n\n`);
-  if (vscodeClients.size) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' };
+  const pids = ancestry(e.pid, parentPid);
+  if (vscodeClients.size) {
+    const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid: pids[1] ?? null, pids, cwd: e.cwd });
+    const claimed = new Promise<boolean>((resolve) => {
+      const t = setTimeout(() => { pendingJumps.delete(sessionId); resolve(false); }, 1500);
+      pendingJumps.set(sessionId, () => { clearTimeout(t); pendingJumps.delete(sessionId); resolve(true); });
+    });
+    for (const c of vscodeClients) c.write(`event: jump\ndata: ${payload}\n\n`);
+    if (await claimed) return { ok: true, via: 'extension', message: 'Opening its terminal in VS Code.' };
+  }
+  const p = db.prepare('SELECT p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
+  const folder = [p?.root, e.cwd].find((d): d is string => !!d && fs.existsSync(d));
+  if (folder && fs.existsSync(VSCODE_BIN)) {
+    execFile(VSCODE_BIN, [folder], () => {});
+    return { ok: true, via: 'folder', message: vscodeClients.size
+      ? 'Couldn’t find their terminal in VS Code, so opened the project there.'
+      : 'Opened the project in VS Code. Install the Swarmville VS Code helper to jump straight to the terminal.' };
+  }
   execFile('open', ['-a', 'Visual Studio Code'], () => {});
   return { ok: true, via: 'app', message: 'Brought VS Code forward. Install the Swarmville VS Code helper to jump straight to the terminal.' };
 }
@@ -115,9 +139,8 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
   const e = live.get(sessionId);
   const r = stopProcess(e, systemDeps);
   if (!r.ok || !e) return r;
-  let shellPid: number | null = null;
-  try { shellPid = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(e.pid)], { encoding: 'utf8' }).trim()) || null; } catch {}
-  const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid });
+  // Only the agent's own terminal: never a parent agent's terminal that a background agent runs under.
+  const payload = JSON.stringify({ sessionId, pid: e.pid, shellPid: parentPid(e.pid) });
   for (const c of vscodeClients) c.write(`event: close\ndata: ${payload}\n\n`);
   setTimeout(soon, 2000);
   setTimeout(soon, 7000);
@@ -132,7 +155,6 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
  */
 type PendingResume = { id: string; cwd: string; root: string; at: number; claimed: boolean; command: string; name: string };
 const pendingResumes = new Map<string, PendingResume>();
-const VSCODE_BIN = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
 function shq(s: string) { return `'${s.replace(/'/g, `'\\''`)}'`; }
 type Opened = { ok: boolean; via: string; message: string; command?: string };
 
@@ -155,7 +177,7 @@ function openInTerminal(id: string, cwd: string, root: string, command: string, 
   return 'terminal';
 }
 
-function resume(sessionId: string): Opened {
+async function resume(sessionId: string): Promise<Opened> {
   if (live.has(sessionId)) return jump(sessionId);
   const s = db.prepare('SELECT s.id, s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
   if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
@@ -288,7 +310,12 @@ const server = http.createServer(async (req, res) => {
       soon();
       return json(res, 200, ok ? { ok: true } : { ok: false, message: 'Already answered, probably in the terminal.' });
     }
-    if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, jump(decodeURIComponent(p.slice('/api/jump/'.length))));
+    if (req.method === 'POST' && p.startsWith('/api/jump/claim/')) {
+      const claim = pendingJumps.get(decodeURIComponent(p.slice('/api/jump/claim/'.length)));
+      claim?.();
+      return json(res, 200, { ok: !!claim });
+    }
+    if (req.method === 'POST' && p.startsWith('/api/jump/')) return json(res, 200, await jump(decodeURIComponent(p.slice('/api/jump/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/resume/claim/')) {
       const r = pendingResumes.get(decodeURIComponent(p.slice('/api/resume/claim/'.length)));
       if (!r || r.claimed || Date.now() - r.at > 60_000) return json(res, 200, { ok: false });
@@ -296,7 +323,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, cwd: r.cwd, command: r.command, name: r.name });
     }
     if (p === '/api/resume/pending') return json(res, 200, [...pendingResumes.values()].filter((r) => !r.claimed && Date.now() - r.at < 60_000));
-    if (req.method === 'POST' && p.startsWith('/api/resume/')) return json(res, 200, resume(decodeURIComponent(p.slice('/api/resume/'.length))));
+    if (req.method === 'POST' && p.startsWith('/api/resume/')) return json(res, 200, await resume(decodeURIComponent(p.slice('/api/resume/'.length))));
     if (p === '/api/settings' && req.method === 'POST') {
       const body = await readJson(req);
       if (typeof body.town === 'string') setTown(db, body.town);

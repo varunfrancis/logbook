@@ -34,3 +34,13 @@ export function readLive(dir = SESSIONS_DIR): Map<string, LiveEntry> {
   }
   return out;
 }
+
+/**
+ * The agent's process and everything above it, nearest first. A background agent runs a few `claude` processes
+ * below the one its parent agent started, so the terminal that shows it is several levels up, not its direct parent.
+ */
+export function ancestry(pid: number, parentOf: (pid: number) => number | null, max = 16): number[] {
+  const out: number[] = [];
+  for (let p: number | null = pid; p && p > 1 && out.length < max && !out.includes(p); p = parentOf(p)) out.push(p);
+  return out;
+}
