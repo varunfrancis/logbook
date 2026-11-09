@@ -3,14 +3,16 @@ import type { StateView } from '../../../daemon/types.ts';
 import { post } from '../useSwarmville.ts';
 import { MOVES, type MoveId } from './moves.ts';
 
-export type Started = { ok: boolean; via: string; message: string; command?: string; projectId: string; projectName: string; at: number; plan: boolean };
+export type Started = { ok: boolean; via: string; message: string; command?: string; sessionId?: string; projectId: string; projectName: string; at: number; plan: boolean };
 
 /**
  * Pick a project and a way to start, say what it's about, and Swarmville opens Claude Code there.
  * Used on the welcome tour ("Your turn") and on every agent's profile ("Work with me").
  */
-export function StartWork({ state, moves, defaultMove, projectId, onStarted, idPrefix = 'sw', secondary }: {
+export function StartWork({ state, moves, defaultMove, projectId, onStarted, idPrefix = 'sw', secondary, here = false }: {
   state: StateView; moves: MoveId[]; defaultMove?: MoveId; projectId?: string | null; onStarted: (r: Started) => void; idPrefix?: string; secondary?: React.ReactNode;
+  /** Swarmville runs the agent itself: no terminal, you talk to it in its chat. */
+  here?: boolean;
 }) {
   const projects = useMemo(() => state.projects.filter((p) => p.root).sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0)), [state.projects]);
   const [pid, setPid] = useState(projectId ?? projects[0]?.id ?? '');
@@ -29,7 +31,7 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
     if (needsText && !what.trim()) { setErr('Say in a few words what it’s about.'); return; }
     setBusy(true); setErr(null);
     const prompt = m.prompt(what.trim(), project.name);
-    const r = await post('/api/launch', { projectId: project.id, prompt, plan: m.plan });
+    const r = await post('/api/launch', { projectId: project.id, prompt, plan: m.plan, here });
     setBusy(false);
     if (!r.ok) { setErr(r.message ?? 'Couldn’t start it.'); return; }
     onStarted({ ...r, projectId: project.id, projectName: project.name, at: Date.now(), plan: m.plan });
@@ -57,6 +59,7 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
         <input id={`${idPrefix}-what`} className="field" value={what} onChange={(e) => { setWhat(e.target.value); setErr(null); }} placeholder={m.placeholder} maxLength={400} />
       </label>
       {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p> : null}
+      {here ? <p className="sw-note">Runs here in Swarmville: you’ll chat with them in the town. You can take over in a terminal any time.</p> : null}
       {err ? <p className="sw-err" role="alert">{err}</p> : null}
       <div className={`row ${secondary ? 'between' : 'end'}`}>
         {secondary}

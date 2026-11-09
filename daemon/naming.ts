@@ -24,7 +24,7 @@ function pkgDescription(root: string | null): string {
 }
 
 let claudeBin: string | null | undefined;
-function findClaude(): string | null {
+export function findClaude(): string | null {
   if (claudeBin !== undefined) return claudeBin;
   const candidates = [path.join(process.env.HOME ?? '', '.local/bin/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'];
   claudeBin = candidates.find((c) => fs.existsSync(c)) ?? null;

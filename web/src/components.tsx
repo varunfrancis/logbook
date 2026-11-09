@@ -31,7 +31,8 @@ export function PrChip({ url, state }: { url: string | null; state: string | nul
 export function GoTo({ s, primary }: { s: SessionView; primary?: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const live = s.status !== 'ended';
-  const cmd = `${s.cwd ? `cd ${JSON.stringify(s.cwd)} && ` : ''}claude --resume ${s.id}`;
+  if (s.runner) return null; // Swarmville runs them: you talk to them in their chat, not in a terminal
+  const cmd =`${s.cwd ? `cd ${JSON.stringify(s.cwd)} && ` : ''}claude --resume ${s.id}`;
   const click = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (live) {

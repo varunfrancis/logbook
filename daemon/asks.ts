@@ -11,7 +11,8 @@ import { describeTool } from './describe.ts';
  * request closes and the ask is dropped.
  */
 
-type Pending = { view: AskView; sessionId: string; at: number; suggestions: unknown[]; input: any; reply: (out: object | null) => void };
+/** `sticky`: asked by an agent Swarmville runs itself. There's no terminal to settle it, so only an answer (or the agent stopping) ends it. */
+type Pending = { view: AskView; sessionId: string; at: number; suggestions: unknown[]; input: any; reply: (out: object | null) => void; sticky?: boolean };
 /** allow / always / deny: a yes or no. answer: picks for a question. changes: a no with a note (plan feedback). */
 export type Decision = 'allow' | 'always' | 'deny' | 'answer' | 'changes';
 /** Your answer to one question: the choices you picked, and anything you typed under "Something else". */
@@ -103,6 +104,17 @@ export function addAsk(payload: any, reply: (out: object | null) => void, now = 
   return view;
 }
 
+/**
+ * An ask from an agent Swarmville runs itself (runner.ts): same popup, same answers, but the decision goes back
+ * over the runner's line instead of a waiting hook.
+ */
+export function addRunnerAsk(sessionId: string, tool: string, input: any, suggestions: unknown[], decide: (decision: object) => void, now = Date.now()): AskView | null {
+  const view = addAsk({ session_id: sessionId, tool_name: tool, tool_input: input, permission_suggestions: suggestions },
+    (out: any) => { const d = out?.hookSpecificOutput?.decision; if (d) decide(d); }, now);
+  if (view) pending.get(view.id)!.sticky = true;
+  return view;
+}
+
 /** The hook's request went away (answered in the terminal, timed out, or the agent stopped). */
 export function dropAsk(id: string): boolean { return pending.delete(id); }
 
@@ -142,6 +154,6 @@ export function asksBySession(): Map<string, AskView> {
 /** The turn ended or a new one began (Stop, SessionEnd, a new prompt): anything still open was settled elsewhere. */
 export function settleSession(sessionId: string): boolean {
   let n = 0;
-  for (const [id, p] of pending) if (p.sessionId === sessionId) { pending.delete(id); p.reply(null); n++; }
+  for (const [id, p] of pending) if (p.sessionId === sessionId && !p.sticky) { pending.delete(id); p.reply(null); n++; }
   return n > 0;
 }

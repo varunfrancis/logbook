@@ -8,6 +8,7 @@ import { post, useAgent, useNow } from '../useSwarmville.ts';
 import { useState } from 'react';
 import type { SessionView } from '../../../daemon/types.ts';
 import { WorkWith } from '../welcome/WorkWith.tsx';
+import { AgentChat } from './Chat.tsx';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
   m_prompt: { sym: '→', cls: 'mo-you', title: 'You asked' },
@@ -57,7 +58,8 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>
       </header>
 
-      {s.status === 'needs_input' ? (
+      {s.runner ? <AgentChat key={s.id} s={s} openAsk={openAsk} /> : null}
+      {s.status === 'needs_input' && !s.runner ? (
         <div className="callout bad hand">
           <span><b>{a.name} raised a hand.</b> {s.ask?.questions?.[0]?.question ?? s.ask?.title ?? s.needsMessage}</span>
           {openAsk ? <button className="btn approve" onClick={() => openAsk(s.id)}>{s.ask ? 'Answer' : 'See what they need'}</button> : null}
@@ -79,7 +81,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
         ) : null}
         {live && !did ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
           : !live && s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
-        {!live && s.kind !== 'bg' && !s.scheduled ? <Reply key={s.id} s={s} name={a.name} /> : null}
+        {!live && s.kind !== 'bg' && !s.scheduled && !s.runner ? <Reply key={s.id} s={s} name={a.name} /> : null}
         <div className="row actions"><GoTo s={s} />{live ? <ClockOut key={s.id} s={s} /> : null}{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
@@ -104,7 +106,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
         <p className="one-liner">{project?.summary ?? 'No description yet.'}</p>
       </section>
 
-      <WorkWith key={s.id} state={state} s={s} />
+      <WorkWith key={s.id} state={state} s={s} openAgent={openAgent} />
       {d && d.profile.recent.length > 1 ? (
         <section className="profile-block">
           <h3>Recent jobs</h3>
