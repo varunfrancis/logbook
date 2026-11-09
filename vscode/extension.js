@@ -38,6 +38,7 @@ async function handle(block) {
   let j;
   try { j = JSON.parse(data); } catch { return; }
   if (ev === 'resume') return maybeResume(j);
+  if (ev === 'raise') { if (ownsFolder(j.cwd) || (j.root && ownsFolder(j.root))) raiseWindow(); return; } // no terminal matched: at least show the project's window
   if (ev !== 'jump' && ev !== 'close') return;
   // "Go to" matches any process above the agent (a background agent runs under its parent agent's terminal);
   // "Clock out" only ever closes the agent's own terminal.
@@ -69,7 +70,7 @@ function ownsFolder(dir) {
 
 /** A past job to reopen: the window that owns its folder claims it (first one wins) and runs claude --resume in a new terminal. */
 function maybeResume(j) {
-  if (!j || !(ownsFolder(j.cwd) || ownsFolder(j.root))) return;
+  if (!j || !(j.any || ownsFolder(j.cwd) || ownsFolder(j.root))) return;
   const r = http.request({ host: '127.0.0.1', port: PORT, method: 'POST', path: '/api/resume/claim/' + encodeURIComponent(j.sessionId) }, (res) => {
     let body = ''; res.setEncoding('utf8'); res.on('data', (c) => (body += c));
     res.on('end', () => {
@@ -78,6 +79,7 @@ function maybeResume(j) {
       const t = vscode.window.createTerminal({ name: c.name || 'Claude (resumed)', cwd: c.cwd });
       t.show(false);
       t.sendText(c.command, true);
+      raiseWindow();
     });
   });
   r.on('error', () => {});
@@ -88,7 +90,7 @@ function maybeResume(j) {
 function checkPending() {
   http.get({ host: '127.0.0.1', port: PORT, path: '/api/resume/pending' }, (res) => {
     let body = ''; res.setEncoding('utf8'); res.on('data', (c) => (body += c));
-    res.on('end', () => { let list; try { list = JSON.parse(body); } catch { return; } for (const p of list || []) maybeResume({ sessionId: p.id, cwd: p.cwd, root: p.root }); });
+    res.on('end', () => { let list; try { list = JSON.parse(body); } catch { return; } for (const p of list || []) maybeResume({ sessionId: p.id, cwd: p.cwd, root: p.root, any: p.any }); });
   }).on('error', () => {});
 }
 
