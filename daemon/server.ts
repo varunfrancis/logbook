@@ -152,6 +152,23 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
 }
 
 /*
+ * "Resume with this message": an agent that's clocked out comes back (claude --resume) with what you wrote as its next
+ * prompt. Agents still open in a terminal are answered there (Go to): nothing types into terminals for you.
+ */
+function reply(sessionId: string, text: string): { ok: boolean; message: string } {
+  const clean = text.replace(/\r\n?/g, '\n').trim().slice(0, 8000);
+  if (!clean) return { ok: false, message: 'Write a message first.' };
+  if (live.has(sessionId)) return { ok: false, message: 'They’re still open in their terminal. Use Go to and tell them there.' };
+  const s = db.prepare('SELECT s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
+  if (!s) return { ok: false, message: 'Couldn’t find that job.' };
+  const root = s.root && fs.existsSync(s.root) ? s.root : null;
+  const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
+  if (!cwd) return { ok: false, message: 'Its folder no longer exists on this machine.' };
+  const via = openInTerminal(`reply-${sessionId}-${Date.now()}`, cwd, root ?? cwd, `claude --resume ${shq(sessionId)} ${shq(clean)}`, 'Claude (resumed)');
+  return { ok: true, message: via === 'vscode' ? 'Reopening the job in VS Code with your message.' : 'Reopening the job in Terminal with your message. If your Mac asks whether Swarmville may control Terminal, click OK.' };
+}
+
+/*
  * Opening a Claude conversation in a terminal in a project folder: resuming a past shift (claude --resume <id>),
  * or starting a new one from the welcome tour or an agent's "Work with me" buttons.
  * With the VS Code helper: the window that has the project open (or else any open window) claims it, comes forward and opens a terminal.
@@ -334,13 +351,19 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/team') return json(res, 200, teamView(db, state, Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30))));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/ask/')) {
-      // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), or deny.
+      // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), deny,
+      // your picks for a question, or changes you want to their plan.
       const body = await readJson(req);
-      const decision = (['allow', 'always', 'deny'] as const).find((d) => d === body.decision) as Decision | undefined;
+      const decision = (['allow', 'always', 'deny', 'answer', 'changes'] as const).find((d) => d === body.decision) as Decision | undefined;
       if (!decision) return json(res, 400, { ok: false, message: 'Unknown answer' });
-      const ok = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision);
+      const answers = Array.isArray(body.answers) ? body.answers.map((a: any) => ({ picked: Array.isArray(a?.picked) ? a.picked.map(String) : [], other: typeof a?.other === 'string' ? a.other : '' })) : [];
+      const r = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision, { answers, note: typeof body.note === 'string' ? body.note : '' });
       soon();
-      return json(res, 200, ok ? { ok: true } : { ok: false, message: 'Already answered, probably in the terminal.' });
+      return json(res, 200, r);
+    }
+    if (req.method === 'POST' && p.startsWith('/api/reply/')) {
+      const body = await readJson(req);
+      return json(res, 200, reply(decodeURIComponent(p.slice('/api/reply/'.length)), String(body.text ?? '')));
     }
     if (req.method === 'POST' && p.startsWith('/api/jump/claim/')) {
       const claim = pendingJumps.get(decodeURIComponent(p.slice('/api/jump/claim/'.length)));

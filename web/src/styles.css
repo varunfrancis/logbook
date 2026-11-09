@@ -386,6 +386,8 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .chips-sm span { font-size: 12px; font-weight: 800; background: var(--surface-2); color: var(--ink-2); padding: 3px 9px; border-radius: 999px; }
 .callout { border-radius: 12px; padding: 10px 12px; background: var(--surface-2); font-size: 14px; }
 .callout.bad { background: color-mix(in srgb, var(--needs) 12%, transparent); }
+.callout.hand { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.callout.hand > span { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
 .callout.warn { background: #f5b3012a; }
 .stamp-row { display: flex; gap: 14px; align-items: center; padding: 6px 0; }
 .brief { margin: 0; font-size: 15.5px; line-height: 1.5; }
@@ -865,6 +867,35 @@ code.ask-detail { display: block; }
 .btn.approve:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ask-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; }
 .ask-done { margin: 0; font-weight: 700; }
+.ask-err { margin: 0; font-size: 13px; color: var(--needs); font-weight: 700; }
+.ask-qhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ask-qhead:empty { display: none; }
+.ask-chip { font: 800 11px var(--f-body); letter-spacing: .6px; text-transform: uppercase; padding: 2px 8px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); }
+.ask-of { font: 400 11.5px var(--f-mono); color: var(--ink-3); margin-left: auto; }
+.ask-opts { display: flex; flex-direction: column; gap: 6px; }
+.ask-opt { all: unset; box-sizing: border-box; cursor: pointer; border: 1.5px solid var(--line); border-radius: 11px; padding: 8px 10px; display: grid; grid-template-columns: 18px 1fr; gap: 2px 8px; align-items: start; font-size: 14px; color: var(--ink); }
+.ask-opt:hover { border-color: color-mix(in srgb, var(--done) 50%, var(--line)); }
+.ask-opt:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ask-opt[disabled] { cursor: default; opacity: .6; }
+.ask-opt b { font-weight: 800; overflow-wrap: anywhere; }
+.ask-opt > span { grid-column: 2; font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.ask-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--ink-3); margin-top: 2px; box-sizing: border-box; }
+.ask-opt.multi .ask-dot { border-radius: 4px; }
+.ask-opt.on { border-color: var(--done); background: color-mix(in srgb, var(--done) 9%, transparent); }
+.ask-opt.on .ask-dot { border-color: var(--done); background: radial-gradient(var(--done) 40%, transparent 46%); }
+.ask-opt.multi.on .ask-dot { background: var(--done); }
+.ask-rec { font: 800 10.5px var(--f-body); color: var(--done); letter-spacing: .4px; text-transform: uppercase; margin-left: 6px; }
+.ask-input { width: 100%; box-sizing: border-box; font: 500 14px/1.45 var(--f-body); color: var(--ink); background: var(--surface-2); border: 1.5px solid transparent; border-radius: 11px; padding: 9px 11px; resize: vertical; }
+.ask-input:focus { outline: none; border-color: var(--idle); }
+
+/* profile: reply to an agent waiting at its prompt */
+.reply-box { display: flex; flex-direction: column; gap: 8px; border-radius: 12px; padding: 10px 12px; background: var(--surface-2); margin-top: 8px; }
+.reply-box .ask-input { background: var(--surface); }
+.reply-k { font: 800 11.5px var(--f-body); letter-spacing: .8px; text-transform: uppercase; color: var(--ink-3); }
+.reply-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reply-hint { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.reply-note { font-size: 12px; color: var(--ink-3); }
+.reply-sent { margin: 0; font-size: 13px; font-weight: 700; color: var(--done); }
 
 /* Crew → Today: what still needs a call from you, and what got done. */
 .today-h { margin: 0 0 8px; font: 800 11.5px var(--f-body); letter-spacing: .7px; text-transform: uppercase; color: var(--ink-3); }

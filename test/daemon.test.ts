@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { floorsFor, isAway, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
 import { handleHook, isJobNotice } from '../daemon/hooks.ts';
-import { addAsk, answerAsk, asksBySession, describeAsk, dropAsk, settleSession } from '../daemon/asks.ts';
+import { addAsk, answerAsk, asksBySession, describeAsk, dropAsk, questionDecision, settleSession } from '../daemon/asks.ts';
 import { buildState } from '../daemon/state.ts';
 import { isClaude, stopProcess } from '../daemon/stop.ts';
 
@@ -253,9 +253,9 @@ test('a permission prompt raises a hand at once and can be answered from the tow
   assert.equal(ask.detail, 'rm -rf node_modules');
   assert.equal(ask.canAlways, true);
   assert.equal(asksBySession().get('ask-1')?.id, ask.id);
-  assert.equal(answerAsk(ask.id, 'always'), true);
+  assert.equal(answerAsk(ask.id, 'always').ok, true);
   assert.deepEqual(replies[0].hookSpecificOutput.decision, { behavior: 'allow', updatedPermissions: req.permission_suggestions });
-  assert.equal(answerAsk(ask.id, 'allow'), false); // already answered
+  assert.equal(answerAsk(ask.id, 'allow').ok, false); // already answered
   assert.equal(asksBySession().size, 0);
 
   const deny = addAsk(req, (o) => replies.push(o))!;
@@ -270,12 +270,48 @@ test('a permission prompt raises a hand at once and can be answered from the tow
   assert.equal(replies.at(-1), null);
   assert.equal(asksBySession().size, 0);
 
-  // Questions are answered in the terminal, not with a yes/no.
-  assert.equal(addAsk({ ...req, tool_name: 'AskUserQuestion' }, () => {}), null);
+  // A plan can go back with the changes you want: a no that carries your note.
+  const plan = addAsk({ ...req, tool_name: 'ExitPlanMode', tool_input: { plan: '1. Do it' } }, (o) => replies.push(o))!;
+  assert.equal(answerAsk(plan.id, 'changes', { note: '  ' }).ok, false); // nothing to send yet
+  assert.equal(answerAsk(plan.id, 'changes', { note: 'Mockups first' }).ok, true);
+  assert.equal(replies.at(-1).hookSpecificOutput.decision.behavior, 'deny');
+  assert.match(replies.at(-1).hookSpecificOutput.decision.message, /Mockups first/);
+
+  // A question with nothing to show stays in the terminal.
+  assert.equal(addAsk({ ...req, tool_name: 'AskUserQuestion', tool_input: {} }, () => {}), null);
   assert.equal(describeAsk('Edit', { file_path: '/x/y/scene.ts' }).title, 'Wants to edit scene.ts');
   assert.equal(describeAsk('mcp__claude_ai_Slack__slack_send_message', {}).title, 'Wants to use Slack · slack send message');
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('questions can be answered from the town, by picking or in your own words', () => {
+  const input = { questions: [
+    { question: 'Which store?', header: 'Store', multiSelect: false, options: [{ label: 'SQLite (Recommended)', description: 'Built in' }, { label: 'Files', description: '' }] },
+    { question: 'Which parts?', header: 'Scope', multiSelect: true, options: [{ label: 'Questions' }, { label: 'Plans' }, { label: 'Replies' }] },
+  ] };
+  const req = { session_id: 'q-1', hook_event_name: 'PermissionRequest', tool_name: 'AskUserQuestion', tool_input: input };
+  const replies: any[] = [];
+  const ask = addAsk(req, (o) => replies.push(o))!;
+  assert.equal(ask.title, 'Has 2 questions for you');
+  assert.equal(ask.questions?.length, 2);
+  assert.equal(ask.questions?.[1].multiSelect, true);
+  assert.equal(ask.questions?.[1].options[0].description, '');
+
+  assert.equal(answerAsk(ask.id, 'allow').ok, false); // a bare yes would skip the question
+  assert.equal(answerAsk(ask.id, 'answer', { answers: [{ picked: ['Files'] }] }).ok, false); // one still unanswered
+  assert.equal(answerAsk(ask.id, 'answer', { answers: [{ picked: ['Files', 'SQLite (Recommended)'] }, { picked: ['Plans', 'Nope', 'Questions'] }] }).ok, true);
+  const d = replies[0].hookSpecificOutput.decision;
+  assert.equal(d.behavior, 'allow');
+  assert.deepEqual(d.updatedInput.answers, { 'Which store?': 'Files', 'Which parts?': 'Plans, Questions' }); // one pick for a single choice, unknown labels dropped
+  assert.deepEqual(d.updatedInput.questions, input.questions);
+
+  // Your own words: Claude Code only takes its listed choices, so they go back as a no with everything you said.
+  const own = questionDecision(input, [{ picked: [], other: 'Postgres' }, { picked: ['Replies'], other: 'and new jobs' }]) as any;
+  assert.equal(own.behavior, 'deny');
+  assert.match(own.message, /Which store\?\n  in their own words: Postgres/);
+  assert.match(own.message, /picked "Replies"; and in their own words: and new jobs/);
+  assert.equal(questionDecision(input, [{ other: ' ' }, { picked: ['Plans'] }]), null);
 });
 
 test('one resident per project on main, helpers for parallel windows, own characters for worktrees', async () => {
