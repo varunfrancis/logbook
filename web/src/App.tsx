@@ -41,7 +41,8 @@ function useTheme() {
   return { dark, cycle: () => setPref(pref === 'system' ? (sysDark ? 'light' : 'dark') : pref === 'dark' ? 'light' : 'dark') };
 }
 
-type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped'; id: string } | null;
+/** `back`: an ask opened from an agent's profile goes back to it when you're done (their chat carries on there). */
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped'; id: string; back?: 'agent' } | null;
 
 export function App() {
   const { state, conn } = useSwarmville();
@@ -160,8 +161,8 @@ export function App() {
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'shipped' ? <ShippedPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
-          {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProfile={open.agent} /> : null}
-          {state && sel?.kind === 'agent' ? <AgentPanel id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} openAsk={(sid) => setSel({ kind: 'ask', id: sid })} /> : null}
+          {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(sel.back ? { kind: 'agent', id: sel.id } : null)} openProfile={open.agent} /> : null}
+          {state && sel?.kind === 'agent' ? <AgentPanel key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} openAsk={(sid) => setSel({ kind: 'ask', id: sid, back: 'agent' })} /> : null}
           {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
           {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /><MedalToasts state={state} openProject={open.project} /></> : null}
         </main>

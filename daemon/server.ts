@@ -23,7 +23,11 @@ import { groupDistricts } from './districts.ts';
 import { addNote, dismissFlag, letGo, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
 import type { Setup, StateView, Welcome } from './types.ts';
 import { NEW_WELCOME } from './state.ts';
-import { addAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
+import { addAsk, addRunnerAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
+import { Runners, safeId } from './runners.ts';
+import type { RunnerImage } from './runner.ts';
+import { findClaude } from './naming.ts';
+import { describeTool } from './describe.ts';
 import { adoptLegacyData, env } from './legacy.ts';
 
 // Before the rename to Swarmville, the town lived in ~/.logbook: move it across before opening it (only the daemon does this, never on import).
@@ -38,12 +42,47 @@ const clients = new Set<http.ServerResponse>();
 const vscodeClients = new Set<http.ServerResponse>();
 const setup: Setup = { phase: 'reading', read: 0, total: 0, projects: 0, shifts: 0, crew: 0 };
 
+/*
+ * Agents Swarmville runs itself (no terminal): see runner.ts / runners.ts. Their permission prompts, questions and plans
+ * come over the runner's line and go into the same raised hands as the hook's, so the popup answers them the same way.
+ */
+const runnerAsks = new Map<string, string>(); // "<session> <request>" -> ask id
+const runners = new Runners(path.join(DATA_DIR, 'runners'), {
+  ask: (sid, a, answer) => {
+    try { handleHook(db, { hook_event_name: 'PermissionRequest', session_id: sid, tool_name: a.toolName, tool_input: a.input, cwd: runners.meta(sid)?.cwd }); } catch {}
+    const v = addRunnerAsk(sid, a.toolName, a.input, a.suggestions, answer);
+    if (v) runnerAsks.set(`${sid} ${a.requestId}`, v.id);
+    else answer({ behavior: 'deny', message: 'Swarmville couldn’t show this request to the user. Ask in plain words instead.' });
+    soon();
+  },
+  askGone: (sid, requestId) => {
+    const k = `${sid} ${requestId}`;
+    const id = runnerAsks.get(k);
+    if (id) { dropAsk(id); runnerAsks.delete(k); }
+    soon();
+  },
+  change: () => soon(),
+}, findClaude);
+/**
+ * Claude Code records every `claude -p` run as "sdk-cli", which the town reads as a scheduled job (identity.ts isHeadless).
+ * Agents Swarmville runs are you talking to them, so they're marked as such and get an ordinary character.
+ */
+function claimForSwarmville(id: string) {
+  db.prepare(`UPDATE sessions SET entrypoint = 'swarmville', agent_key = CASE WHEN agent_key LIKE '%#routine:%' THEN NULL ELSE agent_key END
+    WHERE id = ? AND COALESCE(entrypoint, '') != 'swarmville'`).run(id);
+}
+/** Claude Code's own list of running sessions, plus the agents Swarmville runs. */
+const readAllLive = () => { const l = readLive(); runners.addLive(l); return l; };
+
 function refresh() {
-  live = readLive();
+  live = readAllLive();
   adoptLive(db, live);
+  const here = runners.states();
+  for (const id of here.keys()) claimForSwarmville(id);
   state = buildState(db, live, Date.now(), vscodeClients.size > 0, { ...setup, read: scanProgress.read, total: scanProgress.total });
   const asks = asksBySession();
   if (asks.size) for (const s of state.sessions) s.ask = s.status === 'needs_input' ? asks.get(s.id) ?? null : null;
+  if (here.size) for (const s of state.sessions) { const r = here.get(s.id); if (r) s.runner = r; }
   const { generatedAt, ...rest } = state;
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
@@ -62,7 +101,8 @@ function tick() {
   ticking = true;
   try {
     scanTranscripts(db);
-    live = readLive();
+    runners.scan();
+    live = readAllLive();
     refreshAgents(db, ticks === 0 ? 0 : Date.now() - 2 * 24 * 3600_000, live);
     if (ticks % 150 === 149) { try { if (purgeOwnRuns(db)) soon(); } catch {} } // every ~5 minutes
     if (ticks++ % 15 === 0) { db.prepare("UPDATE sessions SET stamp = NULL WHERE stamp IS NOT NULL AND id IN (" + ([...live.keys()].map(() => '?').join(',') || "''") + ")").run(...live.keys()); stampClosed(db, new Set(live.keys()), ticks === 1 ? 400 : 25); }
@@ -115,6 +155,7 @@ const command = (pid: number): string => {
  */
 const pendingJumps = new Map<string, () => void>();
 async function jump(sessionId: string): Promise<{ ok: boolean; via: string; message: string }> {
+  if (runners.running(sessionId)) return { ok: false, via: 'none', message: 'They’re working right here in Swarmville, not in a terminal. Use “Take over in terminal” to move them to one.' };
   const e = live.get(sessionId);
   if (!e) return { ok: false, via: 'none', message: 'That agent is not running right now.' };
   const pids = ancestry(e.pid, parentPid);
@@ -140,6 +181,10 @@ async function jump(sessionId: string): Promise<{ ok: boolean; via: string; mess
 
 /** "Clock out": the VS Code helper closes the agent's terminal tab, and the daemon makes sure Claude itself stops. */
 function clockOut(sessionId: string): { ok: boolean; message: string } {
+  if (runners.running(sessionId)) {
+    runners.stop(sessionId).then(() => soon());
+    return { ok: true, message: 'Clocked out. The conversation is saved: message them any time to pick it up again.' };
+  }
   const e = live.get(sessionId);
   const r = stopProcess(e, systemDeps);
   if (!r.ok || !e) return r;
@@ -158,6 +203,7 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
 function reply(sessionId: string, text: string): { ok: boolean; message: string } {
   const clean = text.replace(/\r\n?/g, '\n').trim().slice(0, 8000);
   if (!clean) return { ok: false, message: 'Write a message first.' };
+  if (runners.knows(sessionId)) return sendHere(sessionId, clean);
   if (live.has(sessionId)) return { ok: false, message: 'They’re still open in their terminal. Use Go to and tell them there.' };
   const s = db.prepare('SELECT s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
   if (!s) return { ok: false, message: 'Couldn’t find that job.' };
@@ -200,6 +246,7 @@ function openInTerminal(id: string, cwd: string, root: string, command: string, 
 }
 
 async function resume(sessionId: string): Promise<Opened> {
+  if (runners.knows(sessionId)) return takeOver(sessionId);
   if (live.has(sessionId)) return jump(sessionId);
   const s = db.prepare('SELECT s.id, s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
   if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
@@ -218,6 +265,14 @@ async function resume(sessionId: string): Promise<Opened> {
 function shipIt(sessionId: string, mode: 'ship' | 'fix'): Opened {
   const ship = state.ships.find((x) => x.id === sessionId || x.ids.includes(sessionId));
   const target = mode === 'fix' && ship ? ship.sessionId : sessionId;
+  if (runners.knows(target)) {
+    // Swarmville runs them: the brief goes to them as their next message, no terminal needed.
+    const cwd = runners.meta(target)?.cwd ?? null;
+    const gh = !!(db.prepare('SELECT p.gh_full FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(target) as Row | undefined)?.gh_full;
+    const r = runners.send(target, shipBrief(mode, gh), [], cwd);
+    if (r.ok) { startShip(db, sessionId, mode, cwd); refresh(); }
+    return { ok: r.ok, via: 'swarmville', message: r.ok ? 'Sent them the brief. Follow along in their chat.' : r.message };
+  }
   if (live.has(target)) return { ok: false, via: 'none', message: 'They’re still open in their terminal. Use Go to and ask them to finish it there.' };
   const s = db.prepare('SELECT s.id, s.cwd, p.root, p.gh_full FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(target) as Row | undefined;
   if (!s) return { ok: false, via: 'none', message: 'Couldn’t find that job.' };
@@ -243,6 +298,54 @@ function launch(projectId: string, prompt: string, plan: boolean): Opened {
     ok: true, via, command: `cd ${shq(p.root)} && ${command}`,
     message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening a new Terminal window. If your Mac asks whether Swarmville may control Terminal, click OK.',
   };
+}
+
+/** Starts a new agent that Swarmville runs itself, in the project's folder: no terminal, you talk to it in the town. */
+function launchHere(projectId: string, prompt: string, plan: boolean, images: RunnerImage[]): Opened & { sessionId?: string } {
+  const p = db.prepare('SELECT root FROM projects WHERE id = ?').get(projectId) as Row | undefined;
+  if (!p?.root || !fs.existsSync(p.root)) return { ok: false, via: 'none', message: 'That project isn’t on this computer.' };
+  const text = prompt.replace(/\r\n?/g, '\n').trim().slice(0, 8000);
+  if (!text && !images.length) return { ok: false, via: 'none', message: 'Say what you’d like to work on first.' };
+  const r = runners.start({ cwd: p.root, prompt: text, images, plan });
+  if (!r.ok || !r.sessionId) return { ok: false, via: 'none', message: r.message };
+  // the town shows them at once, before Claude's first hook arrives
+  db.prepare('INSERT OR IGNORE INTO sessions(id, cwd, started_at, project_id) VALUES(?, ?, ?, ?)').run(r.sessionId, p.root, Date.now(), projectId);
+  refresh();
+  return { ok: true, via: 'swarmville', sessionId: r.sessionId, message: r.message };
+}
+
+/** Your next message to an agent Swarmville runs (it comes back if it had clocked out). */
+function sendHere(sessionId: string, text: string, images: RunnerImage[] = []): { ok: boolean; message: string } {
+  const s = db.prepare('SELECT s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
+  const cwd = [s?.cwd, runners.meta(sessionId)?.cwd, s?.root].find((d) => d && fs.existsSync(d)) ?? null;
+  const r = runners.send(sessionId, text, images, cwd);
+  soon();
+  return r;
+}
+
+/** "Take over in terminal": Swarmville lets go of the agent and the same conversation opens in VS Code or Terminal. */
+async function takeOver(sessionId: string): Promise<Opened> {
+  if (!(await runners.stop(sessionId))) return { ok: false, via: 'none', message: 'They didn’t stop in time. Try again in a moment.' };
+  runners.release(sessionId);
+  live = readAllLive();
+  refresh();
+  return resume(sessionId);
+}
+
+/** Pasted images, checked: only pictures, and not too many or too big. */
+function imagesFrom(raw: unknown): RunnerImage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 6).filter((i: any) => typeof i?.data === 'string' && /^image\/(png|jpeg|gif|webp)$/.test(String(i?.mediaType)) && i.data.length < 5_000_000)
+    .map((i: any) => ({ mediaType: i.mediaType, data: i.data }));
+}
+
+/** The chat as the town shows it: tool calls in plain words. */
+function chatView(sessionId: string) {
+  const lines = runners.chat(sessionId).map((e) => ({
+    at: e.at, kind: e.kind, error: e.error || undefined, images: e.images || undefined,
+    text: e.kind === 'tool' ? describeTool(String(e.tool ?? e.text), e.input ?? {}).text : e.text,
+  }));
+  return { runner: runners.states().get(sessionId) ?? null, lines };
 }
 
 /** Only Swarmville's own pages (and local tools like the VS Code helper) may change things: other websites can't poke the local server. */
@@ -277,7 +380,9 @@ const server = http.createServer(async (req, res) => {
         // A permission prompt: hold the request open until you answer in the town, or the terminal answers first and Claude stops the hook.
         let payload: any = null;
         try { payload = JSON.parse(body); handleHook(db, payload); } catch {}
-        const ask = payload?.hook_event_name === 'PermissionRequest' ? addAsk(payload, (out) => {
+        // An agent Swarmville runs asks over its runner's line instead (never twice).
+        const mine = typeof payload?.session_id === 'string' && runners.running(payload.session_id);
+        const ask = payload?.hook_event_name === 'PermissionRequest' && !mine ? addAsk(payload, (out) => {
           if (res.writableEnded) return;
           if (out) json(res, 200, out); else res.writeHead(204).end();
         }) : null;
@@ -318,9 +423,31 @@ const server = http.createServer(async (req, res) => {
       const d = projectDetail(db, state, live, rest);
       return d ? json(res, 200, d) : json(res, 404, { error: 'No project with that id' });
     }
+    const here = p.match(/^\/api\/agent\/([^/]+)\/(chat|send|takeover|interrupt)$/);
+    if (here) {
+      const [, id, action] = here;
+      if (!safeId(id)) return json(res, 400, { ok: false, message: 'Which agent?' });
+      if (action === 'chat') return json(res, 200, chatView(id));
+      if (req.method !== 'POST') return json(res, 405, { ok: false });
+      if (action === 'send') {
+        const body = await readJson(req);
+        const text = String(body.text ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 8000);
+        const images = imagesFrom(body.images);
+        if (!text && !images.length) return json(res, 400, { ok: false, message: 'Write a message first.' });
+        return json(res, 200, runners.knows(id) ? sendHere(id, text, images) : reply(id, text));
+      }
+      if (action === 'takeover') return json(res, 200, await takeOver(id));
+      if (action === 'interrupt') return json(res, 200, { ok: runners.interrupt(id) });
+    }
     if (p.startsWith('/api/agent/')) {
       const d = agentDetail(db, state, live, decodeURIComponent(p.slice('/api/agent/'.length)));
-      return d ? json(res, 200, d) : json(res, 404, { error: 'No agent with that id' });
+      if (!d) return json(res, 404, { error: 'No agent with that id' });
+      // what refresh() adds to the town's copy: the raised hand you can answer, and whether Swarmville runs them
+      const inState = state.sessions.find((x) => x.id === d.session.id);
+      if (inState?.ask) d.session.ask = inState.ask;
+      const r = runners.states().get(d.session.id);
+      if (r) d.session.runner = r;
+      return json(res, 200, d);
     }
     if (p === '/api/intros') {
       // Today's lines are written in the background; the page shows the instant version until they're ready.
@@ -329,6 +456,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/launch') {
       const body = await readJson(req);
+      if (body.here) return json(res, 200, launchHere(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan, imagesFrom(body.images)));
       return json(res, 200, launch(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan));
     }
     if (req.method === 'POST' && p === '/api/notes') {

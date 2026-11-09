@@ -5,6 +5,8 @@ import { PLAN_NOTE, priced, PROJECT, useCostView, plainAction, STATUS, useVoice 
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
 import { post, useNow, useProject } from './useSwarmville.ts';
+import { GiveTask } from './welcome/WorkWith.tsx';
+import { MOVES_FOR_JOB } from './welcome/moves.ts';
 
 export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; state: StateView; onClose: () => void; openAgent: (id: string) => void }) {
   const voice = useVoice();
@@ -61,6 +63,13 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
         <div><dt>{voice === 'plain' ? 'Saves' : 'Commits'}</dt><dd>{p.commits}</dd></div>
       </dl>
       {p.state === 'lot' ? <p className="muted">For sale: this repo is on GitHub but nobody has worked on it from this machine. {p.ghPushedAt ? `Last upload ${ago(p.ghPushedAt, now)}.` : ''}</p> : null}
+
+      {p.root ? (
+        <details className="profile-block workwith" open={!live.length}>
+          <summary><h3>Give a task</h3><span className="muted">A new agent starts on it here, and you chat with them in the town</span></summary>
+          <GiveTask state={state} projectId={p.id} moves={MOVES_FOR_JOB.builder} idPrefix={`gt-${p.id}`} openAgent={openAgent} />
+        </details>
+      ) : null}
 
       {live.length ? (
         <section>

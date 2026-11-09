@@ -78,6 +78,8 @@ export type SessionView = {
   helperActive: boolean;
   stuck: { count: number; problem: string } | null;
   collision: { with: string; file: string } | null;
+  /** Swarmville runs this agent itself (no terminal): 'on' while it works, 'off' once clocked out (a message brings it back). */
+  runner?: 'on' | 'off';
   lastCheck: { ok: boolean; at: number } | null;
   chatter: string | null;
   filesChanged: number;
@@ -292,3 +294,7 @@ export type TeamView = {
   members: { agent: Agent; projectId: string | null; project: string | null; shifts: number; delivered: number; workMs: number; costUsd: number }[]; // busiest first
   totals: { members: number; shifts: number; delivered: number; workMs: number; costUsd: number; projects: number; peak: number };
 };
+
+/** One line of the chat with an agent Swarmville runs: what you said, what they said, what they did, a turn ending. */
+export type ChatLine = { at: number; kind: 'you' | 'them' | 'tool' | 'done' | 'note'; text: string; images?: number; error?: boolean };
+export type ChatView = { runner: 'on' | 'off' | null; lines: ChatLine[] };
