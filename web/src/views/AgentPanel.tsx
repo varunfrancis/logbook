@@ -2,7 +2,7 @@ import type { StateView } from '../../../daemon/types.ts';
 import { scorecard } from '../crew/scorecard.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { clock, plainAction, priced, useCostView, STAMP_NOTE, STATUS, useVoice } from '../copy.ts';
-import { ago, compact, duration, firstLine, tildify } from '../format.ts';
+import { ago, compact, didSummary, duration, firstLine, madeLinks, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useSwarmville.ts';
 import { WorkWith } from '../welcome/WorkWith.tsx';
@@ -36,6 +36,9 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
   const card = d ? scorecard(d.profile, cost === 'api') : null;
   const live = s.status !== 'ended';
   const latest = cleanAsk(s.lastPrompt) || cleanAsk(s.firstPrompt) || s.title;
+  // what they did on the last ask, once they've stopped to report (mid-turn text is just narration)
+  const did = s.status === 'running' || s.status === 'needs_input' ? '' : didSummary(s.outcome);
+  const links = did ? madeLinks(s.outcome) : [];
   const resumeJob = async (sid: string) => { await post(`/api/resume/${encodeURIComponent(sid)}`); };
 
   return (
@@ -52,6 +55,26 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>
       </header>
 
+      {s.status === 'needs_input' ? <div className="callout bad"><b>{a.name} raised a hand.</b> {s.needsMessage}</div> : null}
+      {s.stuck ? <div className="callout bad"><b>Stuck.</b> Hit the same problem {s.stuck.count} times{voice === 'technical' ? `: ${s.stuck.problem}` : '.'}</div> : null}
+
+      <section className={`profile-block job-block${live ? '' : ' done'}`} aria-label="The job">
+        <h3>{live ? 'Working on now' : `Last job · ${ago(s.endedAt, now)}`}</h3>
+        <div className="job-row"><span className="job-k">You asked</span><p className="one-liner latest" title={latest}>{latest}</p></div>
+        {did ? (
+          <div className="job-row did"><span className="job-k">Did</span><p className="one-liner" title={did}>{did}</p></div>
+        ) : null}
+        {did && links.length ? (
+          <div className="made-links">{links.map((l) => <a key={l.url} className="made-link" href={l.url} target="_blank" rel="noreferrer" title={l.url}>{l.label} ↗</a>)}</div>
+        ) : null}
+        {did && s.outcome && s.outcome.trim().length > did.length + 40 ? (
+          <details className="full-reply"><summary>Read {a.name}’s full reply</summary><p className="outcome-full">{s.outcome}</p></details>
+        ) : null}
+        {live && !did ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
+          : !live && s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
+        <div className="row actions"><GoTo s={s} />{live ? <ClockOut key={s.id} s={s} /> : null}{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
+      </section>
+
       {card ? (
         <section className="scorecard" aria-label="How they’re doing">
           <div className={`verdict-line g-${card.verdict.grade}`}>{card.verdict.text}</div>
@@ -67,21 +90,10 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         </section>
       ) : <div className="scores loading-scores" />}
 
-      {s.status === 'needs_input' ? <div className="callout bad"><b>{a.name} raised a hand.</b> {s.needsMessage}</div> : null}
-      {s.stuck ? <div className="callout bad"><b>Stuck.</b> Hit the same problem {s.stuck.count} times{voice === 'technical' ? `: ${s.stuck.problem}` : '.'}</div> : null}
-
       <section className="profile-block">
         <h3>Works on</h3>
         <button className="link strong" onClick={() => project && openProject(project.id)}>{project?.name ?? 'a project'}</button>
         <p className="one-liner">{project?.summary ?? 'No description yet.'}</p>
-      </section>
-
-      <section className="profile-block">
-        <h3>{live ? 'Working on now' : `Last worked on · ${ago(s.endedAt, now)}`}</h3>
-        <p className="one-liner latest" title={latest}>{latest}</p>
-        {live ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
-          : s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
-        <div className="row actions"><GoTo s={s} />{live ? <ClockOut key={s.id} s={s} /> : null}{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
       <WorkWith key={s.id} state={state} s={s} />
@@ -139,7 +151,6 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
             </ul>
           </section>
         ) : null}
-        {s.outcome && s.status === 'ended' ? <section><h3>Last words</h3><p className="outcome-full">{s.outcome}</p></section> : null}
         <p className="sub">{s.status === 'ended' ? `Clocked out ${ago(s.endedAt, now)} after ${duration(s.startedAt, s.endedAt)}.` : `On shift for ${duration(s.startedAt, now)}.`} {priced(cost, s.costUsd)}{cost === 'api' ? (s.costEstimated ? ' at API prices (est.)' : ' at API prices') : ''} · {voice === 'plain' ? `${s.bricks.toLocaleString()} bricks` : `${compact(s.tokens)} tokens`}</p>
         {voice === 'technical' ? <p className="path">{tildify(s.cwd)} · {s.branch ?? '—'} · {s.model ?? ''} · session {s.id}</p> : null}
       </details>
