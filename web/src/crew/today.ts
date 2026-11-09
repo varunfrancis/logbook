@@ -8,7 +8,7 @@ import type { SessionView } from '../../../daemon/types.ts';
 /** How long an undecided job stays on the list before it drops off by itself. */
 export const DECIDE_DAYS = 7;
 
-export type TodaySession = Pick<SessionView, 'id' | 'status' | 'stamp' | 'prState' | 'prUrl' | 'endedAt' | 'lastEventAt' | 'kind' | 'scheduled' | 'projectId'>;
+export type TodaySession = Pick<SessionView, 'id' | 'status' | 'stamp' | 'prState' | 'prUrl' | 'prChecks' | 'endedAt' | 'lastEventAt' | 'kind' | 'scheduled' | 'projectId'>;
 
 /** "#441" from a pull request link. */
 export const prNum = (url: string | null) => (url ? `#${url.split('/').pop()}` : null);
@@ -25,13 +25,20 @@ export function isShipped(s: TodaySession): boolean {
 
 export const shippedToday = (s: TodaySession, now = Date.now()) => isShipped(s) && finishedAt(s) >= startOfDay(now);
 
+/** Why a finished job still needs you: a review to approve, work left unsaved, saved but never sent, or thrown away. */
+export type Why = 'review' | 'unfinished' | 'saved' | 'scrapped';
+
+/** "Put it live" is offered once the review's checks pass (or the project has none) and the agent is done with it. */
+export const canGoLive = (s: TodaySession) =>
+  !!s.prUrl && s.prState === 'open' && (s.prChecks === 'passing' || s.prChecks === 'none') && s.status !== 'running' && s.status !== 'needs_input';
+
 /** Why a finished job still needs you, or null if it doesn't. */
-export function needsDecision(s: TodaySession, now = Date.now()): 'review' | 'unfinished' | 'scrapped' | null {
+export function needsDecision(s: TodaySession, now = Date.now()): Why | null {
   if (s.scheduled || isShipped(s) || finishedAt(s) < now - DECIDE_DAYS * 24 * 3600_000) return null;
   const openReview = !!s.prUrl && s.prState === 'open';
   if (s.status === 'ended') {
     if (s.stamp === 'review') return s.prState === 'closed' ? null : 'review';
-    if (s.stamp === 'unfinished' || s.stamp === 'scrapped') return s.stamp;
+    if (s.stamp === 'unfinished' || s.stamp === 'saved' || s.stamp === 'scrapped') return s.stamp;
     return null;
   }
   // A background job that opened a review and stopped: the session stays open, but the next step is yours.
@@ -40,18 +47,18 @@ export function needsDecision(s: TodaySession, now = Date.now()): 'review' | 'un
 }
 
 export type TodayView<S extends TodaySession> = {
-  decide: { s: S; why: 'review' | 'unfinished' | 'scrapped' }[];
+  decide: { s: S; why: Why }[];
   done: { projectId: string; items: S[] }[];
   shipped: number;
   chats: S[];
 };
 
-export function todayView<S extends TodaySession>(sessions: S[], letGo: ReadonlySet<string>, now = Date.now()): TodayView<S> {
+export function todayView<S extends TodaySession>(sessions: S[], letGo: ReadonlySet<string>, now = Date.now(), shipping: ReadonlySet<string> = new Set()): TodayView<S> {
   const day0 = startOfDay(now);
   const decide = sessions
-    .filter((s) => !letGo.has(s.id))
+    .filter((s) => !letGo.has(s.id) && !shipping.has(s.id))
     .map((s) => ({ s, why: needsDecision(s, now) }))
-    .filter((x): x is { s: S; why: 'review' | 'unfinished' | 'scrapped' } => x.why !== null)
+    .filter((x): x is { s: S; why: Why } => x.why !== null)
     .sort((a, b) => finishedAt(b.s) - finishedAt(a.s));
   const byProject = new Map<string, S[]>();
   for (const s of sessions) {

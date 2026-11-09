@@ -76,6 +76,8 @@ export function openDb(file = DB_PATH) {
     CREATE INDEX IF NOT EXISTS segments_start ON segments(start);
     CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, removed_at INTEGER);
     CREATE TABLE IF NOT EXISTS note_reach(note_id INTEGER NOT NULL, session_id TEXT NOT NULL, at INTEGER, PRIMARY KEY(note_id, session_id));
+    -- "Ship it": a finished job you sent an agent back to take all the way to review (see ship.ts).
+    CREATE TABLE IF NOT EXISTS ships(session_id TEXT PRIMARY KEY, project_id TEXT, cwd TEXT, at INTEGER NOT NULL, last_at INTEGER, mode TEXT, cleared_at INTEGER, merged_at INTEGER);
   `);
   migrate(db);
   return db;
@@ -90,7 +92,7 @@ const ADD: Record<string, Record<string, string>> = {
     test_at: 'INTEGER', test_ok: 'INTEGER', tests_ok: 'INTEGER DEFAULT 0', tests_fail: 'INTEGER DEFAULT 0',
     files: 'TEXT', edits: 'INTEGER DEFAULT 0', asks: 'INTEGER DEFAULT 0', reads: 'INTEGER DEFAULT 0', webs: 'INTEGER DEFAULT 0',
     stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER', entrypoint: 'TEXT',
-    focus: 'TEXT', focus_for: 'TEXT', job_verdict: 'TEXT', api_usd: 'REAL DEFAULT 0',
+    focus: 'TEXT', focus_for: 'TEXT', job_verdict: 'TEXT', api_usd: 'REAL DEFAULT 0', pr_checks: 'TEXT',
   },
   projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER', summary: 'TEXT', summary_tried_at: 'INTEGER' },
   offsets: { state: 'TEXT' },

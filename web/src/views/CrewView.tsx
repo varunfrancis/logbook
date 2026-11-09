@@ -7,7 +7,8 @@ import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useNow } from '../useSwarmville.ts';
 import { jobLabel } from '../city/liveJobs.ts';
 import { Leaderboard } from '../crew/Leaderboard.tsx';
-import { finishedAt, prNum, todayView } from '../crew/today.ts';
+import { canGoLive, finishedAt, prNum, todayView, type Why } from '../crew/today.ts';
+import { PutLive, ShipRow, ShipSheet } from './Ship.tsx';
 
 type Open = { agent: (id: string) => void; project: (id: string) => void; shipped: () => void };
 
@@ -118,9 +119,10 @@ function Fold({ id, title, note, children }: { id: string; title: string; note?:
   );
 }
 
-const WHY: Record<'review' | 'unfinished' | 'scrapped', string> = {
+const WHY: Record<Why, string> = {
   review: 'Waiting for the review to be approved.',
   unfinished: 'Some of its changes were never saved.',
+  saved: 'Saved on its own workbench. Not sent for review yet.',
   scrapped: 'It changed things, but nothing was kept.',
 };
 const dayWord = (t: number, now: number) => {
@@ -135,7 +137,12 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
   const [gone, setGone] = useState<string[]>([]); // let go during this visit, so Undo can bring them back
   const [pending, setPending] = useState<Set<string>>(new Set()); // hidden at once, before the daemon confirms
   const letGo = useMemo(() => new Set([...(state.letGo ?? []), ...pending]), [state.letGo, pending]);
-  const t = todayView(state.sessions, letGo, now);
+  const ships = state.ships ?? [];
+  const shipping = useMemo(() => new Set(ships.flatMap((x) => x.ids)), [ships]);
+  const t = todayView(state.sessions, letGo, now, shipping);
+  const [sheet, setSheet] = useState<SessionView | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { if (!note) return; const k = setTimeout(() => setNote(null), 6000); return () => clearTimeout(k); }, [note]);
   const name = (id: string) => state.sessions.find((s) => s.id === id)?.agent.name ?? 'someone';
   const dropIt = (id: string) => { setPending(new Set([...pending, id])); setGone([...gone, id]); post('/api/today/letgo', { id }); };
   const undo = () => {
@@ -145,7 +152,7 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
     const p = new Set(pending); p.delete(id); setPending(p);
     post('/api/today/letgo', { id, undo: true });
   };
-  const nothing = !t.decide.length && !t.shipped && !t.chats.length;
+  const nothing = !t.decide.length && !t.shipped && !t.chats.length && !ships.length;
   return (
     <section id="today">
       <h2>Today {t.decide.length ? <small>{t.decide.length} need{t.decide.length === 1 ? 's' : ''} a decision from you</small> : null}</h2>
@@ -160,6 +167,15 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
           <span className="done-see">See what shipped ›</span>
         </button>
       ) : null}
+      {note ? <p className="ship-note" role="status">{note}</p> : null}
+      {ships.length ? (
+        <>
+          <p className="today-h">Shipping <span>· agents taking work to review; you put it live</span></p>
+          <ul className="closed decide ships">
+            {ships.map((sh) => <ShipRow key={sh.id} sh={sh} sessions={state.sessions} project={projects.get(sh.projectId ?? '')} onOpen={open.agent} onMessage={setNote} />)}
+          </ul>
+        </>
+      ) : null}
       {t.decide.length ? (
         <>
           <p className="today-h">Needs a decision from you <span>· stays here until it's merged, picked up or let go</span></p>
@@ -173,8 +189,12 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
                   <div className="said" title={s.outcome ?? ''}>{firstLine(s.outcome, 200) || WHY[why]}</div>
                 </div>
                 <span className="today-acts" onClick={(e) => e.stopPropagation()}>
-                  {why === 'review' && s.prUrl ? <a className="btn dark small" href={s.prUrl} target="_blank" rel="noreferrer">Open the review {prNum(s.prUrl)}</a> : null}
-                  <GoTo s={s} primary={why !== 'review'} />
+                  {why === 'unfinished' || why === 'saved' ? <button className="btn ship small" onClick={() => setSheet(s)}>Ship it</button> : null}
+                  {why === 'review' && canGoLive(s) ? <PutLive sessionId={s.id} prUrl={s.prUrl} onDone={setNote} /> : null}
+                  {why === 'review' && s.prChecks === 'failing' && s.status === 'ended' ? <button className="btn ship small" onClick={async () => { const r = await post(`/api/ship/${encodeURIComponent(s.id)}/fix`); setNote(r.message ?? null); }}>Fix the checks</button> : null}
+                  {why === 'review' && s.prChecks === 'pending' ? <span className="muted small">Checks running…</span> : null}
+                  {why === 'review' && s.prUrl ? <a className={canGoLive(s) || s.prChecks === 'failing' ? 'ghost small' : 'btn dark small'} href={s.prUrl} target="_blank" rel="noreferrer">Open the review {prNum(s.prUrl)}</a> : null}
+                  <GoTo s={s} primary={why === 'scrapped'} />
                   {why !== 'review' ? <button className="ghost small" onClick={() => dropIt(s.id)} title="Take it off this list. Its record stays.">Let it go</button> : null}
                 </span>
               </li>
@@ -183,6 +203,7 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
         </>
       ) : null}
       {gone.length ? <p className="today-gone">Let go: {gone.map(name).join(', ')} · <button className="link" onClick={undo}>Undo</button></p> : null}
+      {sheet ? <ShipSheet s={sheet} project={projects.get(sheet.projectId ?? '')} onClose={() => setSheet(null)} onStarted={setNote} /> : null}
     </section>
   );
 }

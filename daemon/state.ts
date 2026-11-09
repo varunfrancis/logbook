@@ -11,6 +11,7 @@ import { routinesView } from './routines.ts';
 import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { crewsToday, letGoIds, notesView } from './crews.ts';
+import { shipsView } from './ship.ts';
 import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
 import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, TeamView, Welcome } from './types.ts';
 
@@ -130,6 +131,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     commits: s.commits || 0,
     prUrl: s.pr_url,
     prState: s.pr_state,
+    prChecks: s.pr_url && s.pr_state === 'open' ? s.pr_checks ?? null : null,
     stamp: status === 'ended' ? s.stamp ?? null : null,
     outcome: s.outcome,
     lastPrompt: s.last_prompt,
@@ -350,6 +352,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
     crews: crewsToday(db, todayRows, live, names, now),
     notes: notesView(db, names, now),
     letGo: letGoIds(db),
+    ships: shipsView(db, (r) => sessionStatus(r, live.get(r.id), now), now),
     totals: {
       live: sessions.filter((s) => s.status !== 'ended').length,
       running: count('running'), needs: count('needs_input'), idle: count('idle'),

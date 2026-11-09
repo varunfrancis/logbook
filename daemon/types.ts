@@ -65,6 +65,8 @@ export type SessionView = {
   commits: number;
   prUrl: string | null;
   prState: string | null;
+  /** The review's automated checks: none (the project has none), pending, passing or failing; null when there's no open review. */
+  prChecks: ChecksState | null;
   stamp: Stamp | null;
   outcome: string | null;
   lastPrompt: string | null;
@@ -151,6 +153,24 @@ export type CostBreakdown = {
   agents: { agent: Agent; sessionId: string; shifts: number; usd: number; estimated: boolean }[];
 }[];
 
+export type ChecksState = 'none' | 'pending' | 'passing' | 'failing';
+
+/** Where a "Ship it" stands, read from the repo and GitHub rather than from what the agent says. */
+export type ShipPhase = 'working' | 'stopped' | 'review' | 'checks' | 'failing' | 'ready' | 'live';
+export type ShipView = {
+  id: string; // the job you shipped (its Today row)
+  sessionId: string; // the shift doing the work now (resuming can start a new one)
+  ids: string[]; // every shift that belongs to it, so Today lists it once
+  projectId: string | null;
+  at: number;
+  mode: 'ship' | 'fix';
+  phase: ShipPhase;
+  commits: number;
+  prUrl: string | null;
+  prSession: string | null; // the shift whose review it is (what "Put it live" merges)
+  onGithub: boolean;
+};
+
 export type StateView = {
   generatedAt: number;
   town: Town;
@@ -163,6 +183,7 @@ export type StateView = {
   crews: CrewDay[];
   notes: CrewNote[];
   letGo: string[]; // finished jobs you chose not to pick back up (the Crew tab's Today list)
+  ships: ShipView[]; // jobs sent back to finish with "Ship it"
   totals: {
     live: number; running: number; needs: number; idle: number; doneToday: number; shippedToday: number;
     tokensToday: number; bricksToday: number; costToday: number; waitedTodayMs: number; peakToday: number;

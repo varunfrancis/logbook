@@ -5,7 +5,7 @@ import { isShipped, needsDecision, todayView, type TodaySession } from '../web/s
 const NOW = new Date(2026, 10, 7, 18, 0).getTime();
 const H = 3600_000;
 const s = (id: string, o: Partial<TodaySession> = {}): TodaySession => ({
-  id, status: 'ended', stamp: null, prState: null, prUrl: null, endedAt: NOW - H, lastEventAt: NOW - H,
+  id, status: 'ended', stamp: null, prState: null, prUrl: null, prChecks: null, endedAt: NOW - H, lastEventAt: NOW - H,
   kind: null, scheduled: false, projectId: 'p1', ...o,
 });
 
