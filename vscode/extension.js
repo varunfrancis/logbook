@@ -39,6 +39,7 @@ async function handle(block) {
   try { j = JSON.parse(data); } catch { return; }
   if (ev === 'resume') return maybeResume(j);
   if (ev === 'raise') { if (ownsFolder(j.cwd) || (j.root && ownsFolder(j.root))) raiseWindow(); return; } // no terminal matched: at least show the project's window
+  if (ev === 'type') return typeReply(j);
   if (ev !== 'jump' && ev !== 'close') return;
   // "Go to" matches any process above the agent (a background agent runs under its parent agent's terminal);
   // "Clock out" only ever closes the agent's own terminal.
@@ -53,6 +54,29 @@ async function handle(block) {
       return;
     }
   }
+}
+
+/**
+ * A reply from Swarmville for an agent waiting at its prompt: type it into that agent's own terminal and press Enter.
+ * Several lines go in as one paste, so Claude gets them as a single message.
+ */
+async function typeReply(j) {
+  const pids = Array.isArray(j.pids) ? j.pids : [];
+  for (const t of vscode.window.terminals) {
+    const pid = await t.processId;
+    if (!pid || !pids.includes(pid)) continue;
+    claim('/api/reply/claim/', j.sessionId);
+    const text = String(j.text || '');
+    t.sendText(text.includes('\n') ? '\x1b[200~' + text + '\x1b[201~' : text, false);
+    setTimeout(() => t.sendText('\r', false), 250);
+    return;
+  }
+}
+
+function claim(route, sessionId) {
+  const r = http.request({ host: '127.0.0.1', port: PORT, method: 'POST', path: route + encodeURIComponent(sessionId) }, (res) => res.resume());
+  r.on('error', () => {});
+  r.end();
 }
 
 /** Tells Swarmville this window found the terminal, so it doesn't fall back to opening the project folder. */

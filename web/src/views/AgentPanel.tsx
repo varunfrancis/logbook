@@ -5,6 +5,8 @@ import { clock, plainAction, priced, useCostView, STAMP_NOTE, STATUS, useVoice }
 import { ago, compact, didSummary, duration, firstLine, madeLinks, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useSwarmville.ts';
+import { useEffect, useState } from 'react';
+import type { SessionView } from '../../../daemon/types.ts';
 import { WorkWith } from '../welcome/WorkWith.tsx';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
@@ -23,7 +25,7 @@ function cleanAsk(t: string | null | undefined) {
   return x.length < 12 || /^[0-9a-f]{6,}$/i.test(x) ? '' : firstLine(x, 180); // skip empty or id-like prompts
 }
 
-export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void }) {
+export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void; openAsk?: (sessionId: string) => void }) {
   const voice = useVoice();
   const cost = useCostView();
   const now = useNow(15000);
@@ -55,7 +57,12 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         <button className="ghost close" onClick={onClose} aria-label="Close profile">×</button>
       </header>
 
-      {s.status === 'needs_input' ? <div className="callout bad"><b>{a.name} raised a hand.</b> {s.needsMessage}</div> : null}
+      {s.status === 'needs_input' ? (
+        <div className="callout bad hand">
+          <span><b>{a.name} raised a hand.</b> {s.ask?.questions?.[0]?.question ?? s.ask?.title ?? s.needsMessage}</span>
+          {openAsk ? <button className="btn approve" onClick={() => openAsk(s.id)}>{s.ask ? 'Answer' : 'See what they need'}</button> : null}
+        </div>
+      ) : null}
       {s.stuck ? <div className="callout bad"><b>Stuck.</b> Hit the same problem {s.stuck.count} times{voice === 'technical' ? `: ${s.stuck.problem}` : '.'}</div> : null}
 
       <section className={`profile-block job-block${live ? '' : ' done'}`} aria-label="The job">
@@ -72,6 +79,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         ) : null}
         {live && !did ? <p className="right-now" title={plainAction(s.action, voice) ?? ''}>{s.status === 'running' ? <>Right now: {plainAction(s.action, voice) ?? 'thinking'}</> : s.status === 'needs_input' ? 'Waiting for you' : 'Done for now, ready for more'}</p>
           : !live && s.stamp ? <p className="right-now"><Stamp stamp={s.stamp} /> {STAMP_NOTE[s.stamp]}</p> : null}
+        {(live && s.status === 'idle' && s.kind !== 'bg') || (!live && s.kind !== 'bg' && !s.scheduled) ? <Reply key={s.id} s={s} name={a.name} /> : null}
         <div className="row actions"><GoTo s={s} />{live ? <ClockOut key={s.id} s={s} /> : null}{s.prUrl ? <PrChip url={s.prUrl} state={s.prState} /> : null}</div>
       </section>
 
@@ -155,5 +163,48 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent }: { id:
         {voice === 'technical' ? <p className="path">{tildify(s.cwd)} · {s.branch ?? '—'} · {s.model ?? ''} · session {s.id}</p> : null}
       </details>
     </aside>
+  );
+}
+
+/**
+ * Tell an agent what's next without leaving the town. One waiting at its prompt gets it typed into its VS Code terminal;
+ * one that's clocked out comes back with it (claude --resume). Where neither works, it says so before you write anything.
+ */
+function Reply({ s, name }: { s: SessionView; name: string }) {
+  const live = s.status !== 'ended';
+  const [text, setText] = useState('');
+  const [check, setCheck] = useState<{ ok: boolean; message: string } | null>(live ? null : { ok: true, message: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    let gone = false;
+    fetch(`/api/reply/${encodeURIComponent(s.id)}/check`).then((r) => r.json()).then((c) => { if (!gone) setCheck(c); }).catch(() => {});
+    return () => { gone = true; };
+  }, [s.id, live]);
+  const send = async () => {
+    if (!text.trim() || busy) return;
+    setBusy(true); setMsg(null);
+    const r = await post(`/api/reply/${encodeURIComponent(s.id)}`, { text });
+    setBusy(false);
+    setMsg({ ok: !!r.ok, text: r.message ?? (r.ok ? 'Sent.' : 'Couldn’t send it.') });
+    if (r.ok) setText('');
+  };
+  if (!check) return null;
+  return (
+    <div className="reply-box">
+      <label className="reply-k" htmlFor={`reply-${s.id}`}>{live ? `Reply to ${name}` : `Pick up where ${name} left off`}</label>
+      {check.ok ? (
+        <>
+          <textarea id={`reply-${s.id}`} className="ask-input" rows={2} value={text} disabled={busy} placeholder={live ? 'Tell them what’s next…' : 'What should they do next?'}
+            onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+          <div className="reply-row">
+            <button className="btn approve" onClick={send} disabled={busy || !text.trim()}>{live ? 'Send' : 'Resume with this message'}</button>
+            <span className="reply-note">⏎ to send · ⇧⏎ new line</span>
+          </div>
+        </>
+      ) : <p className="reply-hint">{check.message}</p>}
+      {msg ? <p className={msg.ok ? 'reply-sent' : 'reply-hint'} role="status">{msg.text}</p> : null}
+    </div>
   );
 }

@@ -152,6 +152,54 @@ function clockOut(sessionId: string): { ok: boolean; message: string } {
 }
 
 /*
+ * Replying to an agent that's waiting at its prompt. No hook can hand an idle agent a message, so the VS Code helper
+ * types it into the agent's own terminal and presses Enter, as you would. Only the agent's own terminal ever: a background
+ * agent runs under its parent agent's terminal, and typing there would talk to the parent.
+ */
+type ReplyCheck = { ok: boolean; where: 'vscode' | 'elsewhere' | 'ended' | 'busy'; message: string; shellPid?: number };
+function replyCheck(sessionId: string): ReplyCheck {
+  const e = live.get(sessionId);
+  if (!e) return { ok: true, where: 'ended', message: 'They’ve clocked out. Your message reopens the job with it.' };
+  const s = state.sessions.find((x) => x.id === sessionId);
+  if (s?.kind === 'bg') return { ok: false, where: 'elsewhere', message: 'This is a background agent. Message the agent that started it instead.' };
+  if (s?.status === 'running') return { ok: false, where: 'busy', message: 'They’re working. You can reply once they stop.' };
+  if (s?.status === 'needs_input') return { ok: false, where: 'busy', message: 'They’ve raised a hand. Answer that first.' };
+  const shell = parentPid(e.pid);
+  const host = shell ? command(parentPid(shell) ?? 0) : '';
+  if (!shell || !/Visual Studio Code|Code Helper|Electron/.test(host)) {
+    return { ok: false, where: 'elsewhere', message: 'Replies only reach agents in a VS Code terminal, and this one isn’t in one. Use Go to and reply there.' };
+  }
+  if (!vscodeClients.size) return { ok: false, where: 'elsewhere', message: 'The Swarmville VS Code helper isn’t running. Install it with: swarmville vscode' };
+  return { ok: true, where: 'vscode', message: '', shellPid: shell };
+}
+
+const pendingReplies = new Map<string, () => void>();
+async function reply(sessionId: string, text: string): Promise<{ ok: boolean; message: string }> {
+  const clean = text.replace(/\r\n?/g, '\n').trim().slice(0, 8000);
+  if (!clean) return { ok: false, message: 'Write a message first.' };
+  const c = replyCheck(sessionId);
+  if (c.where === 'ended') {
+    const s = db.prepare('SELECT s.cwd, p.root FROM sessions s LEFT JOIN projects p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as Row | undefined;
+    if (!s) return { ok: false, message: 'Couldn’t find that job.' };
+    const root = s.root && fs.existsSync(s.root) ? s.root : null;
+    const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
+    if (!cwd) return { ok: false, message: 'Its folder no longer exists on this machine.' };
+    const via = openInTerminal(`reply-${sessionId}-${Date.now()}`, cwd, root ?? cwd, `claude --resume ${shq(sessionId)} ${shq(clean)}`, 'Claude (resumed)');
+    return { ok: true, message: via === 'vscode' ? 'Reopening the job in VS Code with your message.' : 'Reopening the job in Terminal with your message.' };
+  }
+  if (!c.ok || !c.shellPid) return { ok: false, message: c.message };
+  const e = live.get(sessionId)!;
+  const claimed = new Promise<boolean>((resolve) => {
+    const t = setTimeout(() => { pendingReplies.delete(sessionId); resolve(false); }, 2000);
+    pendingReplies.set(sessionId, () => { clearTimeout(t); pendingReplies.delete(sessionId); resolve(true); });
+  });
+  const payload = JSON.stringify({ sessionId, pids: [c.shellPid, e.pid], text: clean });
+  for (const cl of vscodeClients) cl.write(`event: type\ndata: ${payload}\n\n`);
+  if (await claimed) { setTimeout(soon, 1500); return { ok: true, message: 'Sent to their terminal.' }; }
+  return { ok: false, message: 'Couldn’t reach their terminal. Update the VS Code helper with: swarmville vscode, then reload VS Code.' };
+}
+
+/*
  * Opening a Claude conversation in a terminal in a project folder: resuming a past shift (claude --resume <id>),
  * or starting a new one from the welcome tour or an agent's "Work with me" buttons.
  * With the VS Code helper: the window that has the project open (or else any open window) claims it, comes forward and opens a terminal.
@@ -334,13 +382,28 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/team') return json(res, 200, teamView(db, state, Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30))));
     if (req.method === 'POST' && p.startsWith('/api/stop/')) return json(res, 200, clockOut(decodeURIComponent(p.slice('/api/stop/'.length))));
     if (req.method === 'POST' && p.startsWith('/api/ask/')) {
-      // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), or deny.
+      // Your answer to a raised hand, from the town: allow, always allow (Claude Code's suggested rule), deny,
+      // your picks for a question, or changes you want to their plan.
       const body = await readJson(req);
-      const decision = (['allow', 'always', 'deny'] as const).find((d) => d === body.decision) as Decision | undefined;
+      const decision = (['allow', 'always', 'deny', 'answer', 'changes'] as const).find((d) => d === body.decision) as Decision | undefined;
       if (!decision) return json(res, 400, { ok: false, message: 'Unknown answer' });
-      const ok = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision);
+      const answers = Array.isArray(body.answers) ? body.answers.map((a: any) => ({ picked: Array.isArray(a?.picked) ? a.picked.map(String) : [], other: typeof a?.other === 'string' ? a.other : '' })) : [];
+      const r = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision, { answers, note: typeof body.note === 'string' ? body.note : '' });
       soon();
-      return json(res, 200, ok ? { ok: true } : { ok: false, message: 'Already answered, probably in the terminal.' });
+      return json(res, 200, r);
+    }
+    if (req.method === 'POST' && p.startsWith('/api/reply/claim/')) {
+      const claim = pendingReplies.get(decodeURIComponent(p.slice('/api/reply/claim/'.length)));
+      if (claim) claim();
+      return json(res, 200, { ok: !!claim });
+    }
+    if (p.startsWith('/api/reply/') && p.endsWith('/check')) {
+      const { shellPid: _, ...c } = replyCheck(decodeURIComponent(p.slice('/api/reply/'.length, -'/check'.length)));
+      return json(res, 200, c);
+    }
+    if (req.method === 'POST' && p.startsWith('/api/reply/')) {
+      const body = await readJson(req);
+      return json(res, 200, await reply(decodeURIComponent(p.slice('/api/reply/'.length)), String(body.text ?? '')));
     }
     if (req.method === 'POST' && p.startsWith('/api/jump/claim/')) {
       const claim = pendingJumps.get(decodeURIComponent(p.slice('/api/jump/claim/'.length)));

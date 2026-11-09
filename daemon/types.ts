@@ -28,7 +28,10 @@ export type AskView = {
   detailKind: 'command' | 'path' | 'text';
   /** Claude Code offered a "don't ask again" rule for this one. */
   canAlways: boolean;
+  /** A question with choices (AskUserQuestion), answered from the town by picking or typing. */
+  questions?: AskQuestion[];
 };
+export type AskQuestion = { question: string; header: string; multiSelect: boolean; options: { label: string; description: string }[] };
 
 export type SessionView = {
   id: string;
