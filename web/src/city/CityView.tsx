@@ -6,12 +6,12 @@ import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 import { LiveFeed } from './LiveFeed.tsx';
 
-export function CityView({ state, selected, onSelect, onAgent, onGraveyard, onCafe, focus, showLots, bubble, dark, onShare, tourFocus = null, openAgentId = null }: {
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, onCafe, onToggleLots, focus, showLots, bubble, dark, onShare, tourFocus = null, openAgentId = null }: {
   /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
   tourFocus?: string | null;
   /** The agent whose drawer is open: their town reply bubble steps aside. */
   openAgentId?: string | null;
-  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void; onCafe?: () => void;
+  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void; onCafe?: () => void; onToggleLots?: () => void;
   focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: Bubble; dark: boolean; onShare: () => void;
 }) {
   const voice = useVoice();
@@ -19,6 +19,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, onCa
   const labels = useRef<HTMLDivElement>(null);
   const scene = useRef<CityScene | null>(null);
   const [ready, setReady] = useState<CityScene | null>(null); // the scene, once it exists (children's effects run before ours)
+  const lots = state.projects.filter((p) => p.state === 'lot').length;
   const cb = useRef({ onSelect, onAgent, onGraveyard, onCafe });
   cb.current = { onSelect, onAgent, onGraveyard, onCafe };
   const activeCount = state.projects.filter((p) => p.state === 'site' || p.state === 'needs').length;
@@ -81,7 +82,12 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, onCa
         <span><i className="p-construction" />{PROJECT[voice].construction} <small>last 7 days</small></span>
         <span><i className="p-recent" />{PROJECT[voice].recent} <small>7–30 days</small></span>
         <span><i className="p-done" />{PROJECT[voice].done}</span>
-        <span><i className="p-lot" />{PROJECT[voice].lot}</span>
+        {lots ? (
+          <button type="button" className={`legend-lots${showLots ? ' on' : ''}`} onClick={onToggleLots} aria-pressed={showLots}
+            title={showLots ? 'Hide the for-sale lots: GitHub repos nobody has worked on from this computer' : 'Show the for-sale lots: GitHub repos nobody has worked on from this computer'}>
+            <i className="p-lot" />{showLots ? PROJECT[voice].lot : `${lots} for sale`}<small>{showLots ? 'hide' : 'show'}</small>
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -52,7 +52,9 @@ export function App() {
   useAgentSounds(state?.sessions);
   const [view, setView] = useState<View>(readView);
   const [sel, setSel] = useState<Sel>(null);
-  const [showLots, setShowLots] = useState(store.get('swarmville.lots') !== '0');
+  // FOR SALE lots: null until decided. A new town starts without them; a town that was already set up keeps them (see below).
+  const [showLotsRaw, setShowLots] = useState<boolean | null>(() => { const v = store.get('swarmville.lots'); return v === '1' ? true : v === '0' ? false : null; });
+  const showLots = showLotsRaw ?? false;
   const [voice, setVoice] = useState<Voice>((store.get('swarmville.voice') as Voice) || 'plain');
   const [costView, setCostView] = useState<CostView>(store.get('swarmville.costView') === 'api' ? 'api' : 'plan');
   const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('swarmville.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
@@ -82,7 +84,12 @@ export function App() {
     history.replaceState(null, '', '#crew');
     requestAnimationFrame(() => document.getElementById('today')?.scrollIntoView({ block: 'start' }));
   }, [!!state]);
-  useEffect(() => { store.set('swarmville.lots', showLots ? '1' : '0'); }, [showLots]);
+  useEffect(() => {
+    if (showLotsRaw !== null) { store.set('swarmville.lots', showLotsRaw ? '1' : '0'); return; }
+    // First visit from this browser: towns that already went through the welcome keep their lots, brand-new ones start without them.
+    const w = state?.settings.welcome;
+    if (w) setShowLots(!!(w.done || w.skipped));
+  }, [showLotsRaw, state?.settings.welcome]);
   useEffect(() => { store.set('swarmville.voice', voice); }, [voice]);
   useEffect(() => { store.set('swarmville.costView', costView); }, [costView]);
   useEffect(() => { store.set('swarmville.bubbleMode', bubble); }, [bubble]);
@@ -165,7 +172,7 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `swarmville start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} onCafe={() => setSel({ kind: 'cafe', id: '' })} focus={townFocus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} openAgentId={sel?.kind === 'agent' ? sel.id : null} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} onCafe={() => setSel({ kind: 'cafe', id: '' })} focus={townFocus} showLots={showLots} onToggleLots={() => setShowLots(!showLots)} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} openAgentId={sel?.kind === 'agent' ? sel.id : null} />
           ) : (
             <CrewView state={crewState!} open={open} allBuildings={state.projects.filter((p) => p.state !== 'lot').length} />
           )}
