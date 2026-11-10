@@ -61,4 +61,9 @@ test('unread: only Swarmville-run agents that stopped after you last looked, and
   assert.equal(isUnread({ ...s, runner: undefined }, {}, since), false); // in your terminal: you saw it there
   assert.equal(isUnread(s, {}, NOW), false);
   assert.equal(chatsBadge([s, mk({ status: 'needs_input' }), mk()], {}, since), 2);
+  // Clocked out: the reply still shows as new on its row, but the tab badge doesn't count it.
+  const off = { ...s, id: 'off', status: 'ended', runner: 'off' };
+  assert.equal(isUnread(off, {}, since), true);
+  assert.equal(chatsBadge([off], {}, since), 0);
+  assert.equal(chatsBadge([{ ...s, away: true }], {}, since), 0);
 });

@@ -84,9 +84,12 @@ export function isUnread(s: Pick<SessionView, 'id' | 'status' | 'runner' | 'last
   return (s.lastEventAt ?? 0) > Math.max(seen[s.id] ?? 0, since);
 }
 
-/** The Chats badge: raised hands plus replies you haven't opened. */
+/**
+ * The Chats badge: raised hands plus unopened replies from agents still waiting on you. Once an agent has clocked out,
+ * their last reply keeps its dot in "Done today" but no longer counts here: nobody is waiting, so the tab stays quiet.
+ */
 export function chatsBadge(sessions: SessionView[], seen: Record<string, number>, since: number): number {
-  return sessions.filter((s) => s.status === 'needs_input' || isUnread(s, seen, since)).length;
+  return sessions.filter((s) => s.status === 'needs_input' || (chatState(s) !== 'done' && isUnread(s, seen, since))).length;
 }
 
 // ---- "Seen", kept in this browser ----
