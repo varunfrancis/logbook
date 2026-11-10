@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { AgentAvatar, moodFor } from './crew/Avatar.tsx';
-import { PLAN_NOTE, priced, STAT_HELP, PROJECT, useCostView, plainAction, STATUS, useVoice } from './copy.ts';
+import { PLAN_NOTE, priced, saidOf, STAT_HELP, PROJECT, useCostView, plainAction, STATUS, useVoice } from './copy.ts';
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
 import { post, useNow, useProject } from './useSwarmville.ts';
@@ -93,7 +93,7 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
             {past.map((s) => (
               <li key={s.id} onClick={() => openAgent(s.id)}>
                 <div className="pl-top"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={36} /><div><b>{s.title}</b><div className="sub">{s.agent.title} · {ago(s.endedAt, now)}</div></div></div>
-                {s.outcome ? <div className="sub">{firstLine(s.outcome, 140)}</div> : null}
+                {s.outcome ? <div className="sub">{firstLine(saidOf(s, voice), 140)}</div> : null}
                 <div className="pl-meta">{s.stamp ? <Stamp stamp={s.stamp} /> : null}<PrChip url={s.prUrl} state={s.prState} /></div>
               </li>
             ))}

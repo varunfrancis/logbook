@@ -137,6 +137,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     prChecks: s.pr_url && s.pr_state === 'open' ? s.pr_checks ?? null : null,
     stamp: status === 'ended' ? s.stamp ?? null : null,
     outcome: isApiError(s.outcome) ? null : s.outcome,
+    plainOutcome: s.plain_for === s.outcome ? s.plain_outcome ?? null : null,
     lastPrompt: s.last_prompt,
     firstPrompt: s.first_prompt,
     prompts: s.prompts || 0,
