@@ -31,7 +31,7 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
     if (needsText && !what.trim()) { setErr('Say in a few words what it’s about.'); return; }
     setBusy(true); setErr(null);
     const prompt = m.prompt(what.trim(), project.name);
-    const r = await post('/api/launch', { projectId: project.id, prompt, plan: m.plan, here });
+    const r = await post('/api/launch', { projectId: project.id, prompt, plan: m.plan, skip: !!m.skip, here });
     setBusy(false);
     if (!r.ok) { setErr(r.message ?? 'Couldn’t start it.'); return; }
     onStarted({ ...r, projectId: project.id, projectName: project.name, at: Date.now(), plan: m.plan });
@@ -58,9 +58,11 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
         <span className="field-label">{move === 'fix' ? 'What’s wrong?' : move === 'explain' ? 'What should they explain? (optional)' : move === 'review' ? 'What should they look at? (optional)' : 'What’s it about?'}</span>
         <input id={`${idPrefix}-what`} className="field" value={what} onChange={(e) => { setWhat(e.target.value); setErr(null); }} placeholder={m.placeholder} maxLength={400} />
       </label>
-      {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p>
-        : move === 'build' || move === 'fix' ? <p className="sw-note">Starts changing files in this project right away. Anything that needs your OK still raises a hand. Want to see a plan first? Pick {MOVES.plan.label}.</p> : null}
-      {here ? <p className="sw-note">Runs here in Swarmville: you’ll chat with them in the town. You can take over in a terminal any time.</p> : null}
+      <div className="sw-notes">
+        {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p>
+          : m.skip ? <p className="sw-note">Starts changing files in this project right away, without asking permission for each step. Want to see a plan first? Pick {MOVES.plan.label}.</p> : null}
+        {here ? <p className="sw-note">Runs here in Swarmville: you’ll chat with them in the town. You can take over in a terminal any time.</p> : null}
+      </div>
       {err ? <p className="sw-err" role="alert">{err}</p> : null}
       <div className={`row ${secondary ? 'between' : 'end'}`}>
         {secondary}

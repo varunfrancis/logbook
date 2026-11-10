@@ -20,6 +20,9 @@ test('stream-json in and out: messages, images, the arguments', () => {
   const id = '0f9b7d2e-1111-4222-8333-944455556666';
   assert.ok(claudeArgs({ id }).join(' ').includes(`--permission-prompt-tool stdio --session-id ${id}`));
   assert.ok(claudeArgs({ id, resume: true, plan: true }).join(' ').endsWith(`--resume ${id} --permission-mode plan`));
+  assert.ok(claudeArgs({ id, skip: true }).join(' ').endsWith(`--session-id ${id} --dangerously-skip-permissions`));
+  assert.ok(!claudeArgs({ id, plan: true, skip: true }).includes('--dangerously-skip-permissions'), 'planning never skips the OK');
+  assert.ok(!claudeArgs({ id }).includes('--dangerously-skip-permissions'));
 });
 
 test('what Claude says becomes chat lines; a subagent\'s chatter stays out', () => {

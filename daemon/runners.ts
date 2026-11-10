@@ -62,13 +62,13 @@ export class Runners {
   }
 
   /** Starts a new agent (or brings back `resume`'s conversation) in `cwd`, with a first message. */
-  start(o: { cwd: string; prompt: string; images?: RunnerImage[]; plan?: boolean; resume?: string }): Opened {
+  start(o: { cwd: string; prompt: string; images?: RunnerImage[]; plan?: boolean; skip?: boolean; resume?: string }): Opened {
     const bin = this.bin();
     if (!bin) return { ok: false, message: 'Couldn’t find Claude Code on this computer. Install it, then try again.' };
     if (o.resume && this.running(o.resume)) return { ok: false, message: 'They’re already running.' };
     const id = o.resume ?? crypto.randomUUID();
     const P = runnerPaths(this.dir, id);
-    const spec: RunnerSpec = { id, cwd: o.cwd, dir: this.dir, bin, prompt: o.prompt, images: o.images, plan: o.plan, resume: !!o.resume };
+    const spec: RunnerSpec = { id, cwd: o.cwd, dir: this.dir, bin, prompt: o.prompt, images: o.images, plan: o.plan, skip: o.skip, resume: !!o.resume };
     fs.writeFileSync(P.spec, JSON.stringify(spec), { mode: 0o600 });
     // the runner's own trouble (not Claude's) lands here
     const out = fs.openSync(path.join(this.dir, `${id}.runner.log`), 'a');
@@ -76,7 +76,7 @@ export class Runners {
     child.unref();
     fs.closeSync(out);
     // it's "running" from the first moment, so the town shows it at once
-    fs.writeFileSync(P.meta, JSON.stringify({ id, pid: child.pid ?? 0, claudePid: null, cwd: o.cwd, startedAt: Date.now(), status: 'running', exitedAt: null } satisfies RunnerMeta));
+    fs.writeFileSync(P.meta, JSON.stringify({ id, pid: child.pid ?? 0, claudePid: null, cwd: o.cwd, startedAt: Date.now(), status: 'running', exitedAt: null, ...(o.skip ? { skip: true } : {}) } satisfies RunnerMeta));
     this.links.delete(id);
     this.connectSoon(id);
     return { ok: true, sessionId: id, message: o.resume ? 'Back at work.' : 'Started. They’re working on it here in Swarmville.' };
@@ -93,7 +93,8 @@ export class Runners {
     if (this.running(id)) return { ok: false, message: 'Still connecting to them. Try again in a moment.' };
     const where = cwd ?? this.meta(id)?.cwd;
     if (!where || !fs.existsSync(where)) return { ok: false, message: 'Their folder is gone from this computer.' };
-    return this.start({ cwd: where, prompt: text, images, resume: id });
+    // an agent started to build without asking keeps doing so when it comes back
+    return this.start({ cwd: where, prompt: text, images, skip: this.meta(id)?.skip === true, resume: id });
   }
 
   interrupt(id: string): boolean { return this.op(id, { op: 'interrupt' }); }

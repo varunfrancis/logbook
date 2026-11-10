@@ -3,7 +3,10 @@
  * brainstorm and plan before anything gets built.
  */
 export type MoveId = 'brainstorm' | 'plan' | 'fix' | 'research' | 'explain' | 'review' | 'build' | 'polish' | 'docs';
-export type Move = { id: MoveId; label: string; hint: string; placeholder: string; plan: boolean; prompt: (what: string, project: string) => string };
+export type Move = { id: MoveId; label: string; hint: string; placeholder: string; plan: boolean;
+  /** Changes files: the agent runs with --dangerously-skip-permissions instead of asking on every step. */
+  skip?: boolean;
+  prompt: (what: string, project: string) => string };
 
 export const MOVES: Record<MoveId, Move> = {
   brainstorm: {
@@ -15,7 +18,7 @@ export const MOVES: Record<MoveId, Move> = {
     prompt: (w, p) => `Help me plan this for ${p}: ${w}. Read the relevant code, propose clear steps, list what could go wrong, and wait for my OK before changing anything.`,
   },
   fix: {
-    id: 'fix', label: 'Fix something', hint: 'Describe what’s wrong', plan: false, placeholder: 'e.g. the sign-in page spins forever',
+    id: 'fix', label: 'Fix something', hint: 'Describe what’s wrong', plan: false, skip: true, placeholder: 'e.g. the sign-in page spins forever',
     prompt: (w, p) => `Something's wrong in ${p}: ${w}. Find the cause first and explain it to me in plain words, then fix it and check that it works.`,
   },
   research: {
@@ -31,15 +34,15 @@ export const MOVES: Record<MoveId, Move> = {
     prompt: (w, p) => `Review ${w || 'the latest changes'} in ${p}. List anything that could break or confuse people, most important first. Don't change files unless I ask.`,
   },
   build: {
-    id: 'build', label: 'Build it', hint: 'Go ahead and make it', plan: false, placeholder: 'e.g. a dark mode switch',
+    id: 'build', label: 'Build it', hint: 'Go ahead and make it', plan: false, skip: true, placeholder: 'e.g. a dark mode switch',
     prompt: (w, p) => `Build this in ${p}: ${w}. Keep it simple, check that it works, and tell me what you changed in plain words.`,
   },
   polish: {
-    id: 'polish', label: 'Polish how it looks', hint: 'Tidy a screen', plan: false, placeholder: 'e.g. the settings page feels cramped',
+    id: 'polish', label: 'Polish how it looks', hint: 'Tidy a screen', plan: false, skip: true, placeholder: 'e.g. the settings page feels cramped',
     prompt: (w, p) => `Improve how this looks in ${p}: ${w}. Check it on a phone-sized screen too, and describe what you changed.`,
   },
   docs: {
-    id: 'docs', label: 'Write it down', hint: 'A guide or README', plan: false, placeholder: 'e.g. how to set this up on a new laptop',
+    id: 'docs', label: 'Write it down', hint: 'A guide or README', plan: false, skip: true, placeholder: 'e.g. how to set this up on a new laptop',
     prompt: (w, p) => `Write clear, short docs for ${p}: ${w}. Plain language, for someone new.`,
   },
 };

@@ -762,6 +762,41 @@ test("Swarmville's own background runs never become projects, even after a test 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("a test copy's naming runs and an SDK program's temp-folder requests never become buildings", async () => {
+  const { purgeOwnRuns, applyDelta } = await import('../daemon/transcripts.ts');
+  const { adoptLive } = await import('../daemon/state.ts');
+  const { isThrowawayRun } = await import('../daemon/config.ts');
+  const tmp = fs.realpathSync(os.tmpdir());
+  assert.equal(isThrowawayRun(path.join(tmp, 'sa-claude-code-o8ffc5r1'), 'sdk-py'), true);
+  assert.equal(isThrowawayRun('/private/var/folders/2n/x/T/sa-claude-code-swg3rm9o', 'sdk-ts'), true);
+  assert.equal(isThrowawayRun(path.join(tmp, 'scratch'), 'cli'), false); // a person working in a temp folder still shows
+  assert.equal(isThrowawayRun('/Users/me/app', 'sdk-py'), false); // an SDK program working on a real folder still shows
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  // another Swarmville data folder (a preview daemon) naming its projects: seen only in Claude's live registry
+  const otherNamer = path.join(dir, 'pvdata', 'namer');
+  fs.mkdirSync(otherNamer, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'pvdata', 'swarmville.db'), '');
+  const live = (id: string, cwd: string, entrypoint: string) => [id, { pid: 1, sessionId: id, cwd, kind: 'interactive', status: 'busy', name: null, updatedAt: null, startedAt: null, entrypoint }] as const;
+  adoptLive(db, new Map([live('namer-1', otherNamer, 'sdk-cli'), live('sdk-1', path.join(tmp, 'sa-claude-code-abc123'), 'sdk-py')]));
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM projects').get() as any).n, 0);
+
+  // a transcript from an SDK program's temp folder
+  const delta = { sessionId: 'sdk-2', entrypoint: 'sdk-py', cwd: path.join(tmp, 'sa-claude-code-def456'), files: [], errors: [] } as any;
+  applyDelta(db, delta, '/t.jsonl');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM sessions').get() as any).n, 0);
+
+  // ones recorded before this rule are cleared out, building and all
+  const root = path.join(tmp, 'sa-claude-code-old999');
+  db.prepare('INSERT INTO projects(id, name, root, display_name) VALUES(?, ?, ?, ?)').run(`local:${root}`, 'sa-claude-code-old999', root, 'Project Namer');
+  db.prepare('INSERT INTO sessions(id, project_id, cwd, entrypoint) VALUES(?, ?, ?, ?)').run('sdk-old', `local:${root}`, root, 'sdk-py');
+  assert.equal(purgeOwnRuns(db), 1);
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM projects').get() as any).n, 0);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('no agent looks like Pip the foreman (the logo): never a blue capsule', async () => {
   const { identityFor, FOREMAN_LOOK } = await import('../daemon/identity.ts');
   let capsules = 0;
