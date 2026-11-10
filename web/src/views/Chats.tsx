@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionView, StateView } from '../../../daemon/types.ts';
-import { AgentAvatar, FOREMAN, moodFor } from '../crew/Avatar.tsx';
+import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { useVoice } from '../copy.ts';
 import { ago, tildify } from '../format.ts';
 import { GoTo, PrChip } from '../components.tsx';
@@ -117,17 +117,12 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
 
       <section className="chats-main" aria-label="Conversation">
         {mode === 'new' ? (
-          <>
-            <header className="chats-head">
-              <button type="button" className="ghost small chats-back" onClick={() => setReading(false)} aria-label="Back to the list">‹</button>
-              <AgentAvatar agent={FOREMAN} mood="hello" size={38} />
-              <div className="chats-id"><b>Give a task{newIn ? ` in ${projectName.get(newIn) ?? 'this project'}` : ''}</b><small>Swarmville starts an agent there, and their chat opens here.</small></div>
-            </header>
-            <div className="chats-new-body">
-              <StartWork key={newIn ?? 'any'} state={state} moves={MOVES_FOR_JOB.builder} projectId={newIn} idPrefix="chats-new" here
-                onStarted={(r) => { if (r.sessionId) pick(r.sessionId); }} />
-            </div>
-          </>
+          <div className="chats-new-body">
+            {/* Like a fresh ChatGPT chat: no header, one box in the middle. The back arrow only shows on a phone. */}
+            <button type="button" className="ghost small chats-back chats-new-back" onClick={() => setReading(false)} aria-label="Back to the list">‹</button>
+            <StartWork key={newIn ?? 'any'} state={state} moves={MOVES_FOR_JOB.builder} projectId={newIn} idPrefix="chats-new" here look="composer"
+              onStarted={(r) => { if (r.sessionId) pick(r.sessionId); }} />
+          </div>
         ) : s ? (
           <>
             <Head s={s} project={projectName.get(s.projectId ?? '')} rail={rail} toggleRail={toggleRail} back={() => setReading(false)} />
