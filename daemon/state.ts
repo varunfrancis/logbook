@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isApiError } from './transcripts.ts';
 import type { Db, Row } from './db.ts';
 import { kvGet } from './db.ts';
 import type { LiveEntry } from './live.ts';
@@ -21,7 +22,9 @@ export const startOfDay = (d = new Date()) => { const x = new Date(d); x.setHour
 /** Midnight at the end of the day that starts at `dayStart` (23 or 25 hours on clock-change days). */
 export const endOfDay = (dayStart: number) => startOfDay(new Date(dayStart + 36 * 3600_000));
 const tokensOf = (s: Row) => (s.tok_in || 0) + (s.tok_out || 0) + (s.tok_cache_write || 0) + (s.tok_sub || 0);
-const fmtMin = (ms: number) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
+/** Ids like "50cbfa37" that some runs use as their name: never a title anyone can read. */
+const MACHINE_ID = /^[0-9a-f]{6,}$|^[a-z0-9-]+-f\d+$/i;
+const fmtMin = (ms: number) => { const m = Math.round(ms / 60000); if (m >= 48 * 60) return `${Math.round(m / 1440)} days`; return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
 
 // ---------- cost ----------
 /**
@@ -102,7 +105,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     id: s.id,
     projectId: s.project_id,
     agent: agentOf(s),
-    title: shorten(s.ai_title || liveName || s.first_prompt || live?.name || 'New session'),
+    title: shorten([s.ai_title, liveName, s.first_prompt, live?.name].find((t) => t && !MACHINE_ID.test(t)) || 'New session'),
     focus: s.focus ?? null,
     status,
     away,
@@ -133,7 +136,7 @@ export function toSessionView(db: Db, s: Row, live: LiveEntry | undefined, now: 
     prState: s.pr_state,
     prChecks: s.pr_url && s.pr_state === 'open' ? s.pr_checks ?? null : null,
     stamp: status === 'ended' ? s.stamp ?? null : null,
-    outcome: s.outcome,
+    outcome: isApiError(s.outcome) ? null : s.outcome,
     lastPrompt: s.last_prompt,
     firstPrompt: s.first_prompt,
     prompts: s.prompts || 0,
@@ -218,6 +221,9 @@ export function refreshAgents(db: Db, since: number, live: Map<string, LiveEntry
 export function projectNames(p: Row): { name: string; repo: string; source: ProjectView['nameSource'] } {
   const repo = p.root ? path.basename(p.root) : p.gh_full?.split('/')[1] ?? p.name;
   if (p.display_name) return { name: p.display_name, repo, source: p.display_source === 'user' ? 'user' : 'ai' };
+  // A repo named only by a number ("186459666", as course sites make them) reads as an error; name it after its owner.
+  const owner = p.gh_full?.split('/')[0];
+  if (/^\d+$/.test(repo) && owner) return { name: `${fallbackName(owner)} project`, repo, source: 'auto' };
   return { name: p.name === 'Scratch' ? 'Scratch' : fallbackName(repo), repo, source: 'auto' };
 }
 
@@ -253,7 +259,7 @@ function graveyard(db: Db, names: Map<string, string>, now: number, live: Map<st
     const dur = s.started_at && s.last_event_at ? fmtMin(s.last_event_at - s.started_at) : '';
     const saidDone = /\b(done|complete|completed|finished|ready|shipped)\b/i.test(s.outcome ?? '');
     const epitaph = s.stamp === 'unfinished' ? (saidDone ? 'Said "done". Saved nothing.' : `Left “${task}” half-built.`) : `“${task.replace(/^\w/, (c: string) => c.toUpperCase())}” never made it.`;
-    return { sessionId: s.id, agent: agentOf(s), projectName: names.get(s.project_id) ?? 'a project', epitaph, sub: s.stamp === 'unfinished' ? `Changes never saved · ${dur}` : `Gave up after ${dur}`, at: s.last_event_at, bricks: Math.round(tokensOf(s) / BRICK) };
+    return { sessionId: s.id, agent: agentOf(s), projectName: names.get(s.project_id) ?? 'a project', epitaph, sub: s.stamp === 'unfinished' ? `Their changes were never saved${dur ? ` · open ${dur}` : ''}` : `Their changes were thrown away${dur ? ` · open ${dur}` : ''}`, at: s.last_event_at, bricks: Math.round(tokensOf(s) / BRICK) };
   });
 }
 
@@ -331,6 +337,7 @@ export function buildState(db: Db, live: Map<string, LiveEntry>, now = Date.now(
       linesAdded: a.lines, commits: a.commits,
     };
   });
+  uniqueNames(projectViews);
   const names = new Map(projectViews.map((p) => [p.id, p.name]));
 
   const todayRows = db.prepare('SELECT * FROM sessions WHERE last_event_at >= ? AND project_id IS NOT NULL').all(today) as Row[];
@@ -530,4 +537,28 @@ export function teamView(db: Db, state: StateView, days: number, now = Date.now(
       peak: peakOf([...sessionIntervals(db, from, now).values()].flat()).peak,
     },
   };
+}
+
+/**
+ * Two buildings with the same name look like a mistake ("Scratch Pad" twice). The busier one keeps it;
+ * the others get their folder's name after it, or a number when that doesn't tell them apart either.
+ */
+export function uniqueNames<P extends { name: string; repo: string; sessionsTotal: number }>(projects: P[]): P[] {
+  const groups = new Map<string, P[]>();
+  for (const p of projects) groups.set(p.name.toLowerCase(), [...(groups.get(p.name.toLowerCase()) ?? []), p]);
+  const taken = new Set(projects.map((p) => p.name.toLowerCase()));
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => b.sessionsTotal - a.sessionsTotal);
+    let n = 2;
+    for (const p of group.slice(1)) {
+      const base = p.name;
+      const byFolder = p.repo && !/^[a-z]+-[a-z0-9-]*[0-9][a-z0-9]*$/i.test(p.repo) ? `${base} (${p.repo})` : null;
+      let name = byFolder && !taken.has(byFolder.toLowerCase()) ? byFolder : `${base} ${n++}`;
+      while (taken.has(name.toLowerCase())) name = `${base} ${n++}`;
+      taken.add(name.toLowerCase());
+      p.name = name;
+    }
+  }
+  return projects;
 }

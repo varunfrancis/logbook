@@ -76,7 +76,7 @@ export function ClockOut({ s }: { s: SessionView }) {
   return (
     <span className="clockout" onClick={stop}>
       {step === 'idle' ? (
-        <button className="ghost small" onClick={(e) => { e.stopPropagation(); setStep('confirm'); }} title={`Stop ${name} and close their terminal`}>Clock out</button>
+        <button className="ghost small risky" onClick={(e) => { e.stopPropagation(); setStep('confirm'); }} title={`Stop ${name} and close their terminal. Asks you first.`}>Clock out</button>
       ) : (
         <span className={`clockout-confirm${working ? ' hot' : ''}`} role="alertdialog" aria-label={`Clock ${name} out?`}>
           <span className="cc-text">

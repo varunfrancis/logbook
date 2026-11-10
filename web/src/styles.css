@@ -1158,3 +1158,22 @@ code.ask-detail { display: block; }
 .tr-card button:focus-visible, .tr-input input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: no-preference) { .town-reply .tr-card { animation: wel-rise .3s ease-out both; } }
 
+
+/* Hover help on numbers: a dotted underline says "point here to learn what this means". */
+.stats div[title] dt, th[title] { text-decoration: underline dotted color-mix(in srgb, var(--ink-3) 60%, transparent); text-underline-offset: 3px; cursor: help; }
+.stats dd small { display: block; font-family: inherit; font-size: 10.5px; color: var(--ink-3); }
+/* "Give a task" reads as something to open, not a heading. */
+.workwith:not([open]) summary h3 { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.workwith:not([open]) summary h3::before { content: "+"; font-weight: 900; }
+.workwith:not([open]) summary h3::after { content: ""; }
+
+/* Live jobs: the halo alone can't keep text readable over busy lots and signs, so a soft frosted pane sits behind it. */
+.live-feed:not(.lf-folded) { background: color-mix(in srgb, var(--bg) 74%, transparent); -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1); border-radius: 14px; padding: 6px; box-shadow: 0 4px 18px #0002; pointer-events: auto; }
+.live-feed.lf-folded .lf-head { background: color-mix(in srgb, var(--bg) 74%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* Buttons that stop or undo something wear a warning colour, so they don't look like their harmless neighbours. */
+.ghost.risky { color: color-mix(in srgb, var(--needs) 80%, var(--ink-2)); }
+.ghost.risky:hover { background: color-mix(in srgb, var(--needs) 10%, transparent); }
+
+/* Phones: a busy site's sign wraps onto two lines instead of running off the screen. */
+@media (max-width: 720px) { .bb[data-state="site"], .bb[data-state="needs"] { flex-wrap: wrap; white-space: normal; max-width: calc(100vw - 24px); row-gap: 2px; } }

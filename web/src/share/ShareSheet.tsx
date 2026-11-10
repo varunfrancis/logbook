@@ -113,7 +113,7 @@ export function ShareSheet({ state, onClose, initial = 'team' }: { state: StateV
         ) : (
           <fieldset className="privacy">
             <legend>Privacy</legend>
-            <label><input type="checkbox" checked={privacy.names} onChange={(e) => setPrivacy({ names: e.target.checked })} /> Show project names (e.g. "Support Bot"). Off shows Project A, B, C…</label>
+            <label><input type="checkbox" checked={privacy.names} onChange={(e) => setPrivacy({ names: e.target.checked })} /> Show project names (e.g. "Support Bot"). Off shows Project A, B, C…. Your own name stays on the card.</label>
             <p className="muted">Repo names, branches, files and prompts are never included.</p>
           </fieldset>
         )}

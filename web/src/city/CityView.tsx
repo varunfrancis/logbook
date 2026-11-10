@@ -6,12 +6,12 @@ import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 import { LiveFeed } from './LiveFeed.tsx';
 
-export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null, openAgentId = null }: {
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, onCafe, focus, showLots, bubble, dark, onShare, tourFocus = null, openAgentId = null }: {
   /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
   tourFocus?: string | null;
   /** The agent whose drawer is open: their town reply bubble steps aside. */
   openAgentId?: string | null;
-  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
+  state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void; onCafe?: () => void;
   focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: Bubble; dark: boolean; onShare: () => void;
 }) {
   const voice = useVoice();
@@ -19,12 +19,12 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   const labels = useRef<HTMLDivElement>(null);
   const scene = useRef<CityScene | null>(null);
   const [ready, setReady] = useState<CityScene | null>(null); // the scene, once it exists (children's effects run before ours)
-  const cb = useRef({ onSelect, onAgent, onGraveyard });
-  cb.current = { onSelect, onAgent, onGraveyard };
+  const cb = useRef({ onSelect, onAgent, onGraveyard, onCafe });
+  cb.current = { onSelect, onAgent, onGraveyard, onCafe };
   const activeCount = state.projects.filter((p) => p.state === 'site' || p.state === 'needs').length;
 
   useEffect(() => {
-    const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id), onGraveyard: () => cb.current.onGraveyard() });
+    const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id), onGraveyard: () => cb.current.onGraveyard(), onCafe: () => cb.current.onCafe?.() });
     scene.current = s;
     setReady(s);
     return () => { s.dispose(); scene.current = null; setReady(null); };

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { StateView } from '../../daemon/types.ts';
 import { AgentAvatar, moodFor } from './crew/Avatar.tsx';
-import { PLAN_NOTE, priced, PROJECT, useCostView, plainAction, STATUS, useVoice } from './copy.ts';
+import { PLAN_NOTE, priced, STAT_HELP, PROJECT, useCostView, plainAction, STATUS, useVoice } from './copy.ts';
 import { ago, compact, duration, firstLine, tildify } from './format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from './components.tsx';
 import { post, useNow, useProject } from './useSwarmville.ts';
@@ -27,7 +27,7 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
     <li key={s.id} onClick={() => openAgent(s.id)}>
       <div className="pl-top"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={40} /><div><b>{s.agent.title}</b><div className="sub">{s.title}</div></div></div>
       <div className="pl-act">{s.status === 'needs_input' ? s.needsMessage : s.status === 'running' ? `Right now: ${plainAction(s.action, voice)}` : STATUS[voice][s.status]}</div>
-      <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num">{duration(s.startedAt, now)}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /><ClockOut s={s} /></div>
+      <div className="pl-meta"><span className={`pill s-${s.status}`}>{STATUS[voice][s.status]}</span><span className="num" title={s.status === 'idle' ? 'When they finished' : 'How long they’ve been at it'}>{s.status === 'idle' ? `finished ${ago(s.lastEventAt, now)}` : `on it ${duration(s.startedAt, now)}`}</span><PrChip url={s.prUrl} state={s.prState} /><GoTo s={s} /><ClockOut s={s} /></div>
     </li>
   );
   const save = async () => { await post(`/api/project/${encodeURIComponent(p.id)}/name`, { name: draft }); setEditing(false); };
@@ -57,10 +57,10 @@ export function ProjectPanel({ id, state, onClose, openAgent }: { id: string; st
       {p.description ? <p className="muted">{p.description}</p> : null}
       {voice === 'technical' && p.root ? <div className="path">{tildify(p.root)}</div> : null}
       <dl className="stats">
-        <div><dt>{voice === 'plain' ? 'Bricks' : 'Tokens'}</dt><dd>{voice === 'plain' ? p.bricks.toLocaleString() : compact(p.tokens)}</dd></div>
-        <div><dt>Cost</dt><dd title={cost === 'plan' ? PLAN_NOTE : 'At API prices'}>{priced(cost, p.costUsd)}</dd></div>
-        <div><dt>Shifts</dt><dd>{p.sessionsTotal}</dd></div>
-        <div><dt>{voice === 'plain' ? 'Saves' : 'Commits'}</dt><dd>{p.commits}</dd></div>
+        <div title={STAT_HELP.bricks}><dt>{voice === 'plain' ? 'Bricks' : 'Tokens'}</dt><dd>{voice === 'plain' ? p.bricks.toLocaleString() : compact(p.tokens)}</dd></div>
+        <div title={cost === 'plan' ? PLAN_NOTE : 'What this project’s work would cost at API prices'}><dt>Cost</dt><dd>{priced(cost, p.costUsd)}{cost === 'plan' ? <small>in your plan</small> : null}</dd></div>
+        <div title={STAT_HELP.shifts}><dt>Shifts</dt><dd>{p.sessionsTotal}</dd></div>
+        <div title={STAT_HELP.saves}><dt>{voice === 'plain' ? 'Saves' : 'Commits'}</dt><dd>{p.commits}</dd></div>
       </dl>
       {p.state === 'lot' ? <p className="muted">For sale: this repo is on GitHub but nobody has worked on it from this machine. {p.ghPushedAt ? `Last upload ${ago(p.ghPushedAt, now)}.` : ''}</p> : null}
 

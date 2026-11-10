@@ -1,3 +1,4 @@
+import { onBreak } from './liveJobs.ts';
 import * as THREE from 'three';
 import type { GraveEntry, ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { buildCrew, setCrewNight, type CrewMode } from './crew3d.ts';
@@ -33,9 +34,10 @@ const PAN_KEYS: Record<string, 'left' | 'right' | 'up' | 'down'> = { ArrowLeft: 
 function snapCorner(az: number) { return Math.PI / 4 + Math.round((az - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2); }
 function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rand(seed: number) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
-/** On a coffee break: done for now, waiting on you, not long enough to count as away. They spend it at the café. */
-export const onBreak = (s: SessionView) => s.status === 'idle' && !s.away;
 /** Chat bubbles are a glance, not a log: paths become just the file name and long lines are cut. */
+export { onBreak };
+/** The x that keeps a label of width w (centred on x) inside a screen W wide, with a small margin. */
+const inside = (x: number, w: number, W: number) => (w + 16 >= W ? W / 2 : Math.min(Math.max(x, w / 2 + 8), W - w / 2 - 8));
 const chatText = (s: string) => { const t = s.replace(/\S*\/(\S+)/g, '$1').replace(/\s+/g, ' ').trim(); return t.length > 64 ? t.slice(0, 62).trimEnd() + '…' : t; };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
@@ -66,7 +68,7 @@ function modeFor(s: SessionView): Mode {
   }
 }
 
-export type CityOptions = { onSelect: (id: string | null) => void; onAgent?: (sessionId: string) => void; onHover?: (id: string | null) => void; onGraveyard?: () => void };
+export type CityOptions = { onSelect: (id: string | null) => void; onAgent?: (sessionId: string) => void; onHover?: (id: string | null) => void; onGraveyard?: () => void; onCafe?: () => void };
 
 export class CityScene {
   private renderer: THREE.WebGLRenderer;
@@ -581,7 +583,7 @@ export class CityScene {
         const h = this.pickAny(e.clientX, e.clientY);
         if (h?.kind === 'agent' && this.opts.onAgent) this.opts.onAgent(h.id);
         else if (h?.kind === 'grave' && this.opts.onGraveyard) this.opts.onGraveyard();
-        else if (h?.kind === 'cafe') this.focusCafe();
+        else if (h?.kind === 'cafe') { this.focusCafe(); this.opts.onCafe?.(); }
         else this.opts.onSelect(h?.kind === 'project' ? h.id : null);
       }
       // Settle on the nearest of the four isometric corners: in-between angles shear the grid and look off.
@@ -1265,7 +1267,7 @@ export class CityScene {
     // the sign: always on, like the graveyard's
     const sign = new THREE.Object3D(); sign.position.set(-2, 4.1, -2); ring.add(sign);
     const el = this.div('bb place cafe-sign', `<span class="d"></span><b>Café</b><span class="crew">${crew.length ? `${crew.length} on a break` : 'quiet'}</span>`);
-    el.onclick = () => this.focusCafe();
+    el.onclick = () => { this.focusCafe(); this.opts.onCafe?.(); };
     el.onpointerenter = () => { this.cafeHover = true; };
     el.onpointerleave = () => { this.cafeHover = false; };
     this.label(labels, el, sign, 0, 'fx', '__cafe');
@@ -1379,6 +1381,7 @@ export class CityScene {
     const chats: { L: Label; x: number; y: number }[] = [];
     const hellos: { L: Label; x: number; y: number }[] = [];
     const plainNames: { L: Label; x: number; y: number }[] = [];
+    const saleBoxes: { x: number; y: number }[] = [];
     const signs: { L: Label; x: number; y: number }[] = []; // café / graveyard signs, "Shipped!" banners: greetings keep off them
     for (const L of this.labels) {
       const st = L.el.dataset.state;
@@ -1400,8 +1403,8 @@ export class CityScene {
         const focused = !!F.projects?.has(L.pid) || !!(F.sessions && this.focusPids.has(L.pid));
         L.el.classList.toggle('mini', !important && !zoomedIn && !focused);
         L.el.classList.toggle('sel', L.pid === this.selected);
-        // zoomed out: only sites with crew on them (or what you've picked) keep a name tag
-        show = important || focused || (zoomedIn && st !== 'lot');
+        // every building wears its name (small when quiet and zoomed out); for-sale lots only when you point at them
+        show = important || focused || st !== 'lot';
       }
       // café / graveyard signs wear the same billboard as the buildings, and shrink with them when zoomed out
       if (L.el.classList.contains('place')) L.el.classList.toggle('mini', !zoomedIn && !(L.pid === '__cafe' && this.cafeHover));
@@ -1410,6 +1413,8 @@ export class CityScene {
       if (F.projects && L.pid && !L.pid.startsWith('__') && !F.projects.has(L.pid) && L.kind !== 'district') show = false;
       if (F.sessions && L.kind === 'bb' && !this.focusPids.has(L.pid) && L.pid !== this.selected) show = false;
       if (L.el.classList.contains('hidden-until-zoom')) show = zoomedIn || L.pid === this.hovered || L.pid === this.selected;
+      // phones: the whole town is tiny until you zoom in, so district names would sit on top of the building names
+      if (L.kind === 'district' && !zoomedIn && W < 720) show = false;
       if (!show) { L.el.style.display = 'none'; continue; }
       L.obj.getWorldPosition(this.v); this.v.y += L.dy; this.v.project(this.cam);
       if (this.v.x < -1.2 || this.v.x > 1.2 || this.v.y < -1.2 || this.v.y > 1.2) { L.el.style.display = 'none'; continue; }
@@ -1419,7 +1424,14 @@ export class CityScene {
       if (L.kind === 'tag') { tags.push({ L, x, y }); continue; }
       if (L.kind === 'chat') { chats.push({ L, x, y }); continue; }
       if (L.kind === 'hello') { hellos.push({ L, x, y }); continue; }
-      L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      // FOR SALE signs on far-off lots bunch up in perspective: one per patch of screen, the rest stay hidden
+      if (L.el.classList.contains('sale')) {
+        const w = L.el.offsetWidth + 6, h = L.el.offsetHeight + 4;
+        if (saleBoxes.some((q) => Math.abs(x - q.x) < w && Math.abs(y - q.y) < h)) { L.el.style.display = 'none'; continue; }
+        saleBoxes.push({ x, y });
+      }
+      const sx = L.kind === 'fx' && L.el.classList.contains('place') ? inside(x, L.el.offsetWidth, W) : x;
+      L.el.style.transform = `translate(${sx.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       L.el.style.transform = L.kind === 'district' ? `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)` : L.el.style.transform;
       L.el.style.zIndex = L.kind === 'district' ? '1' : String(Math.round(1000 - this.v.z * 500) + (L.kind === 'bb' ? 0 : 2000));
       if (L.kind === 'bb' && L.pid !== this.selected && L.pid !== this.hovered) plainNames.push({ L, x, y });
@@ -1489,11 +1501,13 @@ export class CityScene {
           if (Math.abs(r.x - q.x) < (w + q.w) / 2 + 8 && y > q.y - q.h && y - h < q.y) { y = q.y - q.h - 6; moved = true; }
         }
       }
-      placed.push({ x: r.x, y, w, h });
-      r.L.el.style.transform = `translate(${r.x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+      // keep the whole sign on screen (phones are narrow); its leader still drops onto the building
+      const x = inside(r.x, w, W);
+      placed.push({ x, y, w, h });
+      r.L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
       r.L.el.style.zIndex = String(5000 + Math.round(y));
       const leader = r.L.el.querySelector('.leader') as HTMLElement | null;
-      if (leader) leader.style.height = `${Math.max(0, r.y - y - 6).toFixed(1)}px`;
+      if (leader) { leader.style.height = `${Math.max(0, r.y - y - 6).toFixed(1)}px`; leader.style.left = `calc(50% + ${(r.x - x).toFixed(1)}px)`; }
     }
     // Chat bubbles: one per site at a time, sitting just above the speaker's tag. A bubble that can't find clear
     // space is skipped this time rather than drawn over other labels. It gets another turn on its next cycle.
@@ -1562,9 +1576,12 @@ export class CityScene {
       el.style.zIndex = String(6000 + Math.round(y));
     }
     // A quiet building's name that sits under crew labels or a bubble steps aside (hover or select brings it back).
+    // Quiet names that would sit on each other: the one nearest the front keeps its spot, the rest wait for a zoom or a hover.
+    plainNames.sort((a, b) => b.y - a.y || (a.L.pid < b.L.pid ? -1 : 1));
     for (const r of plainNames) {
       const w = r.L.el.offsetWidth, h = r.L.el.offsetHeight;
-      if (blockers.some((q) => Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && r.y > q.y - q.h && r.y - h < q.y)) r.L.el.style.display = 'none';
+      if (blockers.some((q) => Math.abs(r.x - q.x) < (w + q.w) / 2 + 4 && r.y > q.y - q.h && r.y - h < q.y)) { r.L.el.style.display = 'none'; continue; }
+      blockers.push({ x: r.x, y: r.y, w, h });
     }
   };
 }

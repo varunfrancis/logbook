@@ -5,7 +5,7 @@ import { bricks, PROJECT, SIZE, plainAction, useVoice } from '../copy.ts';
 import { ago, compact, duration, didSummary, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useNow } from '../useSwarmville.ts';
-import { jobLabel } from '../city/liveJobs.ts';
+import { jobLabel, onBreak } from '../city/liveJobs.ts';
 import { Leaderboard } from '../crew/Leaderboard.tsx';
 import { canGoLive, finishedAt, prNum, todayView, type Why } from '../crew/today.ts';
 import { PutLive, ShipRow, ShipSheet } from './Ship.tsx';
@@ -238,7 +238,7 @@ function FinishedList({ items, projects, now, open }: { items: SessionView[]; pr
   );
 }
 
-export function CrewView({ state, open }: { state: StateView; open: Open }) {
+export function CrewView({ state, open, allBuildings }: { state: StateView; open: Open; allBuildings?: number }) {
   const voice = useVoice();
   const now = useNow(15000);
   const projects = useMemo(() => new Map(state.projects.map((p) => [p.id, p])), [state.projects]);
@@ -247,6 +247,8 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
   const working = state.sessions.filter((s) => s.status === 'running');
   const idle = state.sessions.filter((s) => s.status === 'idle');
   const closed = state.sessions.filter((s) => s.status === 'ended' && (s.endedAt ?? 0) >= today.getTime());
+  // At the café: the same agents the header and the café sign count. Ones away for hours are still in Just finished.
+  const resting = idle.filter(onBreak);
   const finished = [...idle, ...closed].sort((a, b) => finishedAt(b) - finishedAt(a));
   const order = [...needs, ...working];
   // Keyboard focus sticks to an agent (not a slot in the list) and only shows once you start using j/k.
@@ -272,6 +274,7 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
     return () => removeEventListener('pointerdown', clear);
   }, []);
   const town = state.projects.filter((p) => p.state !== 'lot').sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+  const hiddenBuildings = Math.max(0, (allBuildings ?? town.length) - town.length);
 
   return (
     <div className="crew">
@@ -295,11 +298,11 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
         <h2>Just finished <small>what they did before their break</small></h2>
         <FinishedList items={finished} projects={projects} now={now} open={open} />
       </section>
-      {idle.length ? (
+      {resting.length ? (
         <section>
-          <h2>On a coffee break <small>finished what you asked, ready for more</small></h2>
+          <h2>On a coffee break <small>{resting.length} finished what you asked, ready for more</small></h2>
           <div className="chips">
-            {idle.map((s) => (
+            {resting.map((s) => (
               <button key={s.id} className={`chip-agent${s.away ? ' away' : ''}`} onClick={() => open.agent(s.id)}>
                 <AgentAvatar agent={s.agent} mood="break" size={30} /><b>{s.agent.name}</b><span>{projects.get(s.projectId ?? '')?.name}</span><span className="muted">{s.away ? `away ${ago(s.lastEventAt, now).replace(' ago', '')}` : duration(s.lastEventAt, now)}</span>
               </button>
@@ -313,7 +316,7 @@ export function CrewView({ state, open }: { state: StateView; open: Open }) {
           <div className="grid routines">{state.routines.map((r) => <RoutineCard key={r.key} r={r} p={projects.get(r.projectId)} now={now} open={open} />)}</div>
         </Fold>
       ) : null}
-      <Fold id="town" title="The town" note={`${town.length} buildings`}>
+      <Fold id="town" title="The town" note={`${town.length} ${town.length === 1 ? 'building' : 'buildings'}${hiddenBuildings ? ` · ${hiddenBuildings} more hidden by the Projects filter` : ''}`}>
         <div className="ptable-wrap">
           <table className="ptable">
             <thead><tr><th>Building</th><th>Stage</th><th className="r">On site</th><th className="r">Shifts</th><th className="r">{voice === 'plain' ? 'Bricks' : 'Tokens'}</th><th className="r">Last work</th></tr></thead>

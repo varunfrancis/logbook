@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { CrewDay, CrewNote, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar } from './Avatar.tsx';
-import { mins, money, useCostView } from '../copy.ts';
+import { mins, money, STAT_HELP, useCostView } from '../copy.ts';
 import { ago } from '../format.ts';
 import { post } from '../useSwarmville.ts';
 import { handovers, jobsText, medals, type MedalId } from './medals.ts';
@@ -53,15 +53,15 @@ function Notes({ notes, now, openProject }: { notes: CrewNote[]; now: number; op
   );
 }
 
-type Col = { key: string; label: string; get: (c: CrewDay) => number; show: (c: CrewDay) => string; tip?: (c: CrewDay) => string };
+type Col = { key: string; label: string; help?: string; get: (c: CrewDay) => number; show: (c: CrewDay) => string; tip?: (c: CrewDay) => string };
 const ALL_COLS: Col[] = [
-  { key: 'delivered', label: 'Delivered', get: (c) => c.delivered + c.points / 1000, show: (c) => (c.delivered ? String(c.delivered) : '—'), tip: (c) => (c.delivered ? jobsText(c) : '') },
-  { key: 'rate', label: 'Hit rate', get: (c) => (c.finished ? c.delivered / c.finished : -1), show: (c) => (c.finished ? `${c.delivered}/${c.finished}` : '—') },
-  { key: 'lost', label: 'Scrapped', get: (c) => c.lost, show: (c) => String(c.lost || '—') },
-  { key: 'work', label: 'Worked', get: (c) => c.workMs, show: (c) => (c.workMs ? mins(c.workMs) : '—') },
-  { key: 'asks', label: 'Questions', get: (c) => c.interruptions, show: (c) => String(c.interruptions) },
+  { key: 'delivered', label: 'Delivered', help: 'Delivered: jobs that ended with work you kept (live, sent for review, or saved).', get: (c) => c.delivered + c.points / 1000, show: (c) => (c.delivered ? String(c.delivered) : '—'), tip: (c) => (c.delivered ? jobsText(c) : '') },
+  { key: 'rate', label: 'Hit rate', help: STAT_HELP.hitRate, get: (c) => (c.finished ? c.delivered / c.finished : -1), show: (c) => (c.finished ? `${c.delivered}/${c.finished}` : '—') },
+  { key: 'lost', label: 'Scrapped', help: STAT_HELP.scrapped, get: (c) => c.lost, show: (c) => String(c.lost || '—') },
+  { key: 'work', label: 'Worked', help: 'Worked: time spent actually working today, not waiting.', get: (c) => c.workMs, show: (c) => (c.workMs ? mins(c.workMs) : '—') },
+  { key: 'asks', label: 'Questions', help: 'Questions: how many times they stopped to ask you something.', get: (c) => c.interruptions, show: (c) => String(c.interruptions) },
   { key: 'cost', label: 'Cost', get: (c) => c.costUsd, show: (c) => money(c.costUsd) },
-  { key: 'checks', label: 'Checks', get: (c) => c.checksOk - c.checksFail, show: (c) => (c.checksOk + c.checksFail ? `${c.checksOk}✓ ${c.checksFail}✕` : '—') },
+  { key: 'checks', label: 'Checks', help: STAT_HELP.checks, get: (c) => c.checksOk - c.checksFail, show: (c) => (c.checksOk + c.checksFail ? `${c.checksOk}✓ ${c.checksFail}✕` : '—') },
 ];
 
 function Agents({ c }: { c: CrewDay }) {
@@ -100,7 +100,7 @@ export function Leaderboard({ state, now, openProject }: { state: StateView; now
               <th>Project</th><th>Agents</th>
               <th aria-sort={sort.key === 'awards' ? (sort.desc ? 'descending' : 'ascending') : 'none'}><button className="sort" onClick={() => sortBy('awards')}>Awards{arrow('awards')}</button></th>
               {COLS.map((c) => (
-                <th key={c.key} className="r" aria-sort={sort.key === c.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
+                <th key={c.key} className="r" title={c.help} aria-sort={sort.key === c.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
                   <button className="sort" onClick={() => sortBy(c.key)}>{c.label}{arrow(c.key)}</button>
                 </th>
               ))}
