@@ -556,7 +556,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .verdict-line.g-good { background: color-mix(in srgb, #2f9e66 14%, var(--surface)); color: #1f7a4d; }
 .verdict-line.g-ok { background: color-mix(in srgb, #f5b301 16%, var(--surface)); color: #8a6200; }
 .verdict-line.g-bad { background: color-mix(in srgb, #e5484d 13%, var(--surface)); color: #b42318; }
-.scores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.scores { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; } /* as many equal columns as there are scores (Cost only shows at API prices) */
 .loading-scores { height: 128px; }
 .score { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 11px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
 .score.g-good { box-shadow: inset 0 3px 0 #2f9e66; } .score.g-ok { box-shadow: inset 0 3px 0 #f5b301; } .score.g-bad { box-shadow: inset 0 3px 0 #e5484d; }
@@ -580,7 +580,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .job-k { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .job-block.done .one-liner.latest { height: auto; }
 .job-row.did .one-liner { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.made-links { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 92px; }
+.made-links { display: flex; flex-wrap: wrap; gap: 6px; }
 .made-link { font-size: 12px; font-weight: 700; color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 9px; }
 .made-link:hover { background: var(--surface-2); }
 .full-reply { padding-left: 92px; }

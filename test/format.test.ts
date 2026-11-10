@@ -44,3 +44,7 @@ test('madeLinks: labelled, de-duplicated, trailing punctuation dropped', () => {
   ]);
   assert.deepEqual(madeLinks('no links'), []);
 });
+
+test('madeLinks: a bold link keeps its markdown marks out of the address', () => {
+  assert.deepEqual(madeLinks('Live at **https://quantpath.live**.').map((l) => l.url), ['https://quantpath.live']);
+});
