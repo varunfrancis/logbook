@@ -156,7 +156,7 @@ function Row({ s, project, on, unread, preview, now, onPick }: { s: SessionView;
   return (
     <button type="button" data-id={s.id} className={`chats-row s-${s.status}${on ? ' on' : ''}${unread || needs ? ' loud' : ''}`} onClick={onPick} aria-current={on ? 'true' : undefined}
       title={`${task}\n${s.agent.title}${project ? ` · ${project}` : ''} · ${when}\n${preview}`}>
-      <span className="chats-face"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={30} />{s.status === 'running' ? <span className="chats-live" aria-label="working" /> : null}</span>
+      <span className="chats-face"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={32} />{s.status === 'running' ? <span className="chats-live" aria-label="working" /> : null}</span>
       <span className="chats-task">{task}</span>
       {project ? <span className="chats-proj">{project}</span> : null}
       {needs ? <span className="chats-badge" aria-label="needs you">✋</span> : unread ? <span className="chats-new-dot" aria-label="new reply" /> : null}
