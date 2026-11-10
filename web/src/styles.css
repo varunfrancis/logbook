@@ -16,6 +16,7 @@
   --quiet: #8a9099;
   --lot: #a8794f;
   --shadow: 0 6px 24px #1d3a5022;
+  --scrim: #0c121a6b; --drawer-edge: var(--line); --drawer-shadow: 0 24px 70px #0c121a40;
   --f-display: "Fredoka", "Nunito", system-ui, sans-serif;
   --f-body: "Nunito", system-ui, -apple-system, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -25,11 +26,13 @@
   :root:not([data-theme="light"]) {
     --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
     --line: #e8edf41a; --idle: #8ea6ff; --ended: #6f7886; --shadow: 0 6px 24px #0008; color-scheme: dark;
+    --scrim: #03060ab8; --drawer-edge: #e8edf433; --drawer-shadow: 0 0 0 1px #0009, 0 28px 90px #000;
   }
 }
 :root[data-theme="dark"] {
   --bg: #141b25; --surface: #1c2532; --surface-2: #232e3d; --ink: #e8edf4; --ink-2: #aab4c2; --ink-3: #7b8696;
   --line: #e8edf41a; --idle: #8ea6ff; --ended: #6f7886; --shadow: 0 6px 24px #0008; color-scheme: dark;
+    --scrim: #03060ab8; --drawer-edge: #e8edf433; --drawer-shadow: 0 0 0 1px #0009, 0 28px 90px #000;
 }
 
 * { box-sizing: border-box; }
@@ -971,9 +974,10 @@ code.ask-detail { display: block; }
 .ship-plan { margin: 0; padding-left: 22px; display: grid; gap: 7px; }
 .ship-plan small { display: block; color: var(--ink-3); font-size: 12.5px; }
 
-/* The agent drawer: wide, in front of a dimmed town, opening on the chat. Profile is the second tab. */
-.panel-dim { position: absolute; inset: 0; z-index: 14; background: color-mix(in srgb, #0c121a 42%, transparent); animation: dim-in .2s ease-out both; }
-.panel.agent { width: min(600px, calc(100% - 24px)); padding: 0; gap: 0; overflow: hidden; box-shadow: 0 24px 70px #0c121a40; }
+/* The agent drawer: wide, in front of a dimmed town, opening on the chat. Profile is the second tab.
+   At night the page and drawer are both dark, so the scrim goes deeper and the drawer gets a lit edge to stay in focus. */
+.panel-dim { position: absolute; inset: 0; z-index: 14; background: var(--scrim); animation: dim-in .2s ease-out both; }
+.panel.agent { width: min(600px, calc(100% - 24px)); padding: 0; gap: 0; overflow: hidden; border-color: var(--drawer-edge); box-shadow: var(--drawer-shadow); }
 .panel.agent .agent-head { align-items: center; gap: 12px; padding: 14px 14px 0 16px; }
 .panel.agent .agent-head .close { margin-top: 0; align-self: flex-start; }
 .panel.agent .agent-id { gap: 3px; padding-top: 0; }
