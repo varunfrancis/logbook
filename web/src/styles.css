@@ -1190,6 +1190,16 @@ code.ask-detail { display: block; }
 /* Phones: a busy site's sign wraps onto two lines instead of running off the screen. */
 @media (max-width: 720px) { .bb[data-state="site"], .bb[data-state="needs"] { flex-wrap: wrap; white-space: normal; max-width: calc(100vw - 24px); row-gap: 2px; } }
 
+/* Messaging an agent that's working in your terminal */
+.steer { display: flex; flex-direction: column; gap: 8px; }
+.steer-sent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.steer-sent li { max-width: 85%; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.steer-text { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border-radius: 12px 12px 4px 12px; padding: 7px 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.steer-state { font-size: 11.5px; font-weight: 700; color: var(--ink-3); }
+.steer-state.ok { color: color-mix(in srgb, var(--run) 70%, var(--ink)); }
+.steer-hint { font-size: 12.5px; color: var(--ink-2); }
+.steer-msg { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.steer-msg.bad { color: var(--needs); }
 /* The legend's For sale entry doubles as the switch for the lots. */
 .legend-lots { display: inline-flex; align-items: center; gap: 0; font: inherit; color: inherit; background: none; border: 1px dashed color-mix(in srgb, var(--ink-3) 55%, transparent); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
 .legend-lots small { margin-left: 6px; color: var(--accent); font-weight: 800; }
