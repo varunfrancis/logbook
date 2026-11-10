@@ -1177,3 +1177,9 @@ code.ask-detail { display: block; }
 
 /* Phones: a busy site's sign wraps onto two lines instead of running off the screen. */
 @media (max-width: 720px) { .bb[data-state="site"], .bb[data-state="needs"] { flex-wrap: wrap; white-space: normal; max-width: calc(100vw - 24px); row-gap: 2px; } }
+
+/* The legend's For sale entry doubles as the switch for the lots. */
+.legend-lots { display: inline-flex; align-items: center; gap: 0; font: inherit; color: inherit; background: none; border: 1px dashed color-mix(in srgb, var(--ink-3) 55%, transparent); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
+.legend-lots small { margin-left: 6px; color: var(--accent); font-weight: 800; }
+.legend-lots:hover { background: var(--surface-2); }
+.legend-lots:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
