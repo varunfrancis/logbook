@@ -45,6 +45,8 @@ export type SessionView = {
   action: string | null;
   actionKind: ActionKind | null;
   needsMessage: string | null;
+  /** 'question': the hand went up because their last reply asked you something (answer it like any message); null otherwise. */
+  handKind: 'question' | null;
   /** A permission prompt you can answer from Swarmville (needs the PermissionRequest hook); null for questions, or when the hook isn't waiting. */
   ask: AskView | null;
   branch: string | null;

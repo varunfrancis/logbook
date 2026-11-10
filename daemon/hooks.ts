@@ -4,6 +4,8 @@ import { describeTool } from './describe.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
 import { cleanPrompt } from './transcripts.ts';
 import { isOwnRun } from './config.ts';
+import { askedYou } from './turn.ts';
+import fs from 'node:fs';
 
 /** The raised-hand line for a permission prompt, in the same words the terminal would use. */
 export function permissionMessage(tool: string, input: any): string {
@@ -36,6 +38,34 @@ export function lowerHand(db: Db, sessionId: string, now = Date.now()): boolean 
   if (s.hook_state_at && now > s.hook_state_at) db.prepare('INSERT INTO segments(session_id, start, end, kind) VALUES(?, ?, ?, ?)').run(sessionId, s.hook_state_at, now, 'wait');
   db.prepare('UPDATE sessions SET hook_state = ?, hook_state_at = ?, needs_message = NULL, last_event_at = MAX(COALESCE(last_event_at, 0), ?) WHERE id = ?').run('running', now, now, sessionId);
   return true;
+}
+
+/** The text of the agent's last reply this turn, from the end of its transcript (for Stop payloads without last_assistant_message). */
+export function lastReply(file: unknown): string | null {
+  if (typeof file !== 'string' || !file) return null;
+  let tail: string;
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const size = fs.fstatSync(fd).size, len = Math.min(size, 512 * 1024);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      tail = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+  } catch { return null; }
+  const lines = tail.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let e: any;
+    try { e = JSON.parse(lines[i]); } catch { continue; }
+    if (e?.isSidechain) continue;
+    const c = e?.message?.content;
+    if (e?.type === 'user' && typeof c === 'string' && !e.isMeta) return null; // reached your prompt: they said nothing after it
+    if (e?.type !== 'assistant' || !Array.isArray(c)) continue;
+    const text = c.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('\n').trim();
+    if (text) return text;
+    if (c.some((b: any) => b?.type === 'tool_use')) return null; // ended on a step, not on words
+  }
+  return null;
 }
 
 /** Applies one Claude Code hook payload. Never throws for bad input. */
@@ -97,7 +127,7 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
       // Fires the moment Claude asks (the Notification for it only comes ~6s later, and not at all if you answer first).
       if (s.hook_state === 'needs_input') break;
       const msg = permissionMessage(String(p.tool_name ?? ''), p.tool_input);
-      set({ hook_state: 'needs_input', hook_state_at: now, needs_message: msg });
+      set({ hook_state: 'needs_input', hook_state_at: now, needs_message: msg, needs_kind: null });
       logEvent(db, sid, now, 'needs', msg);
       break;
     }
@@ -110,15 +140,20 @@ export function handleHook(db: Db, p: any, now = Date.now()) {
         break;
       }
       const needs = p.notification_type === 'permission_prompt' || /permission|approve|needs your/i.test(msg);
-      if (needs && s.hook_state === 'needs_input') break; // still the same raised hand
-      set(needs ? { hook_state: 'needs_input', hook_state_at: now, needs_message: msg } : { hook_state: 'idle', hook_state_at: now });
+      // still the same raised hand; and "Claude is waiting for your input" a minute after a question doesn't lower it
+      if (s.hook_state === 'needs_input') { if (!needs) logEvent(db, sid, now, 'idle', msg || 'Waiting for you'); break; }
+      set(needs ? { hook_state: 'needs_input', hook_state_at: now, needs_message: msg, needs_kind: null } : { hook_state: 'idle', hook_state_at: now });
       logEvent(db, sid, now, needs ? 'needs' : 'idle', msg || 'Waiting for you');
       break;
     }
-    case 'Stop':
-      set({ hook_state: 'idle', hook_state_at: now, current_action: null, action_kind: null, needs_message: null });
+    case 'Stop': {
+      // A turn that ends by asking you something raises a hand, like a permission prompt; a plain report is a coffee break.
+      const asked = askedYou(typeof p.last_assistant_message === 'string' ? p.last_assistant_message : lastReply(p.transcript_path));
+      set({ hook_state: asked ? 'needs_input' : 'idle', hook_state_at: now, current_action: null, action_kind: null, needs_message: asked, needs_kind: asked ? 'question' : null });
       logEvent(db, sid, now, 'stop', 'Finished a turn');
+      if (asked) logEvent(db, sid, now, 'needs', asked);
       break;
+    }
     case 'SubagentStop':
       set({ subagent_at: now });
       break;

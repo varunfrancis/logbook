@@ -5,7 +5,7 @@ import { post } from '../useSwarmville.ts';
 import { AgentAvatar } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { Markdown } from './Markdown.tsx';
-import { yourTurn } from '../turn.ts';
+import { yourTurn } from '../../../daemon/turn.ts';
 import { markSeen } from '../chats.ts';
 
 /** What you were typing to each agent, kept while you move between chats (or from the drawer to Chats). */
@@ -171,7 +171,7 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   const asleep = s.status === 'ended' || (view?.runner ?? s.runner) === 'off';
   const newestThem = items.findLastIndex((it) => it.kind === 'line' && it.line.kind === 'them');
   const newest = newestThem >= 0 ? (items[newestThem] as { kind: 'line'; line: ChatLine }).line : null;
-  const settled = s.status !== 'running' && s.status !== 'needs_input'; // they've stopped and reported
+  const settled = s.status === 'idle' || s.status === 'ended' || s.handKind === 'question'; // they've stopped and reported
   const lastIsReply = newestThem >= 0 && newestThem === items.length - 1;
   const turn = canType && settled && lastIsReply && newest && skipTurn !== newest.at ? yourTurn(newest.text) : null;
   const placeholder = s.status === 'running' ? `Tell ${name} something. They’ll read it after this step.`

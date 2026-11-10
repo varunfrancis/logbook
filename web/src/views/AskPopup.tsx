@@ -4,6 +4,7 @@ import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { duration } from '../format.ts';
 import { post, useNow } from '../useSwarmville.ts';
+import { yourTurn } from '../../../daemon/turn.ts';
 
 type Decision = 'allow' | 'always' | 'deny' | 'answer' | 'changes';
 type Answer = { picked: string[]; other: string };
@@ -60,6 +61,7 @@ export function AskPopup({ id, state, onClose, openProfile }: { id: string; stat
         </header>
 
         {done ? <p className="ask-done" role="status">{done}</p>
+          : !a && s.handKind === 'question' && s.runner ? <Reply s={s} onSent={(words) => setDone(`Sent “${words.length > 60 ? words.slice(0, 59) + '…' : words}”. ${s.agent.name} is back to work.`)} />
           : !a ? <TerminalOnly s={s} />
           : a.questions?.length ? <Questions key={a.id} qs={a.questions} busy={busy} onSend={(answers) => answer('answer', { answers })} />
           : a.tool === 'ExitPlanMode' ? <Plan key={a.id} a={a} busy={busy} onAnswer={answer} />
@@ -77,12 +79,51 @@ export function AskPopup({ id, state, onClose, openProfile }: { id: string; stat
   );
 }
 
+/** Their last reply asked you something: answer it like any message, picking one of the answers it offered or in your own words. */
+function Reply({ s, onSent }: { s: SessionView; onSent: (words: string) => void }) {
+  const answers = yourTurn(s.outcome ?? '')?.answers ?? [];
+  const [picked, setPicked] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const words = text.trim() || answers.find((x) => x.label === picked)?.say || '';
+  const send = async () => {
+    if (!words || busy) return;
+    setBusy(true); setErr(null);
+    const r = await post(`/api/agent/${encodeURIComponent(s.id)}/send`, { text: words });
+    setBusy(false);
+    if (r.ok) onSent(words); else setErr(r.message ?? 'Couldn’t send it.');
+  };
+  return (
+    <>
+      <div className="ask-body">
+        <p className="ask-title" id="ask-q-reply">{s.needsMessage}</p>
+        {answers.length ? (
+          <div className="ask-opts" role="radiogroup" aria-labelledby="ask-q-reply">
+            {answers.map((x) => (
+              <button key={x.label} type="button" className={`ask-opt${picked === x.label ? ' on' : ''}`} role="radio" aria-checked={picked === x.label}
+                onClick={() => setPicked(x.label)} disabled={busy}>
+                <i className="ask-dot" aria-hidden="true" /><b>{x.label}</b>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <textarea className="ask-input" rows={2} value={text} disabled={busy} aria-label={`Reply to ${s.agent.name}`} autoFocus={!answers.length}
+          placeholder={answers.length ? 'Something else… (type your own answer)' : `Reply to ${s.agent.name}…`}
+          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); }} />
+        {err ? <p className="ask-err" role="alert">{err}</p> : null}
+      </div>
+      <div className="ask-actions"><button className="btn approve" onClick={send} disabled={busy || !words}>Send answer</button></div>
+    </>
+  );
+}
+
 function TerminalOnly({ s }: { s: SessionView }) {
   return (
     <>
       <div className="ask-body">
         <p className="ask-title">{s.needsMessage ?? 'Waiting for you'}</p>
-        <p className="sub">This one needs an answer in their terminal.</p>
+        <p className="sub">{s.handKind === 'question' ? 'They asked this in their terminal. Answer them there.' : 'This one needs an answer in their terminal.'}</p>
       </div>
       <div className="ask-actions"><GoTo s={s} primary /></div>
     </>

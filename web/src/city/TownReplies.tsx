@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { SessionView, StateView } from '../../../daemon/types.ts';
 import { bubbleKey as keyOf, townBubbles, type TownBubble as TownBubbleT } from './townBubbles.ts';
 import type { CityScene } from './scene.ts';
-import { yourTurn } from '../turn.ts';
+import { yourTurn } from '../../../daemon/turn.ts';
 import { didSummary } from '../format.ts';
 import { post } from '../useSwarmville.ts';
 import { HIGH_FIVE } from '../views/Chat.tsx';
@@ -41,7 +41,9 @@ function TownBubble({ b, scene, openAgent, dismiss }: { b: Bubble; scene: CitySc
   useEffect(() => { scene.attachReply(s.id, host); return () => scene.attachReply(s.id, null); }, [scene, s.id]);
 
   const name = s.agent.name;
-  const turn = kind === 'ask' ? yourTurn(s.outcome ?? '') : null;
+  // the question their raised hand is about, with the answers their reply offered
+  const replyTurn = kind === 'ask' ? yourTurn(s.outcome ?? '') : null;
+  const turn = kind !== 'ask' ? null : s.handKind === 'question' && s.needsMessage ? { question: s.needsMessage, answers: replyTurn?.answers ?? [] } : replyTurn;
   const send = async (words: string) => {
     if (!words.trim() || sent) return;
     setErr(null);

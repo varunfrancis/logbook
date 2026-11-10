@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inline, parseMarkdown, plainText } from '../web/src/markdown.ts';
+import { inline, parseMarkdown, plainText } from '../daemon/markdown.ts';
 
 test('headings, bold and inline code from a real agent reply', () => {
   const b = parseMarkdown("I read `CLAUDE.md` on main.\n\n## When the bot hands off today\n\n**1. The customer asks for a person**\n- They ask for a person.");

@@ -21,7 +21,7 @@ function HandCard({ s, p, now, open, focused }: { s: SessionView; p?: ProjectVie
           <div><b className="agent-name">{s.agent.title}</b><div className="sub">{p?.name}</div></div>
           <span className="wait">waiting {duration(s.lastEventAt, now)}</span>
         </div>
-        <div className="ask">{s.needsMessage}</div>
+        {s.handKind === 'question' ? <p className="ask q" title={s.needsMessage ?? undefined}>“{s.needsMessage}”</p> : <div className="ask">{s.needsMessage}</div>}
         <div className="row"><GoTo s={s} primary /><button className="ghost" onClick={(e) => { e.stopPropagation(); open.agent(s.id); }}>Show the details</button></div>
       </div>
     </article>

@@ -95,7 +95,7 @@ const ADD: Record<string, Record<string, string>> = {
     files: 'TEXT', edits: 'INTEGER DEFAULT 0', asks: 'INTEGER DEFAULT 0', reads: 'INTEGER DEFAULT 0', webs: 'INTEGER DEFAULT 0',
     stamp: 'TEXT', stamp_at: 'INTEGER', pr_merged_at: 'INTEGER', entrypoint: 'TEXT',
     focus: 'TEXT', focus_for: 'TEXT', job_verdict: 'TEXT', api_usd: 'REAL DEFAULT 0', pr_checks: 'TEXT',
-    plain_outcome: 'TEXT', plain_for: 'TEXT', merged_pr_at: 'INTEGER', commit_at: 'INTEGER',
+    plain_outcome: 'TEXT', plain_for: 'TEXT', merged_pr_at: 'INTEGER', commit_at: 'INTEGER', needs_kind: 'TEXT',
   },
   projects: { display_name: 'TEXT', display_source: 'TEXT', naming_tried_at: 'INTEGER', summary: 'TEXT', summary_tried_at: 'INTEGER' },
   offsets: { state: 'TEXT' },
