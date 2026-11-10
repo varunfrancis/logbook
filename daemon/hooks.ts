@@ -25,6 +25,19 @@ export function isJobNotice(type: unknown, message: unknown): boolean {
   return !/^Claude\b/.test(msg) && /^\S.*? (needs your input\b|finished\b)/.test(msg);
 }
 
+/**
+ * A raised hand came down without a hook saying so: you answered it from the town, or the terminal (or the runner's line)
+ * settled it first. The next hook is only PostToolUse, which waits for the tool to finish, so a long command would
+ * otherwise keep the hand up for minutes after you said yes. Back to work, and the wait is recorded.
+ */
+export function lowerHand(db: Db, sessionId: string, now = Date.now()): boolean {
+  const s = db.prepare('SELECT hook_state, hook_state_at FROM sessions WHERE id = ?').get(sessionId) as Row | undefined;
+  if (s?.hook_state !== 'needs_input') return false;
+  if (s.hook_state_at && now > s.hook_state_at) db.prepare('INSERT INTO segments(session_id, start, end, kind) VALUES(?, ?, ?, ?)').run(sessionId, s.hook_state_at, now, 'wait');
+  db.prepare('UPDATE sessions SET hook_state = ?, hook_state_at = ?, needs_message = NULL, last_event_at = MAX(COALESCE(last_event_at, 0), ?) WHERE id = ?').run('running', now, now, sessionId);
+  return true;
+}
+
 /** Applies one Claude Code hook payload. Never throws for bad input. */
 export function handleHook(db: Db, p: any, now = Date.now()) {
   const sid = p?.session_id;

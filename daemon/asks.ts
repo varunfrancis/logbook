@@ -115,6 +115,15 @@ export function addRunnerAsk(sessionId: string, tool: string, input: any, sugges
   return view;
 }
 
+/** Which session an open ask belongs to (null once it's answered or gone). */
+export function askSession(id: string): string | null { return pending.get(id)?.sessionId ?? null; }
+
+/** Whether a session still has an ask open (parallel subagents can ask at the same time). */
+export function hasAsk(sessionId: string): boolean {
+  for (const p of pending.values()) if (p.sessionId === sessionId) return true;
+  return false;
+}
+
 /** The hook's request went away (answered in the terminal, timed out, or the agent stopped). */
 export function dropAsk(id: string): boolean { return pending.delete(id); }
 
