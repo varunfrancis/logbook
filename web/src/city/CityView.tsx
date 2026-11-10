@@ -39,6 +39,8 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   useEffect(() => { scene.current?.setTheme(dark); scene.current?.setState(state, showLots); }, [dark]);
   useEffect(() => { scene.current?.setState(state, showLots); }, [state, showLots]);
   useEffect(() => { scene.current?.setSelected(selected); }, [selected]);
+  // the agent drawer dims the town: it keeps moving behind it at a gentler frame rate
+  useEffect(() => { ready?.setBackdrop(!!openAgentId); }, [ready, openAgentId]);
   useEffect(() => {
     if (!tourFocus) return;
     // after the first render so the building exists
