@@ -7,46 +7,54 @@ import { plainAction, type Voice } from './copy.ts';
  * Pure functions (plus a little browser storage for "seen"), so the rules are easy to test.
  */
 
-export type ChatGroup = 'needs' | 'working' | 'turn' | 'earlier' | 'older';
-export const GROUPS: { id: ChatGroup; label: string }[] = [
-  { id: 'needs', label: 'Needs you' },
-  { id: 'working', label: 'Working' },
-  { id: 'turn', label: 'Your turn' },
-  { id: 'earlier', label: 'Earlier today' },
-  { id: 'older', label: 'Older' },
-];
+export function startOfDay(now: number): number { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); }
 
-type S = Pick<SessionView, 'status' | 'away' | 'endedAt' | 'lastEventAt'>;
-
-/** Hand up first, then working, then waiting on your next message; anyone who left today folds under "Earlier today". */
-export function chatGroup(s: S, dayStart: number): ChatGroup {
+type S = Pick<SessionView, 'status' | 'away'>;
+/** Live: working on it, or waiting for your next message. A raised hand is pinned on its own; the rest is done. */
+export type ChatState = 'needs' | 'working' | 'turn' | 'done';
+export function chatState(s: S): ChatState {
   if (s.status === 'needs_input') return 'needs';
   if (s.status === 'running') return 'working';
   if (s.status === 'idle' && !s.away) return 'turn';
-  return (s.endedAt ?? s.lastEventAt ?? 0) >= dayStart ? 'earlier' : 'older';
+  return 'done';
 }
 
-export function startOfDay(now: number): number { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); }
+/** What the row is called: the job they're on, else the conversation's title. Null when nothing was ever asked. */
+export function chatTask(s: Pick<SessionView, 'focus' | 'title'>): string | null {
+  return s.focus ?? (s.title && !/^new session$/i.test(s.title.trim()) ? s.title : null);
+}
 
 type Findable = SessionView & { projectName?: string };
+export type ChatProject = { id: string; name: string; hand: boolean; live: Findable[]; done: Findable[]; empty: number; last: number };
 
 /**
- * The list, grouped and in order (newest activity first in each group). Without a search: today's crew only.
- * With one: anyone whose name, job or project matches, including older agents.
+ * The list, by project (like channels). Raised hands are pinned on top across projects. In each project: live tasks
+ * (working first, then waiting on you), then what finished today. Sessions where nothing was ever asked only count.
+ * Without a search: today only. With one: anyone whose task, project or name matches, older ones included.
  */
-export function chatList(sessions: Findable[], now: number, query = ''): { group: ChatGroup; items: Findable[] }[] {
+export function chatProjects(sessions: Findable[], now: number, query = ''): { needs: Findable[]; projects: ChatProject[] } {
   const day = startOfDay(now);
   const q = query.trim().toLowerCase();
-  const match = (s: Findable) => !q || [s.agent.name, s.agent.title, s.focus, s.title, s.projectName].some((t) => t?.toLowerCase().includes(q));
-  const by = new Map<ChatGroup, Findable[]>();
-  for (const s of sessions) {
-    if (!match(s)) continue;
-    const g = chatGroup(s, day);
-    if (g === 'older' && !q) continue;
-    by.set(g, [...(by.get(g) ?? []), s]);
-  }
   const last = (s: Findable) => s.lastEventAt ?? s.endedAt ?? s.startedAt ?? 0;
-  return GROUPS.filter((g) => by.has(g.id)).map((g) => ({ group: g.id, items: by.get(g.id)!.sort((a, b) => last(b) - last(a)).slice(0, g.id === 'older' ? 30 : undefined) }));
+  const match = (s: Findable) => !q || [chatTask(s), s.projectName, s.agent.name, s.agent.title].some((x) => x?.toLowerCase().includes(q));
+  const needs: Findable[] = [];
+  const by = new Map<string, ChatProject>();
+  for (const s of [...sessions].sort((a, b) => last(b) - last(a))) {
+    const st = chatState(s);
+    if (st === 'done' && last(s) < day && !q) continue;
+    if (!match(s)) continue;
+    const id = s.projectId ?? '';
+    const p = by.get(id) ?? { id, name: s.projectName ?? 'Other', hand: false, live: [], done: [], empty: 0, last: 0 };
+    by.set(id, p);
+    p.last = Math.max(p.last, last(s));
+    if (st === 'needs') { needs.push(s); p.hand = true; continue; }
+    if (!chatTask(s) && !s.prompts) { if (st !== 'done') p.empty++; continue; }
+    if (st === 'done') { if (p.done.length < 30) p.done.push(s); } else p.live.push(s);
+  }
+  for (const p of by.values()) p.live.sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || last(b) - last(a));
+  const projects = [...by.values()].filter((p) => p.live.length || p.done.length || p.empty || p.hand)
+    .sort((a, b) => Number(b.hand || b.live.length > 0) - Number(a.hand || a.live.length > 0) || b.last - a.last);
+  return { needs, projects };
 }
 
 /** The first readable line of a reply, without Markdown marks. */

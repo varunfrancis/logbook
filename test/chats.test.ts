@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chatGroup, chatList, chatPreview, chatsBadge, firstLine, isUnread, startOfDay } from '../web/src/chats.ts';
+import { chatPreview, chatProjects, chatState, chatTask, chatsBadge, firstLine, isUnread, startOfDay } from '../web/src/chats.ts';
 
 const NOW = new Date(2026, 10, 10, 15, 0).getTime();
 const DAY = startOfDay(NOW);
@@ -8,29 +8,39 @@ const H = 3600_000;
 let n = 0;
 const mk = (o: Record<string, unknown> = {}): any => ({
   id: `s${++n}`, status: 'idle', away: false, endedAt: null, lastEventAt: NOW - H, startedAt: NOW - 2 * H, runner: undefined,
-  agent: { name: 'Tiki Jr.', title: 'Tiki Jr. the Builder' }, focus: null, title: 'job', action: null, ask: null, needsMessage: null, outcome: null, ...o,
+  agent: { name: 'Tiki Jr.', title: 'Tiki Jr. the Builder' }, focus: null, title: 'job', prompts: 1, projectId: 'p1', projectName: 'Agent Logbook', action: null, ask: null, needsMessage: null, outcome: null, ...o,
 });
 
-test('groups agents: hand up, working, your turn, earlier today, older', () => {
-  assert.equal(chatGroup(mk({ status: 'needs_input' }), DAY), 'needs');
-  assert.equal(chatGroup(mk({ status: 'running' }), DAY), 'working');
-  assert.equal(chatGroup(mk({ status: 'idle' }), DAY), 'turn');
-  assert.equal(chatGroup(mk({ status: 'idle', away: true, lastEventAt: NOW - 3 * H }), DAY), 'earlier');
-  assert.equal(chatGroup(mk({ status: 'ended', endedAt: NOW - 2 * H }), DAY), 'earlier');
-  assert.equal(chatGroup(mk({ status: 'ended', endedAt: DAY - H }), DAY), 'older');
+test('states and task names', () => {
+  assert.equal(chatState(mk({ status: 'needs_input' })), 'needs');
+  assert.equal(chatState(mk({ status: 'running' })), 'working');
+  assert.equal(chatState(mk({ status: 'idle' })), 'turn');
+  assert.equal(chatState(mk({ status: 'idle', away: true })), 'done');
+  assert.equal(chatState(mk({ status: 'ended' })), 'done');
+  assert.equal(chatTask(mk({ focus: 'Check paid users', title: 'x' })), 'Check paid users');
+  assert.equal(chatTask(mk({ title: 'drawer night mode focus' })), 'drawer night mode focus');
+  assert.equal(chatTask(mk({ title: 'New session' })), null);
 });
 
-test('the list shows today in group order, newest first; search also finds older agents by job or project', () => {
-  const old = mk({ status: 'ended', endedAt: DAY - 5 * H, focus: 'Fix login', agent: { name: 'Kip', title: 'Kip the Builder' } });
-  const a = mk({ status: 'idle', lastEventAt: NOW - 2 * H });
-  const b = mk({ status: 'idle', lastEventAt: NOW - H });
-  const c = mk({ status: 'running', projectName: 'CAT Quant Prep' });
-  const d = mk({ status: 'needs_input' });
-  const list = chatList([old, a, b, c, d], NOW);
-  assert.deepEqual(list.map((g) => g.group), ['needs', 'working', 'turn']);
-  assert.deepEqual(list[2].items.map((s) => s.id), [b.id, a.id]);
-  assert.deepEqual(chatList([old, a], NOW, 'login').map((g) => [g.group, g.items[0].id]), [['older', old.id]]);
-  assert.deepEqual(chatList([old, a, c], NOW, 'quant').flatMap((g) => g.items.map((s) => s.id)), [c.id]);
+test('the list is by project: hands pinned on top, live tasks (working first), done today, empty sessions only counted', () => {
+  const hand = mk({ status: 'needs_input', focus: 'Approve the plan', projectId: 'p2', projectName: 'CAT Quant Prep' });
+  const turn = mk({ status: 'idle', focus: 'Estimate PR timeline', lastEventAt: NOW - 10 * 60_000 });
+  const run = mk({ status: 'running', focus: 'Build chat', lastEventAt: NOW - 3 * H });
+  const done = mk({ status: 'ended', focus: 'Fix VS Code', endedAt: NOW - 2 * H, lastEventAt: NOW - 2 * H });
+  const old = mk({ status: 'ended', focus: 'Fix login', endedAt: DAY - 5 * H, lastEventAt: DAY - 5 * H });
+  const empty = mk({ status: 'idle', title: 'New session', prompts: 0 });
+  const quiet = mk({ status: 'ended', focus: 'Install deps', projectId: 'p3', projectName: 'Portfolio', endedAt: NOW - H, lastEventAt: NOW - 4 * H });
+  const { needs, projects } = chatProjects([quiet, old, done, run, turn, empty, hand], NOW);
+  assert.deepEqual(needs.map((s) => s.id), [hand.id]);
+  assert.deepEqual(projects.map((p) => p.name), ['Agent Logbook', 'CAT Quant Prep', 'Portfolio']);
+  const lb = projects[0];
+  assert.deepEqual(lb.live.map((s) => s.id), [run.id, turn.id]);
+  assert.deepEqual(lb.done.map((s) => s.id), [done.id]);
+  assert.equal(lb.empty, 1);
+  assert.equal(projects[1].hand, true);
+  // search: by task or project, older work included
+  assert.deepEqual(chatProjects([old, done], NOW, 'login').projects[0].done.map((s) => s.id), [old.id]);
+  assert.deepEqual(chatProjects([quiet, done], NOW, 'portfolio').projects.map((p) => p.name), ['Portfolio']);
 });
 
 test('previews say what they ask, what they are doing, or the first line of their reply', () => {
