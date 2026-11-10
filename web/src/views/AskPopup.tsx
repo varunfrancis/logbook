@@ -1,10 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AskQuestion, AskView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { duration } from '../format.ts';
 import { post, useNow } from '../useSwarmville.ts';
 import { yourTurn } from '../../../daemon/turn.ts';
+import { inline } from '../../../daemon/markdown.ts';
+import { Inlines } from './Markdown.tsx';
+
+/** An agent's words with their links, code and bold kept (built from data, never raw HTML). */
+const Rich = ({ text }: { text: string }) => <Inlines c={inline(text)} />;
+
+/** A choice you click or press Space/Enter on. Not a <button>, so the links in its text stay clickable. */
+function Opt({ on, multi, disabled, onPick, children }: { on: boolean; multi?: boolean; disabled: boolean; onPick: () => void; children: React.ReactNode }) {
+  return (
+    <div className={`ask-opt${multi ? ' multi' : ''}${on ? ' on' : ''}`} role={multi ? 'checkbox' : 'radio'} aria-checked={on} aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : 0}
+      onClick={(e) => { if (disabled || (e.target as HTMLElement).closest('a')) return; onPick(); }}
+      onKeyDown={(e) => { if (!disabled && (e.key === ' ' || e.key === 'Enter') && e.target === e.currentTarget) { e.preventDefault(); onPick(); } }}>
+      {children}
+    </div>
+  );
+}
 
 type Decision = 'allow' | 'always' | 'deny' | 'answer' | 'changes';
 type Answer = { picked: string[]; other: string };
@@ -108,14 +125,13 @@ function Reply({ s, onSent }: { s: SessionView; onSent: (words: string) => void 
   return (
     <>
       <div className="ask-body">
-        <p className="ask-title" id="ask-q-reply">{s.needsMessage}</p>
+        <p className="ask-title" id="ask-q-reply"><Rich text={s.needsMessage ?? ''} /></p>
         {answers.length ? (
           <div className="ask-opts" role="radiogroup" aria-labelledby="ask-q-reply">
             {answers.map((x) => (
-              <button key={x.label} type="button" className={`ask-opt${picked === x.label ? ' on' : ''}`} role="radio" aria-checked={picked === x.label}
-                onClick={() => setPicked(x.label)} disabled={busy}>
-                <i className="ask-dot" aria-hidden="true" /><b>{x.label}</b>
-              </button>
+              <Opt key={x.label} on={picked === x.label} onPick={() => setPicked(x.label)} disabled={busy}>
+                <i className="ask-dot" aria-hidden="true" /><b><Rich text={x.label} /></b>
+              </Opt>
             ))}
           </div>
         ) : null}
@@ -133,7 +149,7 @@ function TerminalOnly({ s }: { s: SessionView }) {
   return (
     <>
       <div className="ask-body">
-        <p className="ask-title">{s.needsMessage ?? 'Waiting for you'}</p>
+        <p className="ask-title"><Rich text={s.needsMessage ?? 'Waiting for you'} /></p>
         <p className="sub">{s.handKind === 'question' ? 'They asked this in their terminal. Answer them there.' : 'This one needs an answer in their terminal.'}</p>
       </div>
       <div className="ask-actions"><GoTo s={s} primary /></div>
@@ -216,18 +232,17 @@ function Questions({ qs, busy, onSend }: { qs: AskQuestion[]; busy: boolean; onS
           {q.header ? <span className="ask-chip">{q.header}</span> : null}
           {qs.length > 1 || q.multiSelect ? <span className="ask-of">{qs.length > 1 ? `${i + 1} of ${qs.length}` : ''}{q.multiSelect ? `${qs.length > 1 ? ' · ' : ''}pick any` : ''}</span> : null}
         </div>
-        <p className="ask-title" id={`ask-q-${i}`}>{q.question}</p>
+        <p className="ask-title" id={`ask-q-${i}`}><Rich text={q.question} /></p>
         <div className="ask-opts" role={q.multiSelect ? 'group' : 'radiogroup'} aria-labelledby={`ask-q-${i}`}>
           {q.options.map((o) => {
             const on = cur.picked.includes(o.label);
             const rec = /\(recommended\)\s*$/i.test(o.label);
             return (
-              <button key={o.label} type="button" className={`ask-opt${q.multiSelect ? ' multi' : ''}${on ? ' on' : ''}`}
-                role={q.multiSelect ? 'checkbox' : 'radio'} aria-checked={on} onClick={() => toggle(o.label)} disabled={busy}>
+              <Opt key={o.label} on={on} multi={q.multiSelect} onPick={() => toggle(o.label)} disabled={busy}>
                 <i className="ask-dot" aria-hidden="true" />
-                <b>{rec ? o.label.replace(/\s*\(recommended\)\s*$/i, '') : o.label}{rec ? <span className="ask-rec">Suggested</span> : null}</b>
-                {o.description ? <span>{o.description}</span> : null}
-              </button>
+                <b><Rich text={rec ? o.label.replace(/\s*\(recommended\)\s*$/i, '') : o.label} />{rec ? <span className="ask-rec">Suggested</span> : null}</b>
+                {o.description ? <span><Rich text={o.description} /></span> : null}
+              </Opt>
             );
           })}
         </div>
