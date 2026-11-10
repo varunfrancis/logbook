@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ChatLine, ChatView, SessionView } from '../../../daemon/types.ts';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { ActionKind, ChatLine, ChatReach, ChatView, SessionView } from '../../../daemon/types.ts';
 import { clock, plainAction, useVoice } from '../copy.ts';
 import { post } from '../useSwarmville.ts';
+import { AgentAvatar } from '../crew/Avatar.tsx';
+import { GoTo } from '../components.tsx';
+import { Markdown } from './Markdown.tsx';
 
 /*
- * Talking to an agent Swarmville runs itself: the conversation, what they're doing right now, and a box for your next
- * message (with pictures: paste, drop or attach). No terminal involved; "Take over in terminal" moves them to one.
+ * Talking to an agent: the conversation, what they're doing right now, and a box for your next message (with pictures:
+ * paste, drop or attach). Agents Swarmville runs take the message at once; ones that clocked out come back here with it;
+ * ones open in your terminal are talked to there ("Go to").
  */
 
 type Img = { mediaType: string; data: string; url: string; name: string };
@@ -28,7 +32,7 @@ export async function toImage(file: File): Promise<Img | null> {
   return { mediaType: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.85).split(',')[1], url, name: file.name || 'image' };
 }
 
-/** Runs of tool calls fold into one "did N things" line, so the conversation stays readable. */
+/** Runs of tool calls fold into one "looked at 3 files · ran a command" chip, so the conversation stays readable. */
 type Item = { kind: 'line'; line: ChatLine } | { kind: 'steps'; steps: ChatLine[] };
 export function groupLines(lines: ChatLine[]): Item[] {
   const out: Item[] = [];
@@ -41,6 +45,28 @@ export function groupLines(lines: ChatLine[]): Item[] {
   return out;
 }
 
+const KIND_WORDS: Record<ActionKind | 'other', [string, string]> = {
+  read: ['looked at a file', 'looked at {n} files'],
+  edit: ['changed a file', 'changed {n} files'],
+  run: ['ran a command', 'ran {n} commands'],
+  web: ['checked the web', 'checked the web {n} times'],
+  delegate: ['sent a helper', 'sent {n} helpers'],
+  think: ['made a plan', 'planned {n} times'],
+  other: ['did a step', 'did {n} steps'],
+};
+const KIND_ICON: Record<ActionKind | 'other', string> = { read: '⌕', edit: '✎', run: '›_', web: '◍', delegate: '⇉', think: '✦', other: '·' };
+
+/** "Looked at 3 files · ran a command" */
+export function stepsSummary(steps: ChatLine[]): string {
+  const counts = new Map<ActionKind | 'other', number>();
+  for (const s of steps) { const k = s.tool ?? 'other'; counts.set(k, (counts.get(k) ?? 0) + 1); }
+  const text = [...counts].map(([k, n]) => (n === 1 ? KIND_WORDS[k][0] : KIND_WORDS[k][1].replace('{n}', String(n)))).join(' · ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Your own long messages fold to a few lines, so your brief doesn't fill the chat every time. */
+const isLong = (t: string) => t.length > 320 || t.split('\n').length > 5;
+
 export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId: string) => void }) {
   const voice = useVoice();
   const name = s.agent.name;
@@ -48,10 +74,13 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   const [text, setText] = useState('');
   const [imgs, setImgs] = useState<Img[]>([]);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; text: string; at: number } | null>(null);
   const [drag, setDrag] = useState(false);
+  const [menu, setMenu] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const atBottom = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const working = s.status === 'running' || s.status === 'needs_input';
 
   const load = () => fetch(`/api/agent/${encodeURIComponent(s.id)}/chat`).then((r) => r.json()).then((v: ChatView) => setView(v)).catch(() => {});
@@ -61,108 +90,165 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
     return () => clearInterval(t);
   }, [s.id, working]);
 
-  // keep the newest message in view, unless you've scrolled up to read
+  // notes fade on their own instead of sitting under the box forever
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast?.at]);
+  const say = (ok: boolean, msg: string) => setToast({ ok, text: msg, at: Date.now() });
+
+  const items = groupLines(view?.lines ?? []);
   const count = view?.lines.length ?? 0;
-  useEffect(() => {
+
+  // A new reply opens at its first line (not its last); short ones just keep the newest message in view.
+  // Unless you've scrolled up to read: then nothing moves.
+  const seen = useRef(-1);
+  useLayoutEffect(() => {
     const el = scroller.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
-  }, [count]);
-  useEffect(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; }, [view !== null]);
+    if (!el || !view) return;
+    const first = seen.current < 0;
+    if (count === seen.current) return;
+    seen.current = count;
+    if (!first && !atBottom.current) return;
+    const newest = el.querySelector<HTMLElement>('[data-newest-them]');
+    // the newest reply is the last thing said (only the live line or a raised hand after it) and taller than the view
+    const isTail = newest && !newest.nextElementSibling?.matches('.msg-row, .msg, .chat-steps');
+    if (newest && isTail && newest.offsetHeight > el.clientHeight * 0.6) { el.scrollTop = newest.offsetTop - 12; atBottom.current = false; }
+    else el.scrollTop = el.scrollHeight;
+  }, [count, view !== null]);
+  const onScroll = () => { const el = scroller.current; if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160; };
 
   const addFiles = async (files: FileList | File[]) => {
     const list = [...files].slice(0, 6 - imgs.length);
     const got = (await Promise.all(list.map(toImage))).filter((x): x is Img => !!x);
-    if (got.length < list.length) setNote({ ok: false, text: 'Only pictures can go along (PNG, JPEG, GIF or WebP).' });
+    if (got.length < list.length) say(false, 'Only pictures can go along (PNG, JPEG, GIF or WebP).');
     if (got.length) setImgs((cur) => [...cur, ...got].slice(0, 6));
   };
 
   const send = async () => {
     if (busy || (!text.trim() && !imgs.length)) return;
-    setBusy(true); setNote(null);
+    setBusy(true);
     const r = await post(`/api/agent/${encodeURIComponent(s.id)}/send`, { text, images: imgs.map(({ mediaType, data }) => ({ mediaType, data })) });
     setBusy(false);
-    if (r.ok) { setText(''); imgs.forEach((i) => URL.revokeObjectURL(i.url)); setImgs([]); load(); }
-    else setNote({ ok: false, text: r.message ?? 'Couldn’t send it.' });
+    if (r.ok) { setText(''); imgs.forEach((i) => URL.revokeObjectURL(i.url)); setImgs([]); atBottom.current = true; load(); }
+    else say(false, r.message ?? 'Couldn’t send it.');
   };
   const act = async (path: string) => {
-    setNote(null);
-    const r = await post(`/api/agent/${encodeURIComponent(s.id)}/${path}`);
-    if (path === 'takeover') setNote({ ok: !!r.ok, text: r.message ?? (r.ok ? 'Opening it in a terminal.' : 'Couldn’t move them.') });
+    setMenu(false);
+    const r = await post(path);
+    if (r.message || !r.ok) say(!!r.ok, r.message ?? 'That didn’t work.');
     load();
   };
 
-  const items = groupLines(view?.lines ?? []);
-  const off = (view?.runner ?? s.runner) === 'off';
+  const reach: ChatReach = view?.reach ?? (s.runner ? 'here' : s.status !== 'ended' ? 'terminal' : 'resume');
+  const canType = reach === 'here' || reach === 'resume';
+  const asleep = s.status === 'ended' || (view?.runner ?? s.runner) === 'off';
+  const newestThem = items.findLastIndex((it) => it.kind === 'line' && it.line.kind === 'them');
+  const placeholder = s.status === 'running' ? `Tell ${name} something. They’ll read it after this step.`
+    : s.status === 'needs_input' ? `Answer ${name}…`
+    : asleep ? `Wake ${name} with a message…` : `Tell ${name} what to do next…`;
 
   return (
     <section className="chat" aria-label={`Chat with ${name}`}
-      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }}
+      onDragOver={(e) => { if (canType && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }}
       onDragLeave={() => setDrag(false)}
-      onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}>
-      <div className="chat-log" ref={scroller} aria-live="polite">
-        {!view ? <p className="chat-quiet">Loading the conversation…</p> : !items.length ? <p className="chat-quiet">Nothing said yet.</p> : items.map((it, i) => it.kind === 'steps' ? (
-          <Steps key={i} steps={it.steps} />
-        ) : it.line.kind === 'you' ? (
-          <div key={i} className="msg you" title={clock(it.line.at)}>{it.line.text}{it.line.images ? <span className="msg-img">{it.line.images === 1 ? '+ a picture' : `+ ${it.line.images} pictures`}</span> : null}</div>
-        ) : it.line.kind === 'them' ? (
-          <div key={i} className="msg them" title={clock(it.line.at)}>{it.line.text}</div>
-        ) : (
-          <p key={i} className={`chat-note${it.line.error ? ' bad' : ''}`}>{it.line.text || 'That turn ended with an error.'}</p>
-        ))}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); if (canType && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}>
+      <div className="chat-log" ref={scroller} onScroll={onScroll} aria-live="polite">
+        {!view ? <p className="chat-quiet">Loading the conversation…</p> : !items.length ? <p className="chat-quiet">Nothing said yet.</p> : items.map((it, i) => {
+          if (it.kind === 'steps') return <Steps key={i} steps={it.steps} />;
+          const l = it.line;
+          if (l.kind === 'you') return <YouMsg key={i} line={l} />;
+          if (l.kind === 'them') {
+            const prev = items[i - 1];
+            const withFace = !(prev?.kind === 'line' && prev.line.kind === 'them');
+            return (
+              <div key={i} className={`msg-row them${withFace ? '' : ' cont'}`} data-newest-them={i === newestThem ? '' : undefined}>
+                <span className="msg-face">{withFace ? <AgentAvatar agent={s.agent} mood="hello" size={30} /> : null}</span>
+                <div className="msg them" title={clock(l.at)}><Markdown text={l.text} /></div>
+              </div>
+            );
+          }
+          return <p key={i} className={`chat-note${l.error ? ' bad' : ''}`}>{l.text || 'That turn ended with an error.'}</p>;
+        })}
         {s.status === 'needs_input' ? (
           <div className="callout bad hand chat-hand">
             <span><b>{name} needs you:</b> {s.ask?.questions?.[0]?.question ?? s.ask?.title ?? s.needsMessage ?? 'waiting for your answer'}</span>
             {openAsk ? <button className="btn approve small" onClick={() => openAsk(s.id)}>Answer</button> : null}
           </div>
         ) : s.status === 'running' ? (
-          <p className="chat-now"><span className="dot s-running" />{plainAction(s.action, voice) ?? 'Thinking'}</p>
-        ) : off ? (
-          <p className="chat-quiet">{name} has clocked out. Send a message and they’ll pick it up again.</p>
+          <div className="chat-now">
+            <AgentAvatar agent={s.agent} mood="hello" size={30} live talking />
+            <span className="chat-now-said">{plainAction(s.action, voice) ?? 'Thinking'}<span className="bricks" aria-hidden><i /><i /><i /></span></span>
+          </div>
         ) : null}
       </div>
 
-      <div className={`chat-compose${drag ? ' drag' : ''}`}>
-        {imgs.length ? (
-          <div className="chat-imgs">
-            {imgs.map((im, i) => (
-              <span key={im.url} className="chat-img">
-                <img src={im.url} alt={im.name} />
-                <button type="button" className="chat-img-x" aria-label={`Remove ${im.name}`} onClick={() => { URL.revokeObjectURL(im.url); setImgs((c) => c.filter((_, j) => j !== i)); }}>×</button>
-              </span>
-            ))}
+      {toast ? <p className={`chat-toast${toast.ok ? '' : ' bad'}`} role="status" key={toast.at}>{toast.text}</p> : null}
+
+      {canType ? (
+        <div className={`chat-compose${drag ? ' drag' : ''}`}>
+          <div className="chat-box" onClick={(e) => { if (e.target === e.currentTarget) input.current?.focus(); }}>
+            {imgs.length ? (
+              <div className="chat-imgs">
+                {imgs.map((im, i) => (
+                  <span key={im.url} className="chat-img">
+                    <img src={im.url} alt={im.name} />
+                    <button type="button" className="chat-img-x" aria-label={`Remove ${im.name}`} onClick={() => { URL.revokeObjectURL(im.url); setImgs((c) => c.filter((_, j) => j !== i)); }}>×</button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <label className="sr" htmlFor={`chat-${s.id}`}>Message {name}</label>
+            <textarea ref={input} id={`chat-${s.id}`} className="chat-input" rows={2} value={text} disabled={busy} placeholder={placeholder}
+              onChange={(e) => setText(e.target.value)}
+              onPaste={(e) => { const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/')); if (files.length) { e.preventDefault(); addFiles(files); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+            <div className="chat-row">
+              <button type="button" className="chat-attach" onClick={() => fileInput.current?.click()} aria-label="Attach a picture" title="Attach a picture (or paste one)">＋</button>
+              <input ref={fileInput} id={`chat-file-${s.id}`} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
+              <span className="grow" />
+              {s.status === 'running' && reach === 'here' ? <button type="button" className="chat-stop" onClick={() => act(`/api/agent/${encodeURIComponent(s.id)}/interrupt`)} title={`Stop what ${name} is doing right now (they stay on, ready for your next message)`}>■ Stop</button> : null}
+              <button type="button" className="btn chat-send" onClick={send} disabled={busy || (!text.trim() && !imgs.length)}>{busy ? 'Sending…' : 'Send'}</button>
+            </div>
           </div>
-        ) : null}
-        <div className="chat-row">
-          <button type="button" className="ghost small chat-attach" onClick={() => fileInput.current?.click()} aria-label="Attach a picture" title="Attach a picture (or paste one)">＋</button>
-          <input ref={fileInput} id={`chat-file-${s.id}`} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
-          <label className="sr" htmlFor={`chat-${s.id}`}>Message {name}</label>
-          <textarea id={`chat-${s.id}`} className="ask-input chat-input" rows={1} value={text} disabled={busy}
-            placeholder={working ? `Tell ${name} something (they’ll read it after this step)…` : `Tell ${name} what to do next…`}
-            onChange={(e) => setText(e.target.value)}
-            onPaste={(e) => { const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/')); if (files.length) { e.preventDefault(); addFiles(files); } }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
-          <button type="button" className="btn dark small" onClick={send} disabled={busy || (!text.trim() && !imgs.length)}>{busy ? 'Sending…' : 'Send'}</button>
+          <div className="chat-foot">
+            <span>⏎ send · ⇧⏎ new line · Esc closes</span>
+            <span className="chat-more">
+              <button type="button" className="link" aria-expanded={menu} onClick={() => setMenu(!menu)}>⋯ More</button>
+              {menu ? (
+                <span className="chat-menu" role="menu" onMouseLeave={() => setMenu(false)}>
+                  {reach === 'here'
+                    ? <button type="button" role="menuitem" onClick={() => act(`/api/agent/${encodeURIComponent(s.id)}/takeover`)} title="Open this same conversation in VS Code or Terminal and carry on there">Take over in terminal</button>
+                    : <button type="button" role="menuitem" onClick={() => act(`/api/resume/${encodeURIComponent(s.id)}`)} title="Reopen this conversation in VS Code or Terminal instead">Open in terminal instead</button>}
+                </span>
+              ) : null}
+            </span>
+          </div>
         </div>
-        <div className="chat-foot">
-          <span>{off ? 'Clocked out' : 'Running here in Swarmville'} · ⏎ send · ⇧⏎ new line</span>
-          <span className="chat-acts">
-            {s.status === 'running' ? <button type="button" className="link" onClick={() => act('interrupt')} title={`Stop what ${name} is doing right now (they stay on, ready for your next message)`}>Stop this step</button> : null}
-            <button type="button" className="link" onClick={() => act('takeover')} title="Open this same conversation in VS Code or Terminal and carry on there">Take over in terminal</button>
-          </span>
-        </div>
-        {note ? <p className={note.ok ? 'reply-sent' : 'reply-hint'} role="status">{note.text}</p> : null}
-      </div>
+      ) : reach === 'terminal' ? (
+        <div className="chat-elsewhere"><span><b>{name}</b> is open in your terminal. Talk to them there.</span><GoTo s={s} primary /></div>
+      ) : (
+        <div className="chat-elsewhere"><span>Scheduled jobs run on their own, so there’s nothing to reply to.</span></div>
+      )}
     </section>
   );
 }
 
+function YouMsg({ line }: { line: ChatLine }) {
+  const long = isLong(line.text);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`msg you${long && !open ? ' folded' : ''}`} title={clock(line.at)}>
+      <span className="msg-text">{line.text}</span>
+      {line.images ? <span className="msg-img">{line.images === 1 ? '+ a picture' : `+ ${line.images} pictures`}</span> : null}
+      {long ? <button type="button" className="msg-more" onClick={() => setOpen(!open)}>{open ? 'Show less' : 'Show more'}</button> : null}
+    </div>
+  );
+}
+
 function Steps({ steps }: { steps: ChatLine[] }) {
-  const last = steps.slice(-2);
-  if (steps.length <= 2) return <div className="chat-steps">{last.map((l, i) => <span key={i}>{l.text}</span>)}</div>;
+  const kind = steps.at(-1)?.tool ?? 'other';
   return (
     <details className="chat-steps">
-      <summary>{last.map((l, i) => <span key={i}>{l.text}</span>)}<span className="more">+{steps.length - 2} earlier step{steps.length === 3 ? '' : 's'}</span></summary>
-      {steps.slice(0, -2).map((l, i) => <span key={i}>{l.text}</span>)}
+      <summary><span className="steps-icon" aria-hidden>{KIND_ICON[kind]}</span>{stepsSummary(steps)}<span className="steps-caret" aria-hidden>▸</span></summary>
+      <ol>{steps.map((l, i) => <li key={i}>{l.text}</li>)}</ol>
     </details>
   );
 }

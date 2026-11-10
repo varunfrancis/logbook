@@ -21,7 +21,8 @@ import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNe
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
 import { addNote, dismissFlag, letGo, noteContext, notesPending, removeNote, writePendingMarker } from './crews.ts';
-import type { Setup, StateView, Welcome } from './types.ts';
+import type { ChatLine, ChatReach, ChatView, Setup, StateView, Welcome } from './types.ts';
+import { mergeChat, transcriptChat, transcriptFile } from './chat.ts';
 import { NEW_WELCOME } from './state.ts';
 import { addAsk, addRunnerAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
 import { Runners, safeId } from './runners.ts';
@@ -339,13 +340,24 @@ function imagesFrom(raw: unknown): RunnerImage[] {
     .map((i: any) => ({ mediaType: i.mediaType, data: i.data }));
 }
 
-/** The chat as the town shows it: tool calls in plain words. */
-function chatView(sessionId: string) {
-  const lines = runners.chat(sessionId).map((e) => ({
-    at: e.at, kind: e.kind, error: e.error || undefined, images: e.images || undefined,
-    text: e.kind === 'tool' ? describeTool(String(e.tool ?? e.text), e.input ?? {}).text : e.text,
-  }));
-  return { runner: runners.states().get(sessionId) ?? null, lines };
+/** The chat as the town shows it: tool calls in plain words. Agents started in a terminal get theirs from the transcript. */
+function chatView(sessionId: string): ChatView {
+  const fromRunner: ChatLine[] = runners.chat(sessionId).map((e) => {
+    const d = e.kind === 'tool' ? describeTool(String(e.tool ?? e.text), e.input ?? {}) : null;
+    return { at: e.at, kind: e.kind, error: e.error || undefined, images: e.images || undefined, text: d ? d.text : e.text, tool: d?.kind };
+  });
+  const row = db.prepare('SELECT transcript FROM sessions WHERE id = ?').get(sessionId) as Row | undefined;
+  const lines = mergeChat(transcriptChat(transcriptFile(row?.transcript as string | null, sessionId)), fromRunner);
+  return { runner: runners.states().get(sessionId) ?? null, lines, reach: reachOf(sessionId) };
+}
+
+/** Where a message typed in the town goes (see ChatReach). */
+function reachOf(sessionId: string): ChatReach {
+  if (runners.knows(sessionId)) return 'here';
+  if (live.has(sessionId)) return 'terminal';
+  const s = state.sessions.find((x) => x.id === sessionId);
+  if (s && (s.kind === 'bg' || s.scheduled)) return 'none';
+  return 'resume';
 }
 
 /** Only Swarmville's own pages (and local tools like the VS Code helper) may change things: other websites can't poke the local server. */
@@ -434,7 +446,11 @@ const server = http.createServer(async (req, res) => {
         const text = String(body.text ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 8000);
         const images = imagesFrom(body.images);
         if (!text && !images.length) return json(res, 400, { ok: false, message: 'Write a message first.' });
-        return json(res, 200, runners.knows(id) ? sendHere(id, text, images) : reply(id, text));
+        // Swarmville runs them, or they've clocked out: either way they carry on here (claude --resume, headless).
+        const reach = reachOf(id);
+        if (reach === 'terminal') return json(res, 200, { ok: false, message: 'They’re open in your terminal right now. Use Go to and tell them there.' });
+        if (reach === 'none') return json(res, 200, { ok: false, message: 'Scheduled jobs run on their own and can’t take messages.' });
+        return json(res, 200, sendHere(id, text, images));
       }
       if (action === 'takeover') return json(res, 200, await takeOver(id));
       if (action === 'interrupt') return json(res, 200, { ok: runners.interrupt(id) });
