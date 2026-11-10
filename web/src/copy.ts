@@ -14,6 +14,16 @@ export const PLAN_NOTE = 'Included in your Claude plan. To see what it would cos
 /** A cost as the user has chosen to see it: $0 on the plan, API prices otherwise. */
 export const priced = (view: CostView, usd: number) => (view === 'api' ? money(usd) : '$0');
 
+/** What the numbers on screen mean, for hover help. Written for someone who has never seen a terminal. */
+export const STAT_HELP = {
+  bricks: 'Bricks measure how much work the agents did: the more they read, think and write, the more bricks they lay. One brick is 10,000 tokens, the little word-pieces AI reads and writes.',
+  shifts: 'Shifts: how many times an agent has worked here. Each conversation with Claude is one shift.',
+  saves: 'Saves: how many times the agents saved their progress to the project’s history (a git commit).',
+  hitRate: 'Hit rate: of the jobs they finished, how many ended with work you kept.',
+  scrapped: 'Scrapped: jobs that ended with their changes thrown away or never saved.',
+  checks: 'Checks: automatic tests that ran on their work. ✓ passed, ✕ failed.',
+} as const;
+
 export const STATUS: Record<Voice, Record<SessionStatus, string>> = {
   plain: { running: 'Building', needs_input: 'Raised a hand', idle: 'Coffee break', ended: 'Clocked out' },
   technical: { running: 'Running', needs_input: 'Needs input', idle: 'Idle', ended: 'Ended' },
@@ -51,6 +61,8 @@ export function plainAction(action: string | null, voice: Voice): string | null 
     .replace(/^Opening a pull request$/, 'sending it for review')
     .replace(/^Pushing to GitHub$/, 'uploading its work')
     .replace(/^Running (npm|pnpm|yarn|bun) (run )?test.*$/i, 'checking its work')
+    // a raw command line ("Running mdls -name kMDItem… ~/Mov…") means nothing to most people
+    .replace(/^Running (?=.*[-/~=$|]).*$/, 'running a command on your computer')
     .replace(/^Delegating: /, 'handing off: ')
     .replace(/^Thinking$/, 'thinking')
     .replace(/^\w/, (c) => c.toLowerCase());

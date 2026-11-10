@@ -31,7 +31,19 @@ export function scorecard(p: AgentProfile, api = false): { scores: Score[]; verd
   const verdict = graded.length < 2 ? { grade: 'none' as Grade, text: 'Too early to tell. Check back after a few finished jobs.' }
     : bad >= 2 ? { grade: 'bad' as Grade, text: 'Struggling. Look at what’s going wrong below.' }
     : good >= 2 && !bad ? { grade: 'good' as Grade, text: 'Doing well.' }
-    : { grade: 'ok' as Grade, text: 'Mixed. Good in places, room to improve.' };
+    : { grade: 'ok' as Grade, text: mixedText(scores) };
   return { scores, verdict };
 }
 
+const STRONG: Record<string, string> = { Delivers: 'Delivers well', 'On their own': 'works well on their own', Cost: 'good value' };
+const WEAK: Record<string, string> = { Delivers: 'a lot of their work doesn’t get kept', 'On their own': 'stops to ask you often', Cost: 'costs a lot per job' };
+
+/** A mixed verdict says which part is strong and which isn't, so it doesn't read as contradicting the numbers next to it. */
+function mixedText(scores: Score[]): string {
+  const strong = scores.filter((s) => s.grade === 'good').map((s) => STRONG[s.label]);
+  const weak = scores.filter((s) => s.grade === 'bad' || s.grade === 'ok').map((s) => WEAK[s.label]);
+  if (!strong.length || !weak.length) return 'Mixed. Good in places, room to improve.';
+  const join = (xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0];
+  const lead = join(strong);
+  return `${lead.replace(/^\w/, (c) => c.toUpperCase())}, but ${join(weak)}.`;
+}

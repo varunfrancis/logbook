@@ -6,10 +6,12 @@ import { AgentPanel } from './views/AgentPanel.tsx';
 import { AskPopup } from './views/AskPopup.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
+import { CafePanel } from './views/CafePanel.tsx';
 import { CostPanel } from './views/CostPanel.tsx';
 import { ShippedPanel } from './views/ShippedPanel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
+import { onBreak } from './city/liveJobs.ts';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
 import { bricks, CostContext, PLAN_NOTE, priced, VoiceContext, type Bubble, type CostView, type Voice } from './copy.ts';
@@ -42,7 +44,7 @@ function useTheme() {
 }
 
 /** `back`: an ask opened from an agent's profile goes back to it when you're done (their chat carries on there). */
-type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cost' | 'shipped'; id: string; back?: 'agent' } | null;
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cafe' | 'cost' | 'shipped'; id: string; back?: 'agent' } | null;
 
 export function App() {
   const { state, conn } = useSwarmville();
@@ -70,8 +72,9 @@ export function App() {
   const setHidden = (s: Set<string>) => { setPicked(s); setLiveOnlyRaw(false); store.set('swarmville.projectsMode', 'pick'); store.set('swarmville.hiddenProjects', JSON.stringify([...s])); };
   const hidden = useMemo(() => {
     if (!liveOnly || !state) return liveOnly ? new Set<string>() : picked;
-    const live = state.projects.some((p) => p.liveSessions > 0);
-    return live ? new Set(state.projects.filter((p) => !p.liveSessions).map((p) => p.id)) : new Set<string>();
+    // "On site" here means anyone around: working, hand up, or on a coffee break at the café.
+    const around = new Set(state.sessions.filter((s) => s.status === 'running' || s.status === 'needs_input' || onBreak(s)).map((s) => s.projectId));
+    return around.size ? new Set(state.projects.filter((p) => !around.has(p.id)).map((p) => p.id)) : new Set<string>();
   }, [liveOnly, picked, state]);
   useEffect(() => { const f = () => setView(readView()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => { // an old #day bookmark: show Crew scrolled to Today
@@ -104,16 +107,25 @@ export function App() {
     if (!state) return { sessions: null, projects: null, sessionProjects: new Set<string>() };
     const projects = hidden.size ? new Set(state.projects.filter((p) => !hidden.has(p.id)).map((p) => p.id)) : null;
     if (!only) return { sessions: null, projects, sessionProjects: new Set<string>() };
-    const match = state.sessions.filter((s) => only === 'needs' ? s.status === 'needs_input' : only === 'building' ? s.status === 'running' : only === 'break' ? s.status === 'idle'
+    const match = state.sessions.filter((s) => only === 'needs' ? s.status === 'needs_input' : only === 'building' ? s.status === 'running' : only === 'break' ? onBreak(s)
       : shippedToday(s));
     return { sessions: new Set(match.map((s) => s.id)), projects, sessionProjects: new Set(match.map((s) => s.projectId ?? '')) };
   }, [state, only, hidden]);
+  // The town always shows every building's name: in the default "on site" mode the busy ones already glow,
+  // so the filter only dims the town when you've hand-picked projects.
+  const townFocus = useMemo(() => (liveOnly ? { ...focus, projects: null } : focus), [focus, liveOnly]);
   // The Crew view lists only what the filters let through.
   const crewState = useMemo(() => state && (focus.sessions || focus.projects) ? { ...state, projects: focus.projects ? state.projects.filter((p) => focus.projects!.has(p.id)) : state.projects,
     sessions: state.sessions.filter((s) => (!focus.sessions || focus.sessions.has(s.id)) && (!focus.projects || focus.projects.has(s.projectId ?? ''))),
     routines: (state.routines ?? []).filter((r) => (!focus.projects || focus.projects.has(r.projectId)) && (!focus.sessions || (!!r.liveSessionId && focus.sessions.has(r.liveSessionId)))),
     crews: (state.crews ?? []).filter((c) => !focus.projects || focus.projects.has(c.projectId)),
     notes: (state.notes ?? []).filter((n) => !focus.projects || focus.projects.has(n.projectId)) } : state, [state, focus]);
+  // The header counts what the town and the Crew tab show: the projects you picked, and only agents at the café as "on a break".
+  const counts = useMemo(() => {
+    const ss = crewState?.sessions ?? [];
+    return { needs: ss.filter((s) => s.status === 'needs_input').length, building: ss.filter((s) => s.status === 'running').length,
+      onBreak: ss.filter(onBreak).length, shipped: ss.filter((s) => shippedToday(s)).length };
+  }, [crewState]);
   const chip = (key: NonNullable<typeof only>, n: number, label: string, cls = '') => (
     <button className={`sum chip ${cls}${only === key ? ' on' : ''}`} aria-pressed={only === key} onClick={() => setOnly(only === key ? null : key)} title={only === key ? 'Show everyone' : `Highlight only these`}><b>{n}</b> {label}</button>
   );
@@ -131,10 +143,10 @@ export function App() {
           </nav>
           {t ? (
             <div className="summary" aria-live="polite">
-              {t.needs ? chip('needs', t.needs, 'raised a hand', 'needs') : null}
-              {chip('building', t.running, 'building')}
-              {chip('break', t.idle, 'on a coffee break')}
-              {chip('shipped', state ? state.sessions.filter((s) => shippedToday(s)).length : t.shippedToday, 'shipped today')}
+              {counts.needs ? chip('needs', counts.needs, 'raised a hand', 'needs') : null}
+              {chip('building', counts.building, 'building')}
+              {chip('break', counts.onBreak, 'on a coffee break')}
+              {chip('shipped', counts.shipped, 'shipped today')}
               {state ? <ProjectPicker state={state} hidden={hidden} setHidden={setHidden} liveOnly={liveOnly} setLiveOnly={setLiveOnly} /> : null}
               <TourPill api={welcome} />
               <span className="sum hide-sm"><b>{voice === 'plain' ? t.bricksToday.toLocaleString() : compact(t.tokensToday)}</b> {voice === 'plain' ? 'bricks laid' : 'tokens'}</span>
@@ -153,13 +165,14 @@ export function App() {
           {!state ? (
             <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `swarmville start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
-            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} focus={focus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} openAgentId={sel?.kind === 'agent' ? sel.id : null} />
+            <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} onCafe={() => setSel({ kind: 'cafe', id: '' })} focus={townFocus} showLots={showLots} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} openAgentId={sel?.kind === 'agent' ? sel.id : null} />
           ) : (
-            <CrewView state={crewState!} open={open} />
+            <CrewView state={crewState!} open={open} allBuildings={state.projects.filter((p) => p.state !== 'lot').length} />
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'shipped' ? <ShippedPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'cafe' ? <CafePanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(sel.back ? { kind: 'agent', id: sel.id } : null)} openProfile={open.agent} /> : null}
           {state && sel?.kind === 'agent' ? <AgentPanel key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} openAsk={(sid) => setSel({ kind: 'ask', id: sid, back: 'agent' })} /> : null}

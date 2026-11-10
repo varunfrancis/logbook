@@ -58,7 +58,8 @@ export function StartWork({ state, moves, defaultMove, projectId, onStarted, idP
         <span className="field-label">{move === 'fix' ? 'What’s wrong?' : move === 'explain' ? 'What should they explain? (optional)' : move === 'review' ? 'What should they look at? (optional)' : 'What’s it about?'}</span>
         <input id={`${idPrefix}-what`} className="field" value={what} onChange={(e) => { setWhat(e.target.value); setErr(null); }} placeholder={m.placeholder} maxLength={400} />
       </label>
-      {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p> : null}
+      {m.plan ? <p className="sw-note">Starts in plan mode: nothing changes until you approve the plan.</p>
+        : move === 'build' || move === 'fix' ? <p className="sw-note">Starts changing files in this project right away. Anything that needs your OK still raises a hand. Want to see a plan first? Pick {MOVES.plan.label}.</p> : null}
       {here ? <p className="sw-note">Runs here in Swarmville: you’ll chat with them in the town. You can take over in a terminal any time.</p> : null}
       {err ? <p className="sw-err" role="alert">{err}</p> : null}
       <div className={`row ${secondary ? 'between' : 'end'}`}>

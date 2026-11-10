@@ -204,7 +204,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
               if (ts) { st.ask = { id: b.id, ts, q }; d.moments.push({ ts, kind: 'm_ask', text: q.slice(0, 300) }); }
             }
             d.turnEnded = false;
-          } else if (b?.type === 'text' && b.text?.trim()) {
+          } else if (b?.type === 'text' && b.text?.trim() && !isApiError(b.text)) {
             d.outcome = b.text.trim().slice(0, 1500);
             d.verdict = jobVerdict(b.text);
           }
@@ -429,3 +429,6 @@ export function scanTranscripts(db: Db, deadline = Infinity): number {
 
 /** Transcripts not read yet (changed since last read). */
 export const transcriptsLeft = () => listTranscripts().filter((f) => seenMtime.get(f.file) !== f.mtime).length;
+
+/** Claude Code writes its own "API Error: Connection lost mid-response…" lines into the transcript as if the agent said them. They aren't a summary of the work. */
+export const isApiError = (text: string | null | undefined) => /^\s*API Error\b/.test(text ?? '');

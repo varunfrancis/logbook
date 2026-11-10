@@ -1,5 +1,8 @@
 import type { SessionView, StateView } from '../../../daemon/types.ts';
 
+/** On a coffee break: done for now, waiting on you, not long enough to count as away. They spend it at the café. */
+export const onBreak = (s: Pick<SessionView, 'status' | 'away'>) => s.status === 'idle' && !s.away;
+
 /** The one word the Town's live feed shows for a job. */
 export type JobWord = 'Needs you' | 'Stuck' | 'Testing' | 'Building' | 'Planning';
 
@@ -17,7 +20,7 @@ export function jobWord(s: Pick<SessionView, 'status' | 'stuck' | 'actionKind' |
   return 'Planning';
 }
 
-const machineName = /^[0-9a-f]{6,}$|^[a-z0-9]+-[0-9a-f]{1,3}$|^[a-z0-9]+-f\d+$/i;
+const machineName = /^[0-9a-f]{6,}$|^[a-z0-9-]+-[0-9a-f]{1,3}$|^[a-z0-9-]+-f\d+$/i;
 
 /**
  * The job an agent is on, as a short label: the live focus label (rewritten on each new instruction),

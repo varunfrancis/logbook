@@ -76,7 +76,7 @@ function TownBubble({ b, scene, openAgent, dismiss }: { b: Bubble; scene: CitySc
       <div className="tr-who"><b>{name}</b><span className="tr-pill ok">Finished</span></div>
       <p className="tr-q">{didSummary(s.outcome, 110) || 'Done for now.'}</p>
       <div className="tr-foot">
-        <button type="button" className={`tr-hi5${fived ? ' done' : ''}`} onClick={highFive} disabled={fived}><span aria-hidden>✋</span> {fived ? 'High-fived!' : 'High-five'}</button>
+        <button type="button" className={`tr-hi5${fived ? ' done' : ''}`} onClick={highFive} disabled={fived} title="A cheer for them. It isn’t sent to them and doesn’t wake them."><span aria-hidden>✋</span> {fived ? 'High-fived!' : 'High-five'}</button>
         <button type="button" onClick={() => openAgent(s.id)}>Open chat ⤢</button>
         <button type="button" onClick={() => dismiss(s)} aria-label="Hide">×</button>
       </div>

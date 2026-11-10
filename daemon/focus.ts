@@ -47,8 +47,8 @@ export async function labelNextFocus(db: Db, now = Date.now()): Promise<boolean>
       s.first_prompt && s.first_prompt !== s.last_prompt ? `First request in this session: ${clip(s.first_prompt, 240)}` : '',
       `Newest message from the user:\n${clip(s.last_prompt, 700)}`,
       '',
-      current ? 'If the newest message only approves or ships the work already under way (yes, go ahead, merge it, deploy it, thanks), reply exactly SAME.' : '',
-      current ? 'If it asks for any change, fix, investigation, explanation or new feature, write a new label, even when it is related to the current one.' : '',
+      current ? 'If the newest message carries on the same piece of work (approving it, shipping it, tweaking it, fixing something in it, asking about it), reply exactly SAME.' : '',
+      current ? 'Write a new label only when it asks for a clearly different piece of work. The label is read by someone glancing at the screen, so it should stay put while the job does.' : '',
       'Otherwise reply with ONLY a 2-5 word label for the work the newest message asks for: sentence case, starting with a verb, no quotes, no final punctuation.',
       'Examples: Extend the offer, Fix login redirect, Move toast to bottom, Explain cost spike.',
     ].filter(Boolean).join('\n');
