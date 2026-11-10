@@ -300,4 +300,4 @@ export type TeamView = {
 export type ChatLine = { at: number; kind: 'you' | 'them' | 'tool' | 'done' | 'note'; text: string; images?: number; error?: boolean; tool?: ActionKind; id?: string };
 /** Where a message typed in the town goes: Swarmville runs them, they're open in your terminal, they come back here, or nowhere (scheduled jobs). */
 export type ChatReach = 'here' | 'terminal' | 'resume' | 'none';
-export type ChatView = { runner: 'on' | 'off' | null; lines: ChatLine[]; reach: ChatReach };
+export type ChatView = { runner: 'on' | 'off' | null; lines: ChatLine[]; reach: ChatReach; steers?: { at: number; text: string; delivered: boolean }[] };

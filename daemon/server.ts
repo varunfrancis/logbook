@@ -17,6 +17,7 @@ import { clearShip, hotShipIds, shipBrief, startShip } from './ship.ts';
 import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
 import { labelNextFocus } from './focus.ts';
+import { addSteer, steerContext, steerPending, steersFor, writeSteerMarker } from './steer.ts';
 import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
@@ -88,6 +89,7 @@ function refresh() {
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
   writePendingMarker(DATA_DIR, notesPending(db, live));
+  writeSteerMarker(DATA_DIR, steerPending(db, live));
   if (hash !== stateHash) {
     stateHash = hash;
     notifyTransitions(state);
@@ -348,7 +350,7 @@ function chatView(sessionId: string): ChatView {
   });
   const row = db.prepare('SELECT transcript FROM sessions WHERE id = ?').get(sessionId) as Row | undefined;
   const lines = mergeChat(transcriptChat(transcriptFile(row?.transcript as string | null, sessionId)), fromRunner);
-  return { runner: runners.states().get(sessionId) ?? null, lines, reach: reachOf(sessionId) };
+  return { runner: runners.states().get(sessionId) ?? null, lines, reach: reachOf(sessionId), steers: steersFor(db, sessionId) };
 }
 
 /** High-fives you've given this agent (all their shifts). */
@@ -379,7 +381,8 @@ function settleAfter(payload: any) {
 function hookReply(payload: any): object | null {
   const intro = terminalIntro(db, payload, live, state.town.name) as { hookSpecificOutput: { additionalContext: string } } | null;
   const note = noteContext(db, payload, state.town.owner);
-  const text = [intro?.hookSpecificOutput.additionalContext, note?.text].filter(Boolean).join('\n\n');
+  const steer = steerContext(db, payload, state.town.owner);
+  const text = [intro?.hookSpecificOutput.additionalContext, note?.text, steer].filter(Boolean).join('\n\n');
   return text ? { hookSpecificOutput: { hookEventName: payload.hook_event_name, additionalContext: text } } : null;
 }
 
@@ -438,7 +441,7 @@ const server = http.createServer(async (req, res) => {
       const d = projectDetail(db, state, live, rest);
       return d ? json(res, 200, d) : json(res, 404, { error: 'No project with that id' });
     }
-    const here = p.match(/^\/api\/agent\/([^/]+)\/(chat|send|takeover|interrupt|highfive)$/);
+    const here = p.match(/^\/api\/agent\/([^/]+)\/(chat|send|steer|takeover|interrupt|highfive)$/);
     if (here) {
       const [, id, action] = here;
       if (!safeId(id)) return json(res, 400, { ok: false, message: 'Which agent?' });
@@ -454,6 +457,16 @@ const server = http.createServer(async (req, res) => {
         if (reach === 'terminal') return json(res, 200, { ok: false, message: 'They’re open in your terminal right now. Use Go to and tell them there.' });
         if (reach === 'none') return json(res, 200, { ok: false, message: 'Scheduled jobs run on their own and can’t take messages.' });
         return json(res, 200, sendHere(id, text, images));
+      }
+      if (action === 'steer') {
+        // An agent working in your terminal: the message waits and reaches them at their next step (see steer.ts).
+        const body = await readJson(req);
+        const s = state.sessions.find((x) => x.id === id);
+        if (reachOf(id) !== 'terminal' || !s) return json(res, 200, { ok: false, message: 'They aren’t open in a terminal right now.' });
+        if (s.status !== 'running') return json(res, 200, { ok: false, message: `${s.agent.name} is resting, so a message would only reach them when you next type in their terminal. Use Go to.` });
+        if (addSteer(db, id, String(body.text ?? '')) == null) return json(res, 400, { ok: false, message: 'Write a message first.' });
+        writeSteerMarker(DATA_DIR, true);
+        return json(res, 200, { ok: true, message: `Sent. ${s.agent.name} gets it at their next step.` });
       }
       if (action === 'takeover') return json(res, 200, await takeOver(id));
       if (action === 'interrupt') return json(res, 200, { ok: runners.interrupt(id) });

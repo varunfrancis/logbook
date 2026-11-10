@@ -76,6 +76,8 @@ export function openDb(file = DB_PATH) {
     CREATE INDEX IF NOT EXISTS segments_start ON segments(start);
     CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, removed_at INTEGER);
     CREATE TABLE IF NOT EXISTS note_reach(note_id INTEGER NOT NULL, session_id TEXT NOT NULL, at INTEGER, PRIMARY KEY(note_id, session_id));
+    -- Messages typed in the town for an agent working in a terminal, handed over at their next step (see steer.ts).
+    CREATE TABLE IF NOT EXISTS steers(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, delivered_at INTEGER);
     -- "Ship it": a finished job you sent an agent back to take all the way to review (see ship.ts).
     CREATE TABLE IF NOT EXISTS ships(session_id TEXT PRIMARY KEY, project_id TEXT, cwd TEXT, at INTEGER NOT NULL, last_at INTEGER, mode TEXT, cleared_at INTEGER, merged_at INTEGER);
   `);

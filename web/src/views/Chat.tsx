@@ -13,7 +13,7 @@ export const HIGH_FIVE = 'swarmville:highfive';
 /*
  * Talking to an agent: the conversation, what they're doing right now, and a box for your next message (with pictures:
  * paste, drop or attach). Agents Swarmville runs take the message at once; ones that clocked out come back here with it;
- * ones open in your terminal are talked to there ("Go to").
+ * ones working in your terminal get it at their next step (steer.ts); resting ones are talked to there ("Go to").
  */
 
 type Img = { mediaType: string; data: string; url: string; name: string };
@@ -272,11 +272,58 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
           </div>
         </div>
       ) : reach === 'terminal' ? (
-        <div className="chat-elsewhere"><span><b>{name}</b> is open in your terminal. Talk to them there.</span><GoTo s={s} primary /></div>
+        <SteerBox s={s} name={name} steers={view?.steers ?? []} onSent={load} />
       ) : (
         <div className="chat-elsewhere"><span>Scheduled jobs run on their own, so there’s nothing to reply to.</span></div>
       )}
     </section>
+  );
+}
+
+/**
+ * An agent open in your terminal: while they work, a message typed here reaches them at their next step (Swarmville never types
+ * into your terminal). Resting agents only hear you in the terminal itself, so then it points you there.
+ */
+function SteerBox({ s, name, steers, onSent }: { s: SessionView; name: string; steers: NonNullable<ChatView['steers']>; onSent: () => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const working = s.status === 'running';
+  const send = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    const r = await post(`/api/agent/${encodeURIComponent(s.id)}/steer`, { text });
+    setBusy(false);
+    setMsg({ ok: !!r.ok, text: r.message ?? (r.ok ? 'Sent.' : 'It didn’t send.') });
+    if (r.ok) { setText(''); onSent(); }
+  };
+  return (
+    <div className="steer">
+      {steers.length ? (
+        <ul className="steer-sent" aria-label={`What you sent ${name}`}>
+          {steers.slice(-3).map((m) => (
+            <li key={m.at}><span className="steer-text">{m.text}</span><span className={`steer-state${m.delivered ? ' ok' : ''}`}>{m.delivered ? 'Reached them' : 'Waiting for their next step'}</span></li>
+          ))}
+        </ul>
+      ) : null}
+      {working ? (
+        <div className="chat-box">
+          <label className="sr" htmlFor={`steer-${s.id}`}>Tell {name} something</label>
+          <textarea id={`steer-${s.id}`} className="chat-input" rows={2} value={text} disabled={busy} placeholder={`Tell ${name} something while they work…`}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+          <div className="chat-row">
+            <span className="steer-hint">{name} is working in your terminal. They get this at their next step.</span>
+            <span className="grow" />
+            <GoTo s={s} />
+            <button type="button" className="btn chat-send" onClick={send} disabled={busy || !text.trim()}>{busy ? 'Sending…' : 'Send'}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="chat-elsewhere"><span><b>{name}</b> is resting in your terminal. Messages reach them there, so use Go to to pick it back up.</span><GoTo s={s} primary /></div>
+      )}
+      {msg ? <p className={`steer-msg${msg.ok ? '' : ' bad'}`} role="status">{msg.text}</p> : null}
+    </div>
   );
 }
 
