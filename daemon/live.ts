@@ -12,6 +12,7 @@ export type LiveEntry = {
   name: string | null;
   updatedAt: number | null;
   startedAt: number | null;
+  entrypoint?: string | null; // cli · sdk-cli · sdk-py …
 };
 
 function alive(pid: number): boolean {
@@ -28,7 +29,7 @@ export function readLive(dir = SESSIONS_DIR): Map<string, LiveEntry> {
       if (!d?.sessionId || !d?.pid || !alive(d.pid)) continue;
       out.set(d.sessionId, {
         pid: d.pid, sessionId: d.sessionId, cwd: d.cwd, kind: d.kind ?? 'interactive',
-        status: d.status ?? 'idle', name: d.name ?? null, updatedAt: d.updatedAt ?? null, startedAt: d.startedAt ?? null,
+        status: d.status ?? 'idle', name: d.name ?? null, updatedAt: d.updatedAt ?? null, startedAt: d.startedAt ?? null, entrypoint: d.entrypoint ?? null,
       });
     } catch {}
   }

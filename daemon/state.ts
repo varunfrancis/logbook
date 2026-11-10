@@ -13,7 +13,7 @@ import { fallbackName, town } from './naming.ts';
 import { sizeFor } from './outcome.ts';
 import { crewsToday, letGoIds, notesView } from './crews.ts';
 import { shipsView } from './ship.ts';
-import { AWAY_AFTER_MS, DATA_DIR, RECENT_MS } from './config.ts';
+import { AWAY_AFTER_MS, isOwnRun, isThrowawayRun, RECENT_MS } from './config.ts';
 import type { Agent, AgentDetail, CostBreakdown, DayView, GraveEntry, ProjectDetail, ProjectView, SessionView, Setup, StateView, TeamView, Welcome } from './types.ts';
 
 const BRICK = 10_000; // tokens per brick
@@ -177,7 +177,7 @@ function markCollisions(rows: Row[], views: SessionView[], now: number) {
 /** Registry entries for sessions we have never seen (brand-new, no transcript yet) get a row so they show up immediately. */
 export function adoptLive(db: Db, live: Map<string, LiveEntry>) {
   for (const e of live.values()) {
-    if (e.cwd?.startsWith(DATA_DIR)) continue;
+    if (isOwnRun(e.cwd) || isThrowawayRun(e.cwd, e.entrypoint)) continue; // Swarmville's own helper runs, throwaway SDK runs
     const s = db.prepare('SELECT project_id FROM sessions WHERE id = ?').get(e.sessionId) as Row | undefined;
     if (s?.project_id) continue;
     if (!s) db.prepare('INSERT INTO sessions(id, cwd, started_at, last_event_at) VALUES(?, ?, ?, ?)').run(e.sessionId, e.cwd, e.startedAt ?? Date.now(), e.updatedAt ?? e.startedAt ?? Date.now());
