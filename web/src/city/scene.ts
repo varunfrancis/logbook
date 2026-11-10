@@ -76,6 +76,14 @@ export class CityScene {
   private OFF = new THREE.Vector3(30, 26, 30);
   private az = Math.PI / 4; // camera bearing around the town; π/4 is the classic isometric corner
   private anim: { t0: number; dur: number; from: { x: number; z: number; az: number; zoom: number }; to: { x: number; z: number; az: number; zoom: number } } | null = null;
+  /*
+   * Frame budget: drawing the whole town 60–120 times a second keeps the GPU (and the laptop) hot even when nothing
+   * moves. Full speed only while you're using the town (or the camera is flying); ~24 fps when you're just watching;
+   * ~10 fps while a drawer covers it or the window is in the background. New data always draws at once.
+   */
+  private lastInput = 0;
+  private lastFrame = 0;
+  private backdrop = false;
   private zoom = 1;
   /** Pan directions whose keys are held down (arrows / WASD). */
   private held = new Set<'left' | 'right' | 'up' | 'down'>();
@@ -164,7 +172,7 @@ export class CityScene {
   }
 
   // ---------- public ----------
-  setTheme(dark: boolean) {
+  setTheme(dark: boolean) { this.kick();
     const changed = dark !== this.dark;
     this.dark = dark;
     this.scene.background = new THREE.Color(dark ? '#1b2636' : '#d4ebf2');
@@ -181,10 +189,10 @@ export class CityScene {
   }
 
   /** Highlight a subset: only these agents are shown, and only these projects keep their name tags. null = everything. */
-  setFocus(sessions: Set<string> | null, projects: Set<string> | null, sessionProjects: Set<string> = new Set()) { this.hl = { sessions, projects }; this.focusPids = sessionProjects; }
+  setFocus(sessions: Set<string> | null, projects: Set<string> | null, sessionProjects: Set<string> = new Set()) { this.kick(); this.hl = { sessions, projects }; this.focusPids = sessionProjects; }
   private focusPids = new Set<string>();
 
-  setSelected(id: string | null) {
+  setSelected(id: string | null) { this.kick();
     const changed = id !== this.selected;
     this.selected = id;
     if (id && changed) this.focus(id);
@@ -197,6 +205,18 @@ export class CityScene {
   }
   /** Back to the classic north-up corner view. */
   resetView() { this.flyTo({ x: this.target.x, z: this.target.z, az: Math.round((this.az - Math.PI / 4) / (2 * Math.PI)) * 2 * Math.PI + Math.PI / 4, zoom: this.zoom }); }
+
+  /** You're using the town: draw at full speed for a moment. */
+  private poke() { this.lastInput = performance.now(); }
+  /** Something changed: draw it on the next frame, whatever the budget. */
+  private kick() { this.lastFrame = 0; }
+  /** A drawer covers the town (it's dimmed behind it): it keeps moving, just at a gentler pace. */
+  setBackdrop(on: boolean) { this.backdrop = on; this.kick(); }
+  /** Milliseconds to wait between frames right now (0: every frame). */
+  private frameGap(now: number) {
+    if (this.anim || this.held.size || now - this.lastInput < 2000) return 0;
+    return this.backdrop || !document.hasFocus() ? 100 : 41;
+  }
 
   private flyTo(to: { x: number; z: number; az: number; zoom: number }, dur = 650) {
     if (this.reduce) { this.target.x = to.x; this.target.z = to.z; this.az = to.az; this.zoom = to.zoom; this.anim = null; this.placeCam(); this.resize(); return; }
@@ -218,7 +238,7 @@ export class CityScene {
     return { right, fwd };
   }
 
-  setState(data: StateView, showLots: boolean) {
+  setState(data: StateView, showLots: boolean) { this.kick();
     this.last = { data, showLots };
     this.projectNames = new Map(data.projects.map((p) => [p.id, p.name]));
     const firstLook = this.states++ === 0; // everyone already here on page load just stands in place
@@ -290,7 +310,7 @@ export class CityScene {
     if (!this.fitted && visible.length) { this.fitted = true; this.fit(); }
   }
 
-  setBubble(mode: Bubble) {
+  setBubble(mode: Bubble) { this.kick();
     if (mode === this.bubble) return;
     this.bubble = mode;
     if (this.last) this.refreshBubbles(this.last.data);
@@ -403,7 +423,7 @@ export class CityScene {
   }
 
   /** Keeps `el` floating over the agent (or hidden while they're not in view). null lets go of it. */
-  attachReply(sessionId: string, el: HTMLElement | null) {
+  attachReply(sessionId: string, el: HTMLElement | null) { this.kick();
     const old = this.replyEls.get(sessionId);
     if (old && old !== el) old.remove();
     if (!el) { this.replyEls.delete(sessionId); return; }
@@ -446,7 +466,7 @@ export class CityScene {
   }
 
   /** A high-five from the chat: "✋ High five!" pops up over the agent in the town for a moment. */
-  highFive(sessionId: string) {
+  highFive(sessionId: string) { this.poke();
     const c = this.crewAnchors.get(sessionId);
     if (!c || !c.anchor.parent) return;
     const el = this.div('hello hi5-town', '<b>✋ High five!</b>');
@@ -466,7 +486,7 @@ export class CityScene {
   }
 
   // ---------- camera / input ----------
-  private resize() {
+  private resize() { this.kick();
     const w = this.container.clientWidth || 1, h = this.container.clientHeight || 1, a = w / h;
     const vh = Math.max(this.viewSize / Math.max(a, 1) * 0.9, this.viewSize / a * 0.9, 24) / this.zoom;
     this.cam.left = (-vh * a) / 2; this.cam.right = (vh * a) / 2; this.cam.top = vh / 2; this.cam.bottom = -vh / 2;
@@ -517,6 +537,7 @@ export class CityScene {
     const pointers = new Map<number, { x: number; y: number }>();
     let pinch = 0;
     const down = (e: PointerEvent) => {
+      this.poke();
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); drag = null; return; }
       this.anim = null;
@@ -525,6 +546,7 @@ export class CityScene {
       el.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
+      this.poke();
       if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
@@ -570,6 +592,7 @@ export class CityScene {
     const key = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.('input, textarea, select, [contenteditable], [role="dialog"]') || e.metaKey || e.ctrlKey || e.altKey) return;
       if (!this.container.isConnected || !this.container.offsetParent) return;
+      this.poke();
       const pan = PAN_KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
       if (pan) { this.held.add(pan); e.preventDefault(); return; }
       if (e.repeat && !'+=-_'.includes(e.key)) return;
@@ -590,7 +613,7 @@ export class CityScene {
     addEventListener('keyup', keyUp);
     addEventListener('blur', blur);
     this.disposeFns.push(() => { removeEventListener('keydown', key); removeEventListener('keyup', keyUp); removeEventListener('blur', blur); });
-    const wheel = (e: WheelEvent) => { e.preventDefault(); this.zoomBy(e.deltaY > 0 ? 0.9 : 1.1); };
+    const wheel = (e: WheelEvent) => { e.preventDefault(); this.poke(); this.zoomBy(e.deltaY > 0 ? 0.9 : 1.1); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
@@ -1324,7 +1347,11 @@ export class CityScene {
   // ---------- frame ----------
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const now = performance.now();
+    if (now - this.lastFrame < this.frameGap(now) - 2) return; // within budget: skip this frame
+    this.lastFrame = now;
+    // a throttled frame covers more time: let animations step that far (but not across a long pause)
+    const dt = Math.min(0.12, this.clock.getDelta());
     const t = this.reduce ? 0 : this.clock.elapsedTime;
     this.elapsed = this.clock.elapsedTime;
     this.stepAnim();
