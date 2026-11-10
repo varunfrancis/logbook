@@ -7,6 +7,7 @@ import { GoTo } from '../components.tsx';
 import { Markdown } from './Markdown.tsx';
 import { yourTurn } from '../../../daemon/turn.ts';
 import { markSeen } from '../chats.ts';
+import { AskBody, useAsk } from './AskPopup.tsx';
 
 /** What you were typing to each agent, kept while you move between chats (or from the drawer to Chats). */
 const drafts = new Map<string, string>();
@@ -215,10 +216,7 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
           return <p key={i} className={`chat-note${l.error ? ' bad' : ''}`}>{l.text || 'That turn ended with an error.'}</p>;
         })}
         {s.status === 'needs_input' ? (
-          <div className="callout bad hand chat-hand">
-            <span><b>{name} needs you:</b> {s.ask?.questions?.[0]?.question ?? s.ask?.title ?? s.needsMessage ?? 'waiting for your answer'}</span>
-            {openAsk ? <button className="btn approve small" onClick={() => openAsk(s.id)}>Answer</button> : null}
-          </div>
+          <ChatHand key={s.id} s={s} openAsk={openAsk} />
         ) : s.status === 'running' ? (
           <div className="chat-now">
             <AgentAvatar agent={s.agent} mood="hello" size={30} live talking />
@@ -354,5 +352,28 @@ function Steps({ steps }: { steps: ChatLine[] }) {
       <summary><span className="steps-icon" aria-hidden>{KIND_ICON[kind]}</span>{stepsSummary(steps)}<span className="steps-caret" aria-hidden>▸</span></summary>
       <ol>{steps.map((l, i) => <li key={i}>{l.text}</li>)}</ol>
     </details>
+  );
+}
+
+/** A raised hand, answered right in the chat: the same choices as the popup (Approve / Deny, a plan, their questions). */
+function ChatHand({ s, openAsk }: { s: SessionView; openAsk?: (sessionId: string) => void }) {
+  const { done, setDone, busy, err, answer } = useAsk(s);
+  const name = s.agent.name;
+  // Keep saying "Approved." until they're back to work, unless they raise a new hand first.
+  const answered = useRef<string | null>(null);
+  const send: typeof answer = (d, extra) => { answered.current = s.ask?.id ?? null; return answer(d, extra); };
+  useEffect(() => { if (done && s.ask && s.ask.id !== answered.current) setDone(null); }, [s.ask?.id]);
+  // Their last reply asked you something: the Your turn card and the message box below answer it.
+  if (!s.ask && s.handKind === 'question' && s.runner) return <div className="callout bad hand chat-hand-line"><span><b>{name} needs you:</b> {s.needsMessage ?? 'waiting for your answer'}</span></div>;
+  if (done) return <div className="callout bad chat-hand" role="status"><p className="ask-done">{done}</p></div>;
+  return (
+    <div className="callout bad chat-hand" role="region" aria-label={`${name} needs you`}>
+      <div className="chat-hand-top">
+        <b>{name} needs you</b>
+        {openAsk && s.ask ? <button type="button" className="link" onClick={() => openAsk(s.id)}>Open bigger</button> : null}
+      </div>
+      <AskBody s={s} busy={busy} answer={send} focus={false} />
+      {err ? <p className="ask-err" role="alert">{err}</p> : null}
+    </div>
   );
 }

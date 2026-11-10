@@ -18,22 +18,11 @@ const DONE: Record<Decision, string> = {
  * their profile drawer. Permission prompts get Approve / Deny, questions get their choices (or your own words), and a
  * plan can go back with the changes you want. The terminal prompt stays up meanwhile; whichever answers first wins.
  */
-export function AskPopup({ id, state, onClose, openProfile }: { id: string; state: StateView; onClose: () => void; openProfile: (id: string) => void }) {
-  const now = useNow(15000);
-  const s = state.sessions.find((x) => x.id === id);
+/** Answering a raised hand: sends your decision and keeps what to say once it's in. Shared by the popup and the chat. */
+export function useAsk(s: SessionView | undefined) {
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const seen = useRef<string | null>(s?.ask?.id ?? null);
-
-  // Answered in the terminal (or the agent moved on) while this was open: say so, then get out of the way.
-  const settled = !s || s.status !== 'needs_input' || (seen.current && s.ask?.id !== seen.current);
-  useEffect(() => {
-    if (settled && !done) setDone(s?.status === 'ended' ? 'They clocked out.' : 'Answered in the terminal.');
-  }, [settled]);
-  useEffect(() => { if (done) { const t = setTimeout(onClose, 1400); return () => clearTimeout(t); } }, [done]);
-  useEffect(() => { if (s?.ask && !seen.current) seen.current = s.ask.id; }, [s?.ask?.id]);
-
   const answer = async (decision: Decision, extra: { answers?: Answer[]; note?: string } = {}) => {
     if (!s?.ask || busy) return;
     setBusy(true); setErr(null);
@@ -43,6 +32,31 @@ export function AskPopup({ id, state, onClose, openProfile }: { id: string; stat
     else if (/first/.test(r.message ?? '')) setErr(r.message);
     else setDone(r.message ?? 'That one was already answered.');
   };
+  return { done, setDone, busy, err, answer };
+}
+
+/** The choices for what they asked: Approve / Deny, a plan to approve or change, or their questions. */
+export function AskBody({ s, busy, answer, focus = true }: { s: SessionView; busy: boolean; answer: ReturnType<typeof useAsk>['answer']; focus?: boolean }) {
+  const a = s.ask;
+  return !a ? <TerminalOnly s={s} />
+    : a.questions?.length ? <Questions key={a.id} qs={a.questions} busy={busy} onSend={(answers) => answer('answer', { answers })} />
+    : a.tool === 'ExitPlanMode' ? <Plan key={a.id} a={a} busy={busy} focus={focus} onAnswer={answer} />
+    : <Permission key={a.id} a={a} busy={busy} focus={focus} onAnswer={answer} />;
+}
+
+export function AskPopup({ id, state, onClose, openProfile }: { id: string; state: StateView; onClose: () => void; openProfile: (id: string) => void }) {
+  const now = useNow(15000);
+  const s = state.sessions.find((x) => x.id === id);
+  const { done, setDone, busy, err, answer } = useAsk(s);
+  const seen = useRef<string | null>(s?.ask?.id ?? null);
+
+  // Answered in the terminal (or the agent moved on) while this was open: say so, then get out of the way.
+  const settled = !s || s.status !== 'needs_input' || (seen.current && s.ask?.id !== seen.current);
+  useEffect(() => {
+    if (settled && !done) setDone(s?.status === 'ended' ? 'They clocked out.' : 'Answered in the terminal.');
+  }, [settled]);
+  useEffect(() => { if (done) { const t = setTimeout(onClose, 1400); return () => clearTimeout(t); } }, [done]);
+  useEffect(() => { if (s?.ask && !seen.current) seen.current = s.ask.id; }, [s?.ask?.id]);
 
   if (!s) return null;
   const project = state.projects.find((p) => p.id === s.projectId);
@@ -62,10 +76,7 @@ export function AskPopup({ id, state, onClose, openProfile }: { id: string; stat
 
         {done ? <p className="ask-done" role="status">{done}</p>
           : !a && s.handKind === 'question' && s.runner ? <Reply s={s} onSent={(words) => setDone(`Sent “${words.length > 60 ? words.slice(0, 59) + '…' : words}”. ${s.agent.name} is back to work.`)} />
-          : !a ? <TerminalOnly s={s} />
-          : a.questions?.length ? <Questions key={a.id} qs={a.questions} busy={busy} onSend={(answers) => answer('answer', { answers })} />
-          : a.tool === 'ExitPlanMode' ? <Plan key={a.id} a={a} busy={busy} onAnswer={answer} />
-          : <Permission key={a.id} a={a} busy={busy} onAnswer={answer} />}
+          : <AskBody s={s} busy={busy} answer={answer} />}
         {err && !done ? <p className="ask-err" role="alert">{err}</p> : null}
 
         {!done ? (
@@ -137,9 +148,9 @@ function Detail({ a }: { a: AskView }) {
     : <pre className="ask-detail">{a.detail}</pre>;
 }
 
-function Permission({ a, busy, onAnswer }: { a: AskView; busy: boolean; onAnswer: (d: Decision) => void }) {
+function Permission({ a, busy, focus, onAnswer }: { a: AskView; busy: boolean; focus: boolean; onAnswer: (d: Decision) => void }) {
   const approve = useRef<HTMLButtonElement>(null);
-  useEffect(() => { approve.current?.focus(); }, []);
+  useEffect(() => { if (focus) approve.current?.focus(); }, []);
   return (
     <>
       <div className="ask-body"><p className="ask-title">{a.title}</p><Detail a={a} /></div>
@@ -153,7 +164,7 @@ function Permission({ a, busy, onAnswer }: { a: AskView; busy: boolean; onAnswer
 }
 
 /** A plan ready to start: approve it, or send it back with what should change. */
-function Plan({ a, busy, onAnswer }: { a: AskView; busy: boolean; onAnswer: (d: Decision, extra?: { note?: string }) => void }) {
+function Plan({ a, busy, focus, onAnswer }: { a: AskView; busy: boolean; focus: boolean; onAnswer: (d: Decision, extra?: { note?: string }) => void }) {
   const [changing, setChanging] = useState(false);
   const [note, setNote] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
@@ -177,7 +188,7 @@ function Plan({ a, busy, onAnswer }: { a: AskView; busy: boolean; onAnswer: (d: 
     <>
       <div className="ask-body"><p className="ask-title">{a.title}</p><Detail a={a} /></div>
       <div className="ask-actions">
-        <button className="btn approve" onClick={() => onAnswer('allow')} disabled={busy} autoFocus>Approve</button>
+        <button className="btn approve" onClick={() => onAnswer('allow')} disabled={busy} autoFocus={focus}>Approve</button>
         <button className="ghost" onClick={() => setChanging(true)} disabled={busy}>Ask for changes</button>
         <button className="ghost deny" onClick={() => onAnswer('deny')} disabled={busy}>Deny</button>
       </div>
