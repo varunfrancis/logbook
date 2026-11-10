@@ -22,25 +22,25 @@ test('states and task names', () => {
   assert.equal(chatTask(mk({ title: 'New session' })), null);
 });
 
-test('the list is by project: hands pinned on top, live tasks (working first), done today, empty sessions only counted', () => {
-  const hand = mk({ status: 'needs_input', focus: 'Approve the plan', projectId: 'p2', projectName: 'CAT Quant Prep' });
+test('the list is like Slack: a section per project with live tasks (hands first), one Done today section, empty sessions left out', () => {
+  const hand = mk({ status: 'needs_input', focus: 'Approve the plan', projectId: 'p2', projectName: 'CAT Quant Prep', lastEventAt: NOW - 2 * H });
+  const turn2 = mk({ status: 'idle', focus: 'Check paid users', projectId: 'p2', projectName: 'CAT Quant Prep', lastEventAt: NOW - H });
   const turn = mk({ status: 'idle', focus: 'Estimate PR timeline', lastEventAt: NOW - 10 * 60_000 });
   const run = mk({ status: 'running', focus: 'Build chat', lastEventAt: NOW - 3 * H });
   const done = mk({ status: 'ended', focus: 'Fix VS Code', endedAt: NOW - 2 * H, lastEventAt: NOW - 2 * H });
   const old = mk({ status: 'ended', focus: 'Fix login', endedAt: DAY - 5 * H, lastEventAt: DAY - 5 * H });
   const empty = mk({ status: 'idle', title: 'New session', prompts: 0 });
-  const quiet = mk({ status: 'ended', focus: 'Install deps', projectId: 'p3', projectName: 'Portfolio', endedAt: NOW - H, lastEventAt: NOW - 4 * H });
-  const { needs, projects } = chatProjects([quiet, old, done, run, turn, empty, hand], NOW);
-  assert.deepEqual(needs.map((s) => s.id), [hand.id]);
-  assert.deepEqual(projects.map((p) => p.name), ['Agent Logbook', 'CAT Quant Prep', 'Portfolio']);
-  const lb = projects[0];
-  assert.deepEqual(lb.live.map((s) => s.id), [run.id, turn.id]);
-  assert.deepEqual(lb.done.map((s) => s.id), [done.id]);
-  assert.equal(lb.empty, 1);
-  assert.equal(projects[1].hand, true);
+  const quiet = mk({ status: 'ended', focus: 'Install deps', projectId: 'p3', projectName: 'Portfolio', endedAt: NOW - H, lastEventAt: NOW - H });
+  const { projects, done: doneToday } = chatProjects([quiet, old, done, run, turn, turn2, empty, hand], NOW);
+  // the project with a raised hand comes first, and the hand is first in it
+  assert.deepEqual(projects.map((p) => [p.name, p.needs]), [['CAT Quant Prep', 1], ['Agent Logbook', 0]]);
+  assert.deepEqual(projects[0].live.map((s) => s.id), [hand.id, turn2.id]);
+  assert.deepEqual(projects[1].live.map((s) => s.id), [run.id, turn.id]);
+  assert.deepEqual(doneToday.map((s) => s.id), [quiet.id, done.id]);
+  assert.ok(!projects.flatMap((p) => p.live).some((s) => s.id === empty.id));
   // search: by task or project, older work included
-  assert.deepEqual(chatProjects([old, done], NOW, 'login').projects[0].done.map((s) => s.id), [old.id]);
-  assert.deepEqual(chatProjects([quiet, done], NOW, 'portfolio').projects.map((p) => p.name), ['Portfolio']);
+  assert.deepEqual(chatProjects([old, done], NOW, 'login').done.map((s) => s.id), [old.id]);
+  assert.deepEqual(chatProjects([quiet, done, turn2], NOW, 'quant').projects.map((p) => p.name), ['CAT Quant Prep']);
 });
 
 test('previews say what they ask, what they are doing, or the first line of their reply', () => {

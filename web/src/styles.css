@@ -1301,19 +1301,26 @@ code.ask-detail { display: block; }
   .chats-list::-webkit-scrollbar-thumb:hover, .chat-log::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
 }
 
-/* Projects as headings, like channels */
-.chats-project { padding-bottom: 2px; }
-.chats-ph { display: flex; align-items: center; gap: 2px; padding: 10px 2px 2px 0; }
-.chats-ph-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; border: 0; background: none; padding: 4px 6px; border-radius: 8px; cursor: pointer; text-align: left; color: var(--ink); }
-.chats-ph-name:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.chats-ph-name .car { width: 10px; font-size: 10px; color: var(--ink-3); flex: none; }
-.chats-ph-name b { font: 600 14.5px/1.2 var(--f-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chats-ph-name .hand { width: 8px; height: 8px; border-radius: 50%; background: var(--needs); flex: none; }
-.chats-ph-name .n { margin-left: auto; font: 700 11.5px var(--f-body); color: var(--ink-3); white-space: nowrap; }
-.chats-ph-add { flex: none; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--ink-3); font-size: 15px; cursor: pointer; opacity: .7; }
-.chats-ph-add:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); opacity: 1; }
-.chats-done { display: block; width: 100%; border: 0; background: none; text-align: left; padding: 4px 8px 4px 28px; font: 800 12px var(--f-body); color: var(--ink-3); cursor: pointer; border-radius: 8px; }
-.chats-done:hover { color: var(--ink); }
-.chats-emptyline { margin: 0; padding: 2px 8px 4px 28px; font-size: 11.5px; color: var(--ink-3); }
-.g-needs .chats-gh { color: var(--needs); }
-.chats-who > .l1 { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; overflow-wrap: anywhere; }
+/* The list, Slack-style: quiet project sections, one line per task, loud only when something needs a look */
+.chats-section { padding-top: 10px; }
+.chats-sec { display: flex; align-items: center; gap: 4px; padding: 0 4px 2px 0; }
+.chats-sec-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; text-align: left; color: var(--ink-2); font: 700 13px/1.2 var(--f-body); }
+.chats-sec-name:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.chats-sec-name .car { width: 12px; font-size: 12px; line-height: 1; color: var(--ink-3); flex: none; text-align: center; }
+.chats-sec-name .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chats-sec-add { flex: none; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--ink-3); font-size: 14px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+.chats-sec:hover .chats-sec-add, .chats-sec-add:focus-visible { opacity: 1; }
+.chats-sec-add:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.chats-badge { flex: none; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 99px; background: var(--needs); color: #fff; font: 800 11px/18px var(--f-body); text-align: center; }
+
+.chats-list .chats-row { display: flex; align-items: center; gap: 9px; padding: 3px 8px 3px 10px; min-height: 36px; border-radius: 8px; }
+.chats-list .chats-face { position: relative; width: 30px; height: 30px; flex: none; }
+.chats-list .chats-face svg { width: 30px; height: 30px; overflow: visible; }
+.chats-live { position: absolute; right: -2px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--run); border: 2px solid var(--bg); }
+.chats-task { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.chats-row.loud .chats-task { font-weight: 800; color: var(--ink); }
+.chats-row.s-ended .chats-task { color: var(--ink-3); }
+.chats-row.on .chats-task { color: var(--ink); }
+.chats-proj { flex: 0 1 auto; max-width: 30%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; color: var(--ink-3); }
+.chats-list .chats-badge { font-size: 10px; }
+.chats-list .chats-new-dot { flex: none; margin-right: 4px; }

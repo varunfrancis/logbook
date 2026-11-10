@@ -18,10 +18,10 @@ import { statusLine } from './AgentPanel.tsx';
  */
 
 const RAIL_KEY = 'swarmville.chatRail';
-const FOLD_KEY = 'swarmville.chatFolds'; // projects you opened or closed by hand, and which "Done today" lists are open
+const FOLD_KEY = 'swarmville.chatFolds2'; // sections you folded by hand (project ids, or "done")
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} } };
 const readJson = <T,>(k: string, d: T): T => { try { return JSON.parse(store.get(k) || '') as T; } catch { return d; } };
-type Folds = { project: Record<string, boolean>; done: Record<string, boolean> };
+type Folds = Record<string, boolean>; // true = folded
 
 export function Chats({ state, chatId, setChatId, openProject, openAsk, openProfile }: {
   state: StateView; chatId: string | null; setChatId: (id: string | null) => void;
@@ -34,7 +34,7 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
   const [mode, setMode] = useState<'chat' | 'new'>('chat');
   const [reading, setReading] = useState(!!chatId); // phones: the list, or one conversation
   const [rail, setRail] = useState(store.get(RAIL_KEY) === '1');
-  const [folds, setFoldsRaw] = useState<Folds>(() => readJson(FOLD_KEY, { project: {}, done: {} }));
+  const [folds, setFoldsRaw] = useState<Folds>(() => readJson<Folds>(FOLD_KEY, { done: true }));
   const setFolds = (f: Folds) => { setFoldsRaw(f); store.set(FOLD_KEY, JSON.stringify(f)); };
   const [newIn, setNewIn] = useState<string | null>(null); // Give a task, already in this project
   const find = useRef<HTMLInputElement>(null);
@@ -42,10 +42,9 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
 
   const projectName = useMemo(() => new Map(state.projects.map((p) => [p.id, p.name])), [state.projects]);
   const list = useMemo(() => chatProjects(state.sessions.map((s) => ({ ...s, projectName: projectName.get(s.projectId ?? '') })), now, query), [state.sessions, projectName, now, query]);
-  // A project with nothing live folds to one line (it opens when someone there raises a hand); a search opens everything.
-  const projectOpen = (p: ChatProject) => !!query || (folds.project[p.id] ?? (p.live.length > 0 || p.hand || p.empty > 0));
-  const doneOpen = (p: ChatProject) => !!query || !!folds.done[p.id];
-  const order = [...list.needs.map((x) => x.id), ...list.projects.flatMap((p) => (projectOpen(p) ? [...p.live, ...(doneOpen(p) ? p.done : [])].map((x) => x.id) : []))];
+  // A section stays open unless you fold it; a raised hand or a search always shows. "Done today" starts folded.
+  const isOpen = (key: string, needs = 0) => !!query || needs > 0 || !folds[key];
+  const order = [...list.projects.flatMap((p) => (isOpen(p.id, p.needs) ? p.live : [])), ...(isOpen('done') ? list.done : [])].map((x) => x.id);
 
   // Nothing picked yet (or they're gone): open whoever's first in the list.
   const s = state.sessions.find((x) => x.id === chatId) ?? null;
@@ -67,12 +66,20 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
     addEventListener('keydown', f); return () => removeEventListener('keydown', f);
   });
   const toggleRail = () => { setRail(!rail); store.set(RAIL_KEY, rail ? '0' : '1'); };
-  const toggleProject = (p: ChatProject) => setFolds({ ...folds, project: { ...folds.project, [p.id]: !projectOpen(p) } });
-  const toggleDone = (p: ChatProject) => setFolds({ ...folds, done: { ...folds.done, [p.id]: !doneOpen(p) } });
+  const toggle = (key: string) => setFolds({ ...folds, [key]: !folds[key] });
   const newTask = (projectId: string | null) => { setNewIn(projectId); setMode('new'); setReading(true); };
   const row = (x: SessionView & { projectName?: string }, withProject = false) => (
     <Row key={x.id} s={x} project={withProject ? x.projectName : undefined} on={mode === 'chat' && x.id === chatId} unread={isUnread(x, seen, since) && x.id !== chatId}
       preview={chatPreview(x, voice)} now={now} onPick={() => pick(x.id)} />
+  );
+  const header = (key: string, label: string, opts: { needs?: number; projectId?: string } = {}) => (
+    <div className="chats-sec">
+      <button type="button" className="chats-sec-name" aria-expanded={isOpen(key, opts.needs)} onClick={() => toggle(key)}>
+        <span className="car" aria-hidden>{isOpen(key, opts.needs) ? '▾' : '▸'}</span><span className="t">{label}</span>
+      </button>
+      {opts.needs ? <span className="chats-badge" title={`${opts.needs} need${opts.needs === 1 ? 's' : ''} you`}>{opts.needs}</span> : null}
+      {opts.projectId ? <button type="button" className="chats-sec-add" onClick={() => newTask(opts.projectId!)} title={`Give a task in ${label}`} aria-label={`Give a task in ${label}`}>＋</button> : null}
+    </div>
   );
 
   return (
@@ -92,35 +99,19 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
           </label>
         </div>
         <nav className="chats-list" ref={listRef} aria-label="Conversations">
-          {!list.needs.length && !list.projects.length ? <p className="chats-none">{query ? 'Nothing matches that.' : 'Nobody’s been at work today. Give someone a task to get started.'}</p> : null}
-          {list.needs.length ? (
-            <section className="chats-group g-needs">
-              <h3 className="chats-gh"><i aria-hidden />Needs you<span className="n">{list.needs.length}</span></h3>
-              {list.needs.map((x) => row(x, true))}
+          {!list.done.length && !list.projects.length ? <p className="chats-none">{query ? 'Nothing matches that.' : 'Nobody’s been at work today. Give someone a task to get started.'}</p> : null}
+          {list.projects.map((p) => (
+            <section key={p.id} className="chats-section">
+              {header(p.id, p.name, { needs: p.needs, projectId: p.id || undefined })}
+              {isOpen(p.id, p.needs) ? p.live.map((x) => row(x)) : null}
+            </section>
+          ))}
+          {list.done.length ? (
+            <section className="chats-section done">
+              {header('done', query ? `Done · ${list.done.length}` : `Done today · ${list.done.length}`)}
+              {isOpen('done') ? list.done.map((x) => row(x, true)) : null}
             </section>
           ) : null}
-          {list.projects.map((p) => {
-            const open = projectOpen(p);
-            return (
-              <section key={p.id} className={`chats-project${open ? ' open' : ''}`}>
-                <div className="chats-ph">
-                  <button type="button" className="chats-ph-name" aria-expanded={open} onClick={() => toggleProject(p)}>
-                    <span className="car" aria-hidden>{open ? '▾' : '▸'}</span><b>{p.name}</b>{p.hand ? <span className="hand" title="Someone here needs you" /> : null}
-                    <span className="n">{p.live.length ? `${p.live.length} live` : p.done.length ? `${p.done.length} done` : ''}</span>
-                  </button>
-                  {p.id ? <button type="button" className="chats-ph-add" onClick={() => newTask(p.id)} title={`Give a task in ${p.name}`} aria-label={`Give a task in ${p.name}`}>＋</button> : null}
-                </div>
-                {open ? <>
-                  {p.live.map((x) => row(x))}
-                  {p.done.length ? <>
-                    <button type="button" className="chats-done" aria-expanded={doneOpen(p)} onClick={() => toggleDone(p)}>{doneOpen(p) ? '▾' : '▸'} {query ? 'Done' : 'Done today'} · {p.done.length}</button>
-                    {doneOpen(p) ? p.done.map((x) => row(x)) : null}
-                  </> : null}
-                  {p.empty ? <p className="chats-emptyline">+{p.empty} open, nothing asked yet</p> : null}
-                </> : null}
-              </section>
-            );
-          })}
         </nav>
       </aside>
 
@@ -154,22 +145,21 @@ export function Chats({ state, chatId, setChatId, openProject, openAsk, openProf
   );
 }
 
-/** One task: the agent's face (big enough to recognise), what the task is, and what they're asking, doing or last said. */
+/**
+ * One task on one line, like a Slack channel: the agent's face (teal dot while they work), the task, and a badge
+ * only when it needs a look (✋ a raised hand, an orange dot for a reply you haven't read). The rest is in the tooltip.
+ */
 function Row({ s, project, on, unread, preview, now, onPick }: { s: SessionView; project?: string; on: boolean; unread: boolean; preview: string; now: number; onPick: () => void }) {
-  const terminal = !s.runner && (s.status === 'running' || s.status === 'needs_input' || s.status === 'idle');
   const task = chatTask(s) ?? 'Waiting for a task';
+  const needs = s.status === 'needs_input';
+  const when = s.status === 'running' ? 'working now' : ago(s.lastEventAt ?? s.endedAt, now);
   return (
-    <button type="button" data-id={s.id} className={`chats-row s-${s.status}${on ? ' on' : ''}${unread ? ' unread' : ''}`} onClick={onPick} aria-current={on ? 'true' : undefined}
-      title={`${s.agent.title}${project ? ` · ${project}` : ''}`}>
-      <span className="chats-face"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={40} live={s.status === 'running'} /><span className={`chats-dot dot s-${s.away ? 'away' : s.status}`} aria-hidden /></span>
-      <span className="chats-who">
-        <span className="l1">{task}</span>
-        <span className="l3">{s.status === 'needs_input' ? '✋ ' : ''}{project ? `${project} · ` : ''}{preview}</span>
-      </span>
-      <span className="chats-meta">
-        <span>{s.status === 'running' ? 'now' : ago(s.lastEventAt ?? s.endedAt, now).replace(' ago', '')}</span>
-        {unread ? <span className="chats-new-dot" title="New reply" /> : terminal ? <span className="chats-term" title="Running in your terminal: read here, reply there">›_</span> : null}
-      </span>
+    <button type="button" data-id={s.id} className={`chats-row s-${s.status}${on ? ' on' : ''}${unread || needs ? ' loud' : ''}`} onClick={onPick} aria-current={on ? 'true' : undefined}
+      title={`${task}\n${s.agent.title}${project ? ` · ${project}` : ''} · ${when}\n${preview}`}>
+      <span className="chats-face"><AgentAvatar agent={s.agent} mood={moodFor(s)} size={30} />{s.status === 'running' ? <span className="chats-live" aria-label="working" /> : null}</span>
+      <span className="chats-task">{task}</span>
+      {project ? <span className="chats-proj">{project}</span> : null}
+      {needs ? <span className="chats-badge" aria-label="needs you">✋</span> : unread ? <span className="chats-new-dot" aria-label="new reply" /> : null}
     </button>
   );
 }

@@ -25,36 +25,37 @@ export function chatTask(s: Pick<SessionView, 'focus' | 'title'>): string | null
 }
 
 type Findable = SessionView & { projectName?: string };
-export type ChatProject = { id: string; name: string; hand: boolean; live: Findable[]; done: Findable[]; empty: number; last: number };
+export type ChatProject = { id: string; name: string; needs: number; live: Findable[]; last: number };
 
 /**
- * The list, by project (like channels). Raised hands are pinned on top across projects. In each project: live tasks
- * (working first, then waiting on you), then what finished today. Sessions where nothing was ever asked only count.
- * Without a search: today only. With one: anyone whose task, project or name matches, older ones included.
+ * The list, like Slack's sidebar: one section per project with its live tasks (raised hands first, then working, then
+ * waiting on you), and one "Done today" section at the bottom. Sessions where nothing was ever asked are left out.
+ * Without a search: today only. With one: anything whose task, project or agent matches, older work included.
  */
-export function chatProjects(sessions: Findable[], now: number, query = ''): { needs: Findable[]; projects: ChatProject[] } {
+export function chatProjects(sessions: Findable[], now: number, query = ''): { projects: ChatProject[]; done: Findable[] } {
   const day = startOfDay(now);
   const q = query.trim().toLowerCase();
   const last = (s: Findable) => s.lastEventAt ?? s.endedAt ?? s.startedAt ?? 0;
   const match = (s: Findable) => !q || [chatTask(s), s.projectName, s.agent.name, s.agent.title].some((x) => x?.toLowerCase().includes(q));
-  const needs: Findable[] = [];
+  const rank = { needs: 0, working: 1, turn: 2, done: 3 } as const;
   const by = new Map<string, ChatProject>();
+  const done: Findable[] = [];
   for (const s of [...sessions].sort((a, b) => last(b) - last(a))) {
     const st = chatState(s);
     if (st === 'done' && last(s) < day && !q) continue;
+    if (!chatTask(s) && !s.prompts && st !== 'needs') continue; // opened, nothing asked
     if (!match(s)) continue;
+    if (st === 'done') { if (done.length < 40) done.push(s); continue; }
     const id = s.projectId ?? '';
-    const p = by.get(id) ?? { id, name: s.projectName ?? 'Other', hand: false, live: [], done: [], empty: 0, last: 0 };
+    const p = by.get(id) ?? { id, name: s.projectName ?? 'Other', needs: 0, live: [], last: 0 };
     by.set(id, p);
     p.last = Math.max(p.last, last(s));
-    if (st === 'needs') { needs.push(s); p.hand = true; continue; }
-    if (!chatTask(s) && !s.prompts) { if (st !== 'done') p.empty++; continue; }
-    if (st === 'done') { if (p.done.length < 30) p.done.push(s); } else p.live.push(s);
+    if (st === 'needs') p.needs++;
+    p.live.push(s);
   }
-  for (const p of by.values()) p.live.sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || last(b) - last(a));
-  const projects = [...by.values()].filter((p) => p.live.length || p.done.length || p.empty || p.hand)
-    .sort((a, b) => Number(b.hand || b.live.length > 0) - Number(a.hand || a.live.length > 0) || b.last - a.last);
-  return { needs, projects };
+  for (const p of by.values()) p.live.sort((a, b) => rank[chatState(a)] - rank[chatState(b)] || last(b) - last(a));
+  const projects = [...by.values()].sort((a, b) => Number(b.needs > 0) - Number(a.needs > 0) || b.last - a.last);
+  return { projects, done };
 }
 
 /** The first readable line of a reply, without Markdown marks. */
