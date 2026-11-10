@@ -1123,3 +1123,34 @@ code.ask-detail { display: block; }
 .turn-chip:hover { border-color: var(--accent); }
 .turn-chip.ghost { color: var(--ink-3); border-style: dashed; }
 
+/* Replying from the town: a speech bubble over the agent, white like the town's other bubbles in both themes */
+.city-labels > .town-reply { pointer-events: auto; padding-bottom: 12px; }
+.tr-card { position: relative; width: min(300px, 78vw); background: #fff; color: #25303d; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 0 #25303d22, 0 12px 30px #0c121a33; font: 600 13px/1.4 var(--f-body); text-align: left; }
+.town-reply.done .tr-card { width: min(250px, 72vw); }
+.tr-card::after { content: ""; position: absolute; left: calc(50% + var(--tail, 0px)); margin-left: -8px; bottom: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: #fff; }
+.city-labels > .town-reply.below { padding-bottom: 0; padding-top: 12px; }
+.town-reply.below .tr-card::after { bottom: auto; top: -8px; border-top: 0; border-bottom: 8px solid #fff; }
+.tr-who { display: flex; align-items: center; gap: 8px; }
+.tr-who b { font: 600 15px/1 var(--f-display); }
+.tr-pill { font: 800 9.5px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; background: var(--needs); color: #fff; border-radius: 99px; padding: 4px 7px; }
+.tr-pill.ok { background: var(--done); }
+.tr-q, .tr-sent, .tr-err { margin: 0; }
+.tr-err { color: #b42318; font-size: 12px; }
+.tr-sent span { color: var(--done); font-weight: 800; }
+.tr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tr-chips button { font: 700 12px var(--f-body); padding: 7px 10px; border-radius: 99px; background: #f0ede6; color: #25303d; border: 1px solid #25303d1a; cursor: pointer; }
+.tr-chips button:hover { border-color: var(--accent); }
+.tr-input { display: flex; align-items: center; gap: 6px; background: #f0ede6; border-radius: 12px; padding: 4px 4px 4px 10px; }
+.tr-input:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.tr-input input { flex: 1; min-width: 0; border: 0; background: none; font: 600 13px/1.3 var(--f-body); color: #25303d; padding: 6px 0; outline: none; }
+.tr-input input::placeholder { color: #8b94a1; }
+.tr-input button { width: 30px; height: 30px; border-radius: 9px; border: 0; background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
+.tr-input button:disabled { background: #e2ded5; color: #8b94a1; cursor: default; }
+.tr-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tr-foot button { border: 0; background: none; padding: 0; font: 800 12px var(--f-body); color: #5c6878; cursor: pointer; }
+.tr-foot button:hover { color: #25303d; }
+.tr-foot .tr-hi5 { background: #f0ede6; border-radius: 99px; padding: 6px 10px; color: #25303d; }
+.tr-foot .tr-hi5.done { background: #ef9a1a33; color: #9a5b00; cursor: default; }
+.tr-card button:focus-visible, .tr-input input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { .town-reply .tr-card { animation: wel-rise .3s ease-out both; } }
+

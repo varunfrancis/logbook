@@ -1,13 +1,16 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TownReplies } from './TownReplies.tsx';
 import type { StateView } from '../../../daemon/types.ts';
 import { CityScene } from './scene.ts';
 import { PROJECT, useVoice, type Bubble } from '../copy.ts';
 import { BumpToasts } from './BumpToasts.tsx';
 import { LiveFeed } from './LiveFeed.tsx';
 
-export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null }: {
+export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focus, showLots, bubble, dark, onShare, tourFocus = null, openAgentId = null }: {
   /** tourFocus: a building the welcome tour is pointing at; the camera flies there and names it. */
   tourFocus?: string | null;
+  /** The agent whose drawer is open: their town reply bubble steps aside. */
+  openAgentId?: string | null;
   state: StateView; selected: string | null; onSelect: (id: string | null) => void; onAgent: (sessionId: string) => void; onGraveyard: () => void;
   focus: { sessions: Set<string> | null; projects: Set<string> | null; sessionProjects: Set<string> }; showLots: boolean; bubble: Bubble; dark: boolean; onShare: () => void;
 }) {
@@ -15,6 +18,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   const host = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   const scene = useRef<CityScene | null>(null);
+  const [ready, setReady] = useState<CityScene | null>(null); // the scene, once it exists (children's effects run before ours)
   const cb = useRef({ onSelect, onAgent, onGraveyard });
   cb.current = { onSelect, onAgent, onGraveyard };
   const activeCount = state.projects.filter((p) => p.state === 'site' || p.state === 'needs').length;
@@ -22,7 +26,8 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
   useEffect(() => {
     const s = new CityScene(host.current!, labels.current!, { onSelect: (id) => cb.current.onSelect(id), onAgent: (id) => cb.current.onAgent(id), onGraveyard: () => cb.current.onGraveyard() });
     scene.current = s;
-    return () => { s.dispose(); scene.current = null; };
+    setReady(s);
+    return () => { s.dispose(); scene.current = null; setReady(null); };
   }, []);
   useEffect(() => { scene.current?.setBubble(bubble); }, [bubble]);
   // a high-five from an agent's chat: they cheer in the town too
@@ -46,6 +51,7 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     <div className="city">
       <div className="city-canvas" ref={host} />
       <div className="city-labels" ref={labels} />
+      <TownReplies state={state} scene={ready} openAgent={onAgent} openId={openAgentId} />
       <div className="town-left">
         <BumpToasts state={state} onAgent={onAgent} />
       </div>

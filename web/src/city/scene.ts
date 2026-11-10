@@ -106,6 +106,8 @@ export class CityScene {
   private doingEls = new Map<string, HTMLElement>();
   /** Where each agent stands, for things that pop up over them (a high-five). */
   private crewAnchors = new Map<string, { anchor: THREE.Object3D; labels: Label[]; pid: string }>();
+  /** Reply bubbles the town UI owns (React), kept over their agent every frame. */
+  private replyEls = new Map<string, HTMLElement>();
   /** What each agent's always-on bubble says: the job they're on, the project, or their current step in 2–3 words. */
   private bubble: Bubble = 'job';
   private projectNames = new Map<string, string>();
@@ -398,6 +400,49 @@ export class CityScene {
     const { right, fwd } = this.axes();
     void fwd;
     this.flyTo({ x: this.v.x + right.x * shift, z: this.v.z + right.z * shift, az: this.az, zoom });
+  }
+
+  /** Keeps `el` floating over the agent (or hidden while they're not in view). null lets go of it. */
+  attachReply(sessionId: string, el: HTMLElement | null) {
+    const old = this.replyEls.get(sessionId);
+    if (old && old !== el) old.remove();
+    if (!el) { this.replyEls.delete(sessionId); return; }
+    el.style.display = 'none';
+    if (el.parentElement !== this.labelLayer) this.labelLayer.appendChild(el);
+    this.replyEls.set(sessionId, el);
+  }
+
+  private placeReplies(W: number, H: number) {
+    // questions first; a "Finished" bubble that would cover another one steps aside; questions that collide stack
+    const order = [...this.replyEls].sort(([, a], [, b]) => Number(b.classList.contains('ask')) - Number(a.classList.contains('ask')));
+    const boxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    const hit = (b: { x0: number; y0: number; x1: number; y1: number }) => boxes.find((q) => b.x0 < q.x1 + 6 && b.x1 > q.x0 - 6 && b.y0 < q.y1 + 6 && b.y1 > q.y0 - 6);
+    for (const [sid, el] of order) {
+      const c = this.crewAnchors.get(sid);
+      let root: THREE.Object3D | null = c?.anchor ?? null, shown = !!root;
+      while (root?.parent) { if (!root.visible) shown = false; root = root.parent; }
+      if (!c || !shown || root !== this.scene) { el.style.display = 'none'; continue; }
+      c.anchor.getWorldPosition(this.v); this.v.y += 0.9; this.v.project(this.cam);
+      if (this.v.x < -1.1 || this.v.x > 1.1 || this.v.y < -1.1 || this.v.y > 1.3) { el.style.display = 'none'; continue; }
+      el.style.display = '';
+      const x = ((this.v.x + 1) / 2) * W, y = ((1 - this.v.y) / 2) * H;
+      // keep the whole bubble on screen: slide sideways, and hang below the agent when there's no room above
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const cx = Math.min(Math.max(x, w / 2 + 8), W - w / 2 - 8);
+      const below = y - h < 8;
+      el.classList.toggle('below', below);
+      let cy = below ? Math.min(y + 70, H - h - 8) : y;
+      let top = below ? cy : cy - h;
+      for (let guard = 0, q = hit({ x0: cx - w / 2, y0: top, x1: cx + w / 2, y1: top + h }); q && guard < 4; guard++, q = hit({ x0: cx - w / 2, y0: top, x1: cx + w / 2, y1: top + h })) {
+        if (!el.classList.contains('ask')) { top = NaN; break; }
+        top = below ? q.y1 + 8 : q.y0 - 8 - h; cy = below ? top : top + h;
+      }
+      if (Number.isNaN(top) || top < 0 || top + h > H) { el.style.display = 'none'; continue; }
+      boxes.push({ x0: cx - w / 2, y0: top, x1: cx + w / 2, y1: top + h });
+      el.style.transform = `translate(${cx.toFixed(1)}px,${cy.toFixed(1)}px) translate(-50%,${below ? '0' : '-100%'})`;
+      el.style.setProperty('--tail', `${(x - cx).toFixed(0)}px`);
+      el.style.zIndex = '9500';
+    }
   }
 
   /** A high-five from the chat: "✋ High five!" pops up over the agent in the town for a moment. */
@@ -1353,6 +1398,7 @@ export class CityScene {
       if (L.kind === 'bb' && L.pid !== this.selected && L.pid !== this.hovered) plainNames.push({ L, x, y });
       if (L.kind === 'fx') signs.push({ L, x, y });
     }
+    this.placeReplies(W, H);
     // Resting crew at one site share a single tag ("4 on coffee break") instead of a pile of identical pills.
     // Hover or select the building to see each of them by name again.
     const restGroups = new Map<string, { L: Label; x: number; y: number }[]>();
