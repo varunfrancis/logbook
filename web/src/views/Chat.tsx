@@ -6,6 +6,10 @@ import { AgentAvatar } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { Markdown } from './Markdown.tsx';
 import { yourTurn } from '../turn.ts';
+import { markSeen } from '../chats.ts';
+
+/** What you were typing to each agent, kept while you move between chats (or from the drawer to Chats). */
+const drafts = new Map<string, string>();
 
 /** Tells the drawer header and the town to cheer along when you high-five an agent. */
 export const HIGH_FIVE = 'swarmville:highfive';
@@ -75,7 +79,8 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   const voice = useVoice();
   const name = s.agent.name;
   const [view, setView] = useState<ChatView | null>(null);
-  const [text, setText] = useState('');
+  const [text, setTextRaw] = useState(() => drafts.get(s.id) ?? '');
+  const setText = (v: string) => { setTextRaw(v); if (v) drafts.set(s.id, v); else drafts.delete(s.id); };
   const [imgs, setImgs] = useState<Img[]>([]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string; at: number } | null>(null);
@@ -101,6 +106,9 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   // notes fade on their own instead of sitting under the box forever
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast?.at]);
   const say = (ok: boolean, msg: string) => setToast({ ok, text: msg, at: Date.now() });
+
+  // Having the chat open counts as reading it (the Chats list stops showing their reply as new).
+  useEffect(() => { if (view) markSeen(s.id); }, [s.id, view?.lines.length, s.lastEventAt, s.status]);
 
   const items = groupLines(view?.lines ?? []);
   const count = view?.lines.length ?? 0;

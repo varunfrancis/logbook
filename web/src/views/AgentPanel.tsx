@@ -37,11 +37,12 @@ export function statusLine(s: Pick<SessionView, 'status' | 'away' | 'runner' | '
   return { cls: 'ended', text: `Asleep${since}${quiet ? '' : ' · a message wakes them'}` };
 }
 
-export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void; openAsk?: (sessionId: string) => void }) {
+export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk, onExpand, startTab = 'chat' }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void; openAsk?: (sessionId: string) => void;
+  /** Open this agent in the full-screen Chats view. */ onExpand?: (sessionId: string) => void; startTab?: 'chat' | 'profile' }) {
   const voice = useVoice();
   const now = useNow(15000);
   const d = useAgent(id, state.generatedAt);
-  const [tab, setTab] = useState<'chat' | 'profile'>('chat'); // always opens on the chat
+  const [tab, setTab] = useState<'chat' | 'profile'>(startTab); // opens on the chat, unless you asked for the profile
   const [hop, setHop] = useState(0);
   useEffect(() => {
     const f = (e: Event) => { if ((e as CustomEvent).detail?.sessionId === id) setHop(Date.now()); };
@@ -75,6 +76,7 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
               </> : null}
             </div>
           </div>
+          {onExpand ? <button className="ghost close expand" onClick={() => onExpand(s.id)} aria-label="Open in Chats" title="Open in Chats, full screen, with everyone else on the left">⤢</button> : null}
           <button className="ghost close" onClick={onClose} aria-label="Close" title="Close (Esc)">×</button>
         </header>
 

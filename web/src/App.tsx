@@ -3,6 +3,8 @@ import { useSwarmville } from './useSwarmville.ts';
 import { CrewView } from './views/CrewView.tsx';
 import { MedalToasts } from './crew/Leaderboard.tsx';
 import { AgentPanel } from './views/AgentPanel.tsx';
+import { Chats } from './views/Chats.tsx';
+import { chatsBadge, useSeen } from './chats.ts';
 import { AskPopup } from './views/AskPopup.tsx';
 import { ProjectPanel } from './ProjectPanel.tsx';
 import { GraveyardPanel } from './views/GraveyardPanel.tsx';
@@ -25,9 +27,9 @@ import { PipFavicon, townMood } from './crew/PipFavicon.tsx';
 import { useAgentSounds } from './crew/agentSounds.ts';
 import { shippedToday } from './crew/today.ts';
 
-type View = 'town' | 'crew';
+type View = 'town' | 'crew' | 'chats';
 // The Day tab is gone: old #day links land on Crew, at its Today section.
-const readView = (): View => (location.hash === '#crew' || location.hash === '#day' ? 'crew' : 'town');
+const readView = (): View => (location.hash === '#crew' || location.hash === '#day' ? 'crew' : location.hash === '#chats' ? 'chats' : 'town');
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} } };
 
 function useTheme() {
@@ -44,7 +46,7 @@ function useTheme() {
 }
 
 /** `back`: an ask opened from an agent's profile goes back to it when you're done (their chat carries on there). */
-type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cafe' | 'cost' | 'shipped'; id: string; back?: 'agent' } | null;
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cafe' | 'cost' | 'shipped'; id: string; back?: 'agent'; tab?: 'profile' } | null;
 
 export function App() {
   const { state, conn } = useSwarmville();
@@ -52,6 +54,11 @@ export function App() {
   useAgentSounds(state?.sessions);
   const [view, setView] = useState<View>(readView);
   const [sel, setSel] = useState<Sel>(null);
+  const [chatId, setChatIdRaw] = useState<string | null>(() => store.get('swarmville.chatAgent'));
+  const setChatId = useCallback((id: string | null) => { setChatIdRaw(id); if (id) store.set('swarmville.chatAgent', id); }, []);
+  const seen = useSeen();
+  const viewRef = useRef(view); viewRef.current = view;
+  const selRef = useRef(sel); selRef.current = sel;
   // FOR SALE lots: null until decided. A new town starts without them; a town that was already set up keeps them (see below).
   const [showLotsRaw, setShowLots] = useState<boolean | null>(() => { const v = store.get('swarmville.lots'); return v === '1' ? true : v === '0' ? false : null; });
   const showLots = showLotsRaw ?? false;
@@ -59,6 +66,7 @@ export function App() {
   const [costView, setCostView] = useState<CostView>(store.get('swarmville.costView') === 'api' ? 'api' : 'plan');
   const [bubble, setBubble] = useState<Bubble>(() => { const b = store.get('swarmville.bubbleMode'); return b === 'project' || b === 'task' ? b : 'job'; });
   const [modal, setModal] = useState<'settings' | 'town' | 'share' | null>(null);
+  const modalRef = useRef(modal); modalRef.current = modal;
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const theme = useTheme();
   const welcome = useWelcome(state);
@@ -98,10 +106,17 @@ export function App() {
     document.title = `${n ? `(${n}) ` : ''}${state ? `${state.town.name} · Swarmville Town` : 'Swarmville Town'}`;
   }, [state?.totals.needs, state?.town.name]);
   useEffect(() => {
-    const f = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSel(null); setModal(null); } };
+    const f = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // In Chats, Esc with nothing open on top goes back to the town (what you were typing is kept).
+      if (viewRef.current === 'chats' && !selRef.current && !modalRef.current) { location.hash = 'town'; setView('town'); return; }
+      setSel(null); setModal(null);
+    };
     addEventListener('keydown', f); return () => removeEventListener('keydown', f);
   }, []);
   const go = (v: View) => { location.hash = v; setView(v); };
+  const expand = useCallback((id: string) => { setChatId(id); setSel(null); location.hash = 'chats'; setView('chats'); }, []);
+  const badge = state ? chatsBadge(state.sessions, seen.seen, seen.since) : 0;
   const open = useMemo(() => ({ agent: (id: string) => setSel({ kind: 'agent', id }), project: (id: string) => setSel({ kind: 'project', id }), shipped: () => setSel({ kind: 'shipped', id: '' }) }), []);
   // In the town, an agent with a hand up opens just what they're asking (approve it right there), not the whole drawer.
   const townAgent = useCallback((id: string) => {
@@ -147,6 +162,9 @@ export function App() {
           <nav className="tabs" aria-label="View">
             <button className={view === 'town' ? 'on' : ''} onClick={() => go('town')}>Town</button>
             <button className={view === 'crew' ? 'on' : ''} onClick={() => go('crew')}>Crew</button>
+            <button className={view === 'chats' ? 'on' : ''} onClick={() => go('chats')} title="Every agent on the left, the conversation on the right">
+              Chats{badge ? <span className="tab-badge" aria-label={`${badge} need you or have new replies`}>{badge}</span> : null}
+            </button>
           </nav>
           {t ? (
             <div className="summary" aria-live="polite">
@@ -173,6 +191,9 @@ export function App() {
             <div className="loading">{conn === 'offline' ? 'Can’t reach Swarmville on this machine. Start it with `npm start` (or `swarmville start`).' : 'Opening the town gates…'}</div>
           ) : view === 'town' ? (
             <CityView state={state} selected={sel?.kind === 'project' ? sel.id : null} onSelect={selectProject} onAgent={townAgent} onGraveyard={() => setSel({ kind: 'graveyard', id: '' })} onCafe={() => setSel({ kind: 'cafe', id: '' })} focus={townFocus} showLots={showLots} onToggleLots={() => setShowLots(!showLots)} bubble={bubble} dark={theme.dark} onShare={() => setModal('share')} tourFocus={welcome.active ? tourFocus : null} openAgentId={sel?.kind === 'agent' ? sel.id : null} />
+          ) : view === 'chats' ? (
+            <Chats state={state} chatId={chatId} setChatId={setChatId} openProject={open.project}
+              openAsk={(sid) => setSel({ kind: 'ask', id: sid })} openProfile={(sid) => setSel({ kind: 'agent', id: sid, tab: 'profile' })} />
           ) : (
             <CrewView state={crewState!} open={open} allBuildings={state.projects.filter((p) => p.state !== 'lot').length} />
           )}
@@ -182,7 +203,8 @@ export function App() {
           {state && sel?.kind === 'cafe' ? <CafePanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'ask' ? <AskPopup key={sel.id} id={sel.id} state={state} onClose={() => setSel(sel.back ? { kind: 'agent', id: sel.id } : null)} openProfile={open.agent} /> : null}
-          {state && sel?.kind === 'agent' ? <AgentPanel key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} openAsk={(sid) => setSel({ kind: 'ask', id: sid, back: 'agent' })} /> : null}
+          {state && sel?.kind === 'agent' ? <AgentPanel key={sel.id} id={sel.id} state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} openAsk={(sid) => setSel({ kind: 'ask', id: sid, back: 'agent' })}
+            onExpand={view === 'chats' && sel.tab === 'profile' ? undefined : expand} startTab={sel.tab} /> : null}
           {state && welcome.active ? <Welcome state={state} api={welcome} setTourFocus={setTourFocus} showTown={() => { setSel(null); go('town'); }} /> : null}
           {state && !welcome.active ? <><Tips state={state} view={view} openAgent={open.agent} focusProject={(id) => { go('town'); open.project(id); }} /><ArrivalToasts state={state} openAgent={open.agent} /><MedalToasts state={state} openProject={open.project} /></> : null}
         </main>
