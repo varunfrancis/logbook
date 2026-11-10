@@ -76,14 +76,30 @@ function maybeResume(j) {
     res.on('end', () => {
       let c; try { c = JSON.parse(body); } catch { return; }
       if (!c.ok) return;
-      const t = vscode.window.createTerminal({ name: c.name || 'Claude (resumed)', cwd: c.cwd });
-      t.show(false);
-      t.sendText(c.command, true);
+      openWithCommand(c.name || 'Claude (resumed)', c.cwd, c.command);
       raiseWindow();
     });
   });
   r.on('error', () => {});
   r.end();
+}
+
+/*
+ * Opens a terminal that runs `command` as soon as the shell starts, then leaves you in a normal shell.
+ * The command goes to the shell as an argument, never typed in: typed text can arrive while the shell is still starting
+ * and get eaten by a startup question (zsh's "insecure directories [y/n]?" swallowed the "c" of "claude").
+ */
+function openWithCommand(name, cwd, command) {
+  const shell = vscode.env.shell || process.env.SHELL || '/bin/zsh';
+  if (/\/(zsh|bash|sh)$/.test(shell)) {
+    const quoted = `'${shell.replace(/'/g, `'\\''`)}'`;
+    const t = vscode.window.createTerminal({ name, cwd, shellPath: shell, shellArgs: ['-l', '-i', '-c', `${command}; exec ${quoted} -l`] });
+    t.show(false);
+    return;
+  }
+  const t = vscode.window.createTerminal({ name, cwd }); // other shells (fish, nu…): type it in, as before
+  t.show(false);
+  t.sendText(command, true);
 }
 
 /** A window opened just to resume a job missed the event while loading; pick it up now. */

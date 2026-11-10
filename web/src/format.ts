@@ -123,7 +123,7 @@ export function madeLinks(text: string | null | undefined, max = 4): MadeLink[] 
   const out: MadeLink[] = [];
   const seen = new Set<string>();
   for (const m of text.matchAll(/https?:\/\/[^\s)<>\]"'`]+/g)) {
-    const url = m[0].replace(/[.,;:!?]+$/, '');
+    const url = m[0].replace(/[.,;:!?*_~]+$/, ''); // trailing punctuation, and markdown marks like the ** after a bold link
     const label = linkLabel(url);
     if (seen.has(url) || seen.has(label)) continue;
     seen.add(url); seen.add(label);
