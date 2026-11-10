@@ -15,6 +15,16 @@ export const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions');
 export const DB_PATH = path.join(DATA_DIR, 'swarmville.db');
 /** Swarmville's own small-model runs (naming, intros) happen in <data dir>/namer; any Swarmville data dir, not only this one. */
 export const isOwnRun = (cwd: string | null | undefined) => !!cwd && (cwd.startsWith(DATA_DIR) || cwd.startsWith(LEGACY_DATA_DIR + path.sep) || (path.basename(cwd) === 'namer' && ['swarmville.db', 'logbook.db'].some((f) => fs.existsSync(path.join(path.dirname(cwd), f)))));
+const TEMP_ROOTS = [...new Set([os.tmpdir(), (() => { try { return fs.realpathSync(os.tmpdir()); } catch { return os.tmpdir(); } })(), '/tmp', '/private/tmp', '/var/folders', '/private/var/folders'])]
+  .map((p) => p.replace(/\/+$/, ''));
+/** Inside the system's temp folder (where scripts make throwaway folders with mkdtemp). */
+export const isTempDir = (p: string | null | undefined) => !!p && TEMP_ROOTS.some((r) => p.startsWith(r + path.sep));
+/**
+ * A program built on the Agent SDK (or a script calling `claude -p`) that runs each request in a fresh temp folder:
+ * every request would otherwise become its own building. Not work on a project, so never shown.
+ */
+export const isThrowawayRun = (cwd: string | null | undefined, entrypoint: string | null | undefined) =>
+  !!entrypoint && entrypoint.startsWith('sdk-') && isTempDir(cwd);
 /** Every small-model request Swarmville makes starts with this line, so its own runs are never shown as projects, wherever they ran. */
 export const OWN_MARK = '(Swarmville background task: naming and summaries.)';
 /** The mark, plus how older versions' requests began (including before the rename from Logbook). */
