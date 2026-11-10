@@ -10,8 +10,8 @@ import { consolidateProjects, ensureProjectForCwd, spiral } from '../daemon/proj
 import { execFileSync } from 'node:child_process';
 import { floorsFor, isAway, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
-import { handleHook, isJobNotice } from '../daemon/hooks.ts';
-import { addAsk, answerAsk, asksBySession, describeAsk, dropAsk, questionDecision, settleSession } from '../daemon/asks.ts';
+import { handleHook, isJobNotice, lowerHand } from '../daemon/hooks.ts';
+import { addAsk, answerAsk, askSession, asksBySession, describeAsk, dropAsk, hasAsk, questionDecision, settleSession } from '../daemon/asks.ts';
 import { buildState } from '../daemon/state.ts';
 import { isClaude, stopProcess } from '../daemon/stop.ts';
 
@@ -281,6 +281,35 @@ test('a permission prompt raises a hand at once and can be answered from the tow
   assert.equal(addAsk({ ...req, tool_name: 'AskUserQuestion', tool_input: {} }, () => {}), null);
   assert.equal(describeAsk('Edit', { file_path: '/x/y/scene.ts' }).title, 'Wants to edit scene.ts');
   assert.equal(describeAsk('mcp__claude_ai_Slack__slack_send_message', {}).title, 'Wants to use Slack · slack send message');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a yes brings the hand down at once, not when the long command it allowed finishes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const base = { session_id: 'hand-1', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
+  const t0 = Date.now();
+  handleHook(db, { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'run the tests' }, t0);
+  handleHook(db, { ...base, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx playwright test', description: 'Run the browser tests' } }, t0 + 5);
+  const req = { ...base, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npx playwright test' } };
+  handleHook(db, req, t0 + 10);
+  const ask = addAsk(req, () => {}, t0 + 10)!;
+  assert.equal(askSession(ask.id), 'hand-1');
+  assert.equal(answerAsk(ask.id, 'allow').ok, true);
+  assert.equal(askSession(ask.id), null);
+  assert.equal(hasAsk('hand-1'), false);
+  assert.equal(lowerHand(db, 'hand-1', t0 + 70_000), true);
+  const s = buildState(db, new Map(), t0 + 70_010).sessions[0];
+  assert.equal(s.status, 'running');
+  assert.equal(s.needsMessage, null);
+  assert.equal(s.action, 'Run the browser tests'); // still doing what you said yes to
+  const wait = db.prepare("SELECT start, end FROM segments WHERE session_id = 'hand-1' AND kind = 'wait'").all() as any[];
+  assert.deepEqual(wait.map((w) => w.end - w.start), [70_000 - 10]);
+  assert.equal(lowerHand(db, 'hand-1', t0 + 80_000), false); // nothing raised: nothing to lower, no second wait
+  // The tool finishing later doesn't count the wait twice.
+  handleHook(db, { ...base, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: {} }, t0 + 600_000);
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM segments WHERE session_id = 'hand-1' AND kind = 'wait'").get() as any).n, 1);
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

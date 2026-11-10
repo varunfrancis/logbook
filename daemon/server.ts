@@ -10,7 +10,7 @@ import { backfillEntrypoints } from './routines.ts';
 import { consolidateProjects } from './projects.ts';
 import { ancestry, readLive, type LiveEntry } from './live.ts';
 import { adoptLive, agentDetail, buildState, dayView, projectDetail, refreshAgents, teamView } from './state.ts';
-import { handleHook } from './hooks.ts';
+import { handleHook, lowerHand } from './hooks.ts';
 import { stopProcess, systemDeps } from './stop.ts';
 import { checkPullRequests, mergePullRequest, syncGithub } from './github.ts';
 import { clearShip, hotShipIds, shipBrief, startShip } from './ship.ts';
@@ -26,7 +26,7 @@ import { addNote, dismissFlag, letGo, noteContext, notesPending, removeNote, wri
 import type { ChatLine, ChatReach, ChatView, Setup, StateView, Welcome } from './types.ts';
 import { mergeChat, transcriptChat, transcriptFile } from './chat.ts';
 import { NEW_WELCOME } from './state.ts';
-import { addAsk, addRunnerAsk, answerAsk, asksBySession, dropAsk, settleSession, type Decision } from './asks.ts';
+import { addAsk, addRunnerAsk, answerAsk, askSession, asksBySession, dropAsk, hasAsk, settleSession, type Decision } from './asks.ts';
 import { Runners, safeId } from './runners.ts';
 import type { RunnerImage } from './runner.ts';
 import { findClaude } from './naming.ts';
@@ -50,6 +50,13 @@ const setup: Setup = { phase: 'reading', read: 0, total: 0, projects: 0, shifts:
  * come over the runner's line and go into the same raised hands as the hook's, so the popup answers them the same way.
  */
 const runnerAsks = new Map<string, string>(); // "<session> <request>" -> ask id
+/** The hook script stops waiting for a town answer after 590 s (hook/swarmville-hook.sh): a close that late is that timeout, not an answer. */
+const HOOK_WAIT_MS = 580_000;
+/** An ask ended (answered here, or settled in the terminal): the hand comes down once none is left open for that agent. */
+function handDown(sid: string) {
+  if (hasAsk(sid)) return;
+  try { lowerHand(db, sid); } catch {}
+}
 const runners = new Runners(path.join(DATA_DIR, 'runners'), {
   ask: (sid, a, answer) => {
     try { handleHook(db, { hook_event_name: 'PermissionRequest', session_id: sid, tool_name: a.toolName, tool_input: a.input, cwd: runners.meta(sid)?.cwd }); } catch {}
@@ -62,6 +69,7 @@ const runners = new Runners(path.join(DATA_DIR, 'runners'), {
     const k = `${sid} ${requestId}`;
     const id = runnerAsks.get(k);
     if (id) { dropAsk(id); runnerAsks.delete(k); }
+    handDown(sid);
     soon();
   },
   change: () => soon(),
@@ -410,7 +418,8 @@ const server = http.createServer(async (req, res) => {
           if (out) json(res, 200, out); else res.writeHead(204).end();
         }) : null;
         if (!ask) { soon(); return void res.writeHead(204).end(); }
-        res.on('close', () => { if (dropAsk(ask.id)) soon(); });
+        // Closed early means the terminal answered; at the hook's timeout the terminal prompt is still up.
+        res.on('close', () => { if (dropAsk(ask.id)) { if (Date.now() - ask.at < HOOK_WAIT_MS) handDown(payload.session_id); soon(); } });
         soon();
         return;
       }
@@ -531,7 +540,10 @@ const server = http.createServer(async (req, res) => {
       const decision = (['allow', 'always', 'deny', 'answer', 'changes'] as const).find((d) => d === body.decision) as Decision | undefined;
       if (!decision) return json(res, 400, { ok: false, message: 'Unknown answer' });
       const answers = Array.isArray(body.answers) ? body.answers.map((a: any) => ({ picked: Array.isArray(a?.picked) ? a.picked.map(String) : [], other: typeof a?.other === 'string' ? a.other : '' })) : [];
-      const r = answerAsk(decodeURIComponent(p.slice('/api/ask/'.length)), decision, { answers, note: typeof body.note === 'string' ? body.note : '' });
+      const askId = decodeURIComponent(p.slice('/api/ask/'.length));
+      const sid = askSession(askId);
+      const r = answerAsk(askId, decision, { answers, note: typeof body.note === 'string' ? body.note : '' });
+      if (r.ok && sid) handDown(sid);
       soon();
       return json(res, 200, r);
     }
