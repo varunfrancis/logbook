@@ -14,11 +14,12 @@ export type ParseState = {
   ask: { id: string; ts: number; q: string } | null; // AskUserQuestion waiting for an answer
   tests: Record<string, number>; // tool_use id -> ts, for test commands awaiting results
   prPending: string | null; // tool_use id of a `gh pr create`
+  mergePending?: Record<string, true>; // tool_use ids of `gh pr merge` awaiting their results (absent in older saved states)
   tools: Record<string, string>; // tool_use id -> short label (for error signatures)
 };
 export const freshState = (): ParseState => ({ lastMsgId: null, workStart: null, lastEnd: null, ask: null, tests: {}, prPending: null, tools: {} });
 
-export type Moment = { ts: number; kind: 'm_prompt' | 'm_ask' | 'm_test_ok' | 'm_test_fail' | 'm_error' | 'm_commit' | 'm_pr' | 'm_done'; text: string };
+export type Moment = { ts: number; kind: 'm_prompt' | 'm_ask' | 'm_test_ok' | 'm_test_fail' | 'm_error' | 'm_commit' | 'm_pr' | 'm_merge' | 'm_done'; text: string };
 export type Segment = { start: number; end: number; kind: 'work' | 'wait' | 'idle' };
 
 export type Delta = {
@@ -46,6 +47,8 @@ export type Delta = {
   errors: { sig: string; t: number }[];
   testsOk: number; testsFail: number; lastTest: { t: number; ok: boolean } | null;
   prUrl: string | null;
+  /** When it last merged a pull request itself (`gh pr merge` that didn't fail), and when it last committed. */
+  mergedAt: number | null; commitAt: number | null;
   cost: { usd: number; added: number; removed: number } | null;
   /** Each new API reply, priced at API rates. */
   usage: { id: string; ts: number; usd: number }[];
@@ -63,6 +66,7 @@ export function jobVerdict(text: string | null | undefined): JobVerdict | null {
 }
 
 const PR_RE = /https:\/\/github\.com\/[^/\s"\\]+\/[^/\s"\\]+\/pull\/\d+/;
+const MERGE_FAIL_RE = /not mergeable|failed|error|could not|cannot|denied|conflict|refusing|required status|review is required/i;
 const TEST_RE = /\b(npm (run )?test|pnpm (run )?test|yarn test|bun test|vitest|jest|pytest|py\.test|go test|cargo test|rspec|mocha|playwright test|phpunit|node --test|make test|tox)\b/;
 
 function textOf(content: any): string {
@@ -98,7 +102,7 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
     tokIn: 0, tokOut: 0, tokCR: 0, tokCW: 0, model: null, aiTitle: null,
     firstPrompt: null, lastPrompt: null, prompts: 0, outcome: null, action: null, turnEnded: null,
     commits: 0, tools: 0, edits: 0, reads: 0, webs: 0, asks: 0, files: [], errors: [],
-    testsOk: 0, testsFail: 0, lastTest: null, prUrl: null, cost: null, usage: [], moments: [], segments: [], state: st,
+    testsOk: 0, testsFail: 0, lastTest: null, prUrl: null, mergedAt: null, commitAt: null, cost: null, usage: [], moments: [], segments: [], state: st,
   };
   const endWork = (ts: number) => {
     if (st.workStart && ts > st.workStart) d.segments.push({ start: st.workStart, end: ts, kind: 'work' });
@@ -136,6 +140,11 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
               const m = body.match(PR_RE);
               if (m) { d.prUrl = m[0]; if (ts) d.moments.push({ ts, kind: 'm_pr', text: m[0] }); }
               st.prPending = null;
+            }
+            if (st.mergePending?.[id]) {
+              // gh prints nothing when a merge works, so "no error and no failure text" is the signal
+              if (!isErr && !MERGE_FAIL_RE.test(body) && ts) { d.mergedAt = ts; d.moments.push({ ts, kind: 'm_merge', text: 'Merged a pull request' }); }
+              delete st.mergePending[id];
             }
             if (id in st.tests) {
               const ok = !isErr && !/\b(\d+ (failed|failing)|FAIL\b|failures?:\s*[1-9])/.test(body);
@@ -195,7 +204,8 @@ export function parseLines(lines: string[], prev: ParseState | string | null = n
               if (fp && ts) d.files.push({ p: String(fp), t: ts });
             } else if (a.kind === 'read') d.reads++;
             else if (a.kind === 'web') d.webs++;
-            if (/\bgit\s+commit\b/.test(cmd)) { d.commits++; if (ts) d.moments.push({ ts, kind: 'm_commit', text: 'Saved progress' }); }
+            if (/\bgit\s+commit\b/.test(cmd)) { d.commits++; if (ts) { d.commitAt = ts; d.moments.push({ ts, kind: 'm_commit', text: 'Saved progress' }); } }
+            if (/\bgh\s+pr\s+merge\b/.test(cmd)) (st.mergePending ??= {})[b.id] = true;
             if (/\bgh\s+pr\s+create\b/.test(cmd)) st.prPending = b.id;
             if (TEST_RE.test(cmd)) st.tests[b.id] = ts;
             if (b.name === 'AskUserQuestion') {
@@ -302,6 +312,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
       test_at = COALESCE(?, test_at), test_ok = COALESCE(?, test_ok),
       files = ?, err_sig = ?, err_count = ?, err_at = ?,
       pr_url = COALESCE(?, pr_url),
+      merged_pr_at = MAX(COALESCE(merged_pr_at, 0), COALESCE(?, 0)), commit_at = MAX(COALESCE(commit_at, 0), COALESCE(?, 0)),
       cost_usd = COALESCE(?, cost_usd), lines_added = COALESCE(?, lines_added), lines_removed = COALESCE(?, lines_removed)
     WHERE id = ?`).run(
     transcript, d.entrypoint, d.branch, d.first, d.last,
@@ -312,7 +323,7 @@ export function applyDelta(db: Db, d: Delta, transcript: string) {
     d.commits, d.tools, d.edits, d.reads, d.webs, d.asks, d.testsOk, d.testsFail,
     d.lastTest?.t ?? null, d.lastTest ? (d.lastTest.ok ? 1 : 0) : null,
     files.length ? JSON.stringify(files) : null, errSig, errCount, errAt,
-    d.prUrl,
+    d.prUrl, d.mergedAt, d.commitAt,
     d.cost?.usd ?? null, d.cost?.added ?? null, d.cost?.removed ?? null,
     d.sessionId,
   );

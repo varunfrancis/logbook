@@ -85,6 +85,27 @@ test('parseLines dedupes streamed assistant messages and tracks the latest actio
   assert.deepEqual(more.segments.map((g) => g.kind), ['work']); // prompt at 10:00:00 until the turn ended
 });
 
+test('parser notes when a job merges a review itself, even though gh prints nothing on success', () => {
+  const at = (s: number) => new Date(Date.UTC(2026, 10, 1, 10, 0, s)).toISOString();
+  const run = (id: string, s: number, command: string, content: string, is_error = false) => [
+    line({ type: 'assistant', timestamp: at(s), message: { id: 'a' + id, content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } }),
+    line({ type: 'user', timestamp: at(s + 1), message: { content: [{ type: 'tool_result', tool_use_id: id, is_error, content }] } }),
+  ];
+  const d = parseLines([
+    ...run('c1', 0, 'git commit -m "regenerate the bank"', '[main a0b360a] regenerate the bank'),
+    ...run('m1', 10, 'export GH_TOKEN=x && gh pr merge 17 --merge 2>&1 | tail -2; gh pr view 17 --json state --jq .state', 'MERGED'),
+  ]);
+  assert.equal(d.commitAt, Date.parse(at(0)));
+  assert.equal(d.mergedAt, Date.parse(at(11)));
+  assert.equal(d.prUrl, null);
+  // a merge that didn't go through, or errored, isn't one; a result can arrive in a later read
+  const failed = parseLines(run('m2', 20, 'gh pr merge 18', 'X Pull request #18 is not mergeable: the merge commit cannot be cleanly created.'));
+  assert.equal(failed.mergedAt, null);
+  assert.equal(parseLines(run('m3', 30, 'gh pr merge 19 --squash', 'GraphQL: denied', true)).mergedAt, null);
+  const [use, result] = run('m4', 40, 'gh pr merge 20 --squash', '');
+  assert.equal(parseLines([result], parseLines([use]).state).mergedAt, Date.parse(at(41)));
+});
+
 test('parser counts the same error three times, test runs and waits for answers', () => {
   const at = (s: number) => new Date(Date.UTC(2026, 10, 1, 10, 0, s)).toISOString();
   const err = (id: string, s: number) => [

@@ -80,6 +80,8 @@ export type PhaseInput = {
   status: 'running' | 'needs_input' | 'idle' | 'ended';
   prUrl: string | null; prState: string | null; checks: ChecksState | null;
   sinceStart: number; // ms since you pressed Ship it
+  /** The job merged a review itself (e.g. "merge the open PRs") and saved nothing after: its work is already live. */
+  mergedItself?: boolean;
 };
 
 /**
@@ -97,7 +99,7 @@ export function shipPhase(p: PhaseInput): ShipPhase {
   }
   // The terminal takes a moment to open and Claude a moment to start: don't call it stopped before it began.
   if (busy || p.sinceStart < 90_000) return 'working';
-  return 'stopped';
+  return p.mergedItself ? 'live' : 'stopped';
 }
 
 export function shipsView(db: Db, statusOf: (r: Row) => PhaseInput['status'], now = Date.now()): ShipView[] {
@@ -109,11 +111,14 @@ export function shipsView(db: Db, statusOf: (r: Row) => PhaseInput['status'], no
     // The review lives on whichever shift opened it; the newest shift is the one at work.
     const cur = shifts[0];
     const withPr = shifts.find((r) => r.pr_url && r.pr_state !== 'closed') ?? shifts.find((r) => r.pr_url) ?? null;
+    const mergedAt = Math.max(0, ...shifts.map((r) => r.merged_pr_at ?? 0));
+    const commitAt = Math.max(0, ...shifts.map((r) => r.commit_at ?? 0));
     const phase = shipPhase({
       status: statusOf(cur), prUrl: withPr?.pr_url ?? null, prState: withPr?.pr_state ?? null, checks: withPr?.pr_checks ?? null,
-      sinceStart: now - (sh.last_at ?? sh.at),
+      sinceStart: now - (sh.last_at ?? sh.at), mergedItself: mergedAt > 0 && commitAt <= mergedAt,
     });
     if (phase === 'live') {
+      // its own review's merge time; a job that merged others' reviews shows as landing when we first see it
       const at = sh.merged_at ?? withPr?.pr_merged_at ?? now;
       if (!sh.merged_at) db.prepare('UPDATE ships SET merged_at = ? WHERE session_id = ?').run(at, sh.session_id);
       if (now - at > LIVE_SHOWN_MS) continue;

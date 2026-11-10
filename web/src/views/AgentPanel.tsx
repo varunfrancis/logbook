@@ -16,6 +16,7 @@ const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
   m_test_fail: { sym: '!', cls: 'mo-bad', title: 'Hit a snag' },
   m_commit: { sym: 'S', cls: 'mo-save', title: 'Saved progress' },
   m_pr: { sym: 'R', cls: 'mo-ok', title: 'Sent it for review' },
+  m_merge: { sym: 'L', cls: 'mo-ok', title: 'Put a review live' },
   needs: { sym: '✋', cls: 'mo-ask', title: 'Waited for your OK' },
 };
 const VERDICT = { true: ['✓', 'v-true', 'True.'], false: ['✕', 'v-false', 'Not quite.'], partly: ['~', 'v-partly', 'Partly.'], unknown: ['?', 'v-unknown', 'Can’t tell.'] } as const;

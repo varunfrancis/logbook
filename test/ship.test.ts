@@ -56,6 +56,9 @@ test('ship: phases come from the review and its checks, not from what the agent 
   assert.equal(shipPhase({ ...pr, checks: 'none' }), 'ready');
   assert.equal(shipPhase({ ...pr, checks: null }), 'checks');
   assert.equal(shipPhase({ ...pr, prState: 'merged' }), 'live');
+  // a job that merged reviews itself (and saved nothing after) is already live, not stopped
+  assert.equal(shipPhase({ ...base, mergedItself: true }), 'live');
+  assert.equal(shipPhase({ ...base, mergedItself: true, status: 'running' }), 'working');
 });
 
 test('ship: GitHub check runs and commit statuses fold into one word', () => {
@@ -101,6 +104,28 @@ test('ship: follows the shift that took the brief, and its review', () => {
   assert.equal(shipsView(db, statusOf, T + 2 * H).length, 0); // drops off a while after it lands
   clearShip(db, 'resumed');
   assert.ok((db.prepare("SELECT cleared_at FROM ships WHERE session_id = 'orig'").get() as { cleared_at: number }).cleared_at > 0);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('ship: a job that merged the open reviews itself shows as shipped, not stopped', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const T = NOW;
+  db.prepare("INSERT INTO projects(id, name, root, gh_full) VALUES('p1', 'Site', ?, 'o/site')").run(dir);
+  const add = db.prepare('INSERT INTO sessions(id, project_id, cwd, started_at, last_event_at, first_prompt, commits, commit_at, merged_pr_at) VALUES(?,?,?,?,?,?,?,?,?)');
+  // committed a fix-up at -6h, merged #17 and #60 at -4h, then was asked to Ship it: nothing left to send
+  add.run('merger', 'p1', dir, T - 8 * H, T - 3 * H, 'Merge all the open PRs.', 1, T - 6 * H, T - 4 * H);
+  startShip(db, 'merger', 'ship', null, T);
+  const statusOf = () => 'idle' as const;
+  let [v] = shipsView(db, statusOf, T + 5 * 60_000);
+  assert.deepEqual([v.phase, v.prUrl], ['live', null]);
+  assert.equal(shipsView(db, statusOf, T + 2 * H).length, 0); // drops off a while after we saw it land
+  // saving new work after the merge means there's something left to send: still stopped
+  add.run('builder', 'p1', dir + '/b', T - 8 * H, T - 3 * H, 'Merge, then add a page.', 2, T - 3 * H, T - 4 * H);
+  startShip(db, 'builder', 'ship', null, T);
+  [v] = shipsView(db, statusOf, T + 5 * 60_000).filter((x) => x.id === 'builder');
+  assert.equal(v.phase, 'stopped');
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
