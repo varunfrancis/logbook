@@ -7,6 +7,7 @@ import { GoTo } from '../components.tsx';
 import { post } from '../useSwarmville.ts';
 import { prNum } from '../crew/today.ts';
 import { shipTrack } from '../crew/shipTrack.ts';
+import { saidOf, useVoice } from '../copy.ts';
 
 /*
  * "Ship it": send the agent behind a finished job back to take it all the way to review, then put it live yourself.
@@ -16,6 +17,7 @@ import { shipTrack } from '../crew/shipTrack.ts';
 /** Confirm before an agent is sent back: who, what they'll do, and that going live stays your call. */
 export function ShipSheet({ s, project, onClose, onStarted }: { s: SessionView; project?: ProjectView; onClose: () => void; onStarted: (msg: string) => void }) {
   const [busy, setBusy] = useState(false);
+  const voice = useVoice();
   const [err, setErr] = useState<string | null>(null);
   const name = s.agent.name;
   const onGithub = !!project?.ghFull;
@@ -42,7 +44,7 @@ export function ShipSheet({ s, project, onClose, onStarted }: { s: SessionView; 
           <p className="ship-bubble">{name} will pick it up where they left off and take it all the way to {onGithub ? 'review' : 'saved'}. You decide when it goes live.</p>
         </div>
         <ol className="ship-plan">
-          <li><b>Finish what's left</b>{s.outcome ? <small>“{firstLine(s.outcome, 140)}”</small> : null}</li>
+          <li><b>Finish what's left</b>{s.outcome ? <small>“{firstLine(saidOf(s, voice), 140)}”</small> : null}</li>
           <li><b>Make sure it works</b><small>Runs the project's own checks.</small></li>
           <li><b>Save it on its own branch</b><small>So nothing else is touched.</small></li>
           {onGithub ? <>

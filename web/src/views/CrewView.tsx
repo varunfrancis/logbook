@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ProjectView, RoutineView, SessionView, StateView } from '../../../daemon/types.ts';
 import { AgentAvatar, moodFor } from '../crew/Avatar.tsx';
-import { bricks, PROJECT, SIZE, plainAction, useVoice } from '../copy.ts';
+import { bricks, PROJECT, SIZE, plainAction, saidOf, useVoice } from '../copy.ts';
 import { ago, compact, duration, didSummary, every, firstLine, nextRunText, tildify } from '../format.ts';
 import { ClockOut, Empty, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useNow } from '../useSwarmville.ts';
@@ -134,6 +134,7 @@ const dayWord = (t: number, now: number) => {
 
 /** What still needs a call from you, and what got done today. Nothing here grades you. */
 function Today({ state, projects, now, open }: { state: StateView; projects: Map<string, ProjectView>; now: number; open: Open }) {
+  const voice = useVoice();
   const [gone, setGone] = useState<string[]>([]); // let go during this visit, so Undo can bring them back
   const [pending, setPending] = useState<Set<string>>(new Set()); // hidden at once, before the daemon confirms
   const letGo = useMemo(() => new Set([...(state.letGo ?? []), ...pending]), [state.letGo, pending]);
@@ -186,7 +187,7 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
                 <AgentAvatar agent={s.agent} mood={moodFor(s)} size={36} />
                 <div className="closed-body">
                   <div><b>{s.title}</b> <span className="sub">· {s.agent.title} · {projects.get(s.projectId ?? '')?.name}{s.size ? ` · ${SIZE[s.size]}` : ''} · {dayWord(finishedAt(s), now)}</span></div>
-                  <div className="said" title={s.outcome ?? ''}>{didSummary(s.outcome, 200) || WHY[why]}</div>
+                  <div className="said" title={s.outcome ?? ''}>{didSummary(saidOf(s, voice), 200) || WHY[why]}</div>
                 </div>
                 <span className="today-acts" onClick={(e) => e.stopPropagation()}>
                   {why === 'unfinished' || why === 'saved' ? <button className="btn ship small" onClick={() => setSheet(s)}>Ship it</button> : null}
@@ -210,6 +211,7 @@ function Today({ state, projects, now, open }: { state: StateView; projects: Map
 
 /** What each agent just finished: the job, and the first line of what they said when they stopped. */
 function FinishedList({ items, projects, now, open }: { items: SessionView[]; projects: Map<string, ProjectView>; now: number; open: Open }) {
+  const voice = useVoice();
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, 6);
   if (!items.length) return <Empty title="Nothing finished yet today." />;
@@ -217,7 +219,7 @@ function FinishedList({ items, projects, now, open }: { items: SessionView[]; pr
     <>
       <ul className="closed finished">
         {shown.map((s) => {
-          const said = didSummary(s.outcome, 220);
+          const said = didSummary(saidOf(s, voice), 220);
           return (
             <li key={s.id} onClick={() => open.agent(s.id)}>
               <AgentAvatar agent={s.agent} mood={s.status === 'ended' ? moodFor(s) : 'break'} size={36} />

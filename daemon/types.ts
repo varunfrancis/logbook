@@ -72,6 +72,8 @@ export type SessionView = {
   prChecks: ChecksState | null;
   stamp: Stamp | null;
   outcome: string | null;
+  /** The same, rewritten for someone who has never written code (null until the small model has done it). */
+  plainOutcome: string | null;
   lastPrompt: string | null;
   firstPrompt: string | null;
   prompts: number;

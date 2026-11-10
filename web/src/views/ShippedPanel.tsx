@@ -4,11 +4,13 @@ import { AgentAvatar } from '../crew/Avatar.tsx';
 import { finishedAt, prNum, todayView } from '../crew/today.ts';
 import { ago, firstLine } from '../format.ts';
 import { useNow } from '../useSwarmville.ts';
+import { saidOf, useVoice } from '../copy.ts';
 
 const NONE = new Set<string>();
 
 /** Everything that merged and went live today, by project, newest first. Opened from Crew → Today. */
 export function ShippedPanel({ state, onClose, openProject, openAgent }: { state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent: (id: string) => void }) {
+  const voice = useVoice();
   const now = useNow(30000);
   const t = todayView(state.sessions, NONE, now);
   const [chats, setChats] = useState(false);
@@ -32,7 +34,7 @@ export function ShippedPanel({ state, onClose, openProject, openAgent }: { state
               </button>
               <ul>
                 {items.map((s) => {
-                  const said = firstLine(s.outcome, 160);
+                  const said = firstLine(saidOf(s, voice), 160);
                   return (
                     <li key={s.id}>
                       <button className="cost-row shipped-item" onClick={() => openAgent(s.id)} title={`Open ${s.agent.title}`}>
