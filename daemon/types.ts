@@ -250,6 +250,7 @@ export type ProjectDetail = {
 
 export type AgentDetail = {
   agent: Agent;
+  highFives?: number; // cheers you've given them from the chat
   session: SessionView;
   project: ProjectView | null;
   career: { shifts: number; shipped: number; since: number | null; usualProject: string | null };

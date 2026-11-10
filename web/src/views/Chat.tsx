@@ -5,6 +5,10 @@ import { post } from '../useSwarmville.ts';
 import { AgentAvatar } from '../crew/Avatar.tsx';
 import { GoTo } from '../components.tsx';
 import { Markdown } from './Markdown.tsx';
+import { yourTurn } from '../turn.ts';
+
+/** Tells the drawer header and the town to cheer along when you high-five an agent. */
+export const HIGH_FIVE = 'swarmville:highfive';
 
 /*
  * Talking to an agent: the conversation, what they're doing right now, and a box for your next message (with pictures:
@@ -77,6 +81,10 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   const [toast, setToast] = useState<{ ok: boolean; text: string; at: number } | null>(null);
   const [drag, setDrag] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [picked, setPicked] = useState<{ at: number; n: number } | null>(null);
+  const [fived, setFived] = useState<Set<number>>(() => new Set()); // replies you've high-fived (by time)
+  const [hop, setHop] = useState(0);
+  const [skipTurn, setSkipTurn] = useState<number | null>(null); // "Something else": the card steps aside for that reply
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -130,6 +138,19 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
     if (r.ok) { setText(''); imgs.forEach((i) => URL.revokeObjectURL(i.url)); setImgs([]); atBottom.current = true; load(); }
     else say(false, r.message ?? 'Couldn’t send it.');
   };
+  /** Puts words in the box for you to check and send (Pick, Your turn answers). */
+  const fill = (words: string) => {
+    setText(words);
+    requestAnimationFrame(() => { const el = input.current; if (el) { el.focus(); el.setSelectionRange(words.length, words.length); } });
+  };
+  const highFive = async (at: number) => {
+    if (fived.has(at)) return;
+    setFived((cur) => new Set(cur).add(at));
+    setHop(Date.now());
+    window.dispatchEvent(new CustomEvent(HIGH_FIVE, { detail: { sessionId: s.id } }));
+    const r = await post(`/api/agent/${encodeURIComponent(s.id)}/highfive`);
+    if (r.ok) say(true, `High-five sent. ${name} has ${r.count === 1 ? 'their first' : `${r.count}`} high-five${r.count === 1 ? '' : 's'} from you.`);
+  };
   const act = async (path: string) => {
     setMenu(false);
     const r = await post(path);
@@ -141,6 +162,10 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
   const canType = reach === 'here' || reach === 'resume';
   const asleep = s.status === 'ended' || (view?.runner ?? s.runner) === 'off';
   const newestThem = items.findLastIndex((it) => it.kind === 'line' && it.line.kind === 'them');
+  const newest = newestThem >= 0 ? (items[newestThem] as { kind: 'line'; line: ChatLine }).line : null;
+  const settled = s.status !== 'running' && s.status !== 'needs_input'; // they've stopped and reported
+  const lastIsReply = newestThem >= 0 && newestThem === items.length - 1;
+  const turn = canType && settled && lastIsReply && newest && skipTurn !== newest.at ? yourTurn(newest.text) : null;
   const placeholder = s.status === 'running' ? `Tell ${name} something. They’ll read it after this step.`
     : s.status === 'needs_input' ? `Answer ${name}…`
     : asleep ? `Wake ${name} with a message…` : `Tell ${name} what to do next…`;
@@ -158,10 +183,24 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
           if (l.kind === 'them') {
             const prev = items[i - 1];
             const withFace = !(prev?.kind === 'line' && prev.line.kind === 'them');
+            const isNewest = i === newestThem;
+            const pickable = isNewest && canType && settled;
             return (
-              <div key={i} className={`msg-row them${withFace ? '' : ' cont'}`} data-newest-them={i === newestThem ? '' : undefined}>
-                <span className="msg-face">{withFace ? <AgentAvatar agent={s.agent} mood="hello" size={30} /> : null}</span>
-                <div className="msg them" title={clock(l.at)}><Markdown text={l.text} /></div>
+              <div key={i} className={`msg-row them${withFace ? '' : ' cont'}`} data-newest-them={isNewest ? '' : undefined}>
+                <span className={`msg-face${isNewest && hop ? ' hop' : ''}`} key={isNewest ? hop : undefined}>{withFace || isNewest ? <AgentAvatar agent={s.agent} mood="hello" size={30} /> : null}</span>
+                <div className="msg-col">
+                  <div className="msg them" title={clock(l.at)}>
+                    <Markdown text={l.text} long onPick={pickable ? (n, label) => { setPicked({ at: l.at, n }); fill(`Go with option ${n}: ${label}.`); } : undefined} picked={picked?.at === l.at ? picked.n : null} />
+                  </div>
+                  {isNewest && settled ? (
+                    <div className="msg-reacts">
+                      <button type="button" className={`hi5${fived.has(l.at) ? ' done' : ''}`} onClick={() => highFive(l.at)} disabled={fived.has(l.at)} title={`A cheer for ${name}. It isn’t sent to them and doesn’t wake them.`}>
+                        <span aria-hidden>✋</span> {fived.has(l.at) ? 'High-fived!' : 'High-five'}
+                      </button>
+                      <span className="when">{clock(l.at)}</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             );
           }
@@ -181,6 +220,16 @@ export function AgentChat({ s, openAsk }: { s: SessionView; openAsk?: (sessionId
       </div>
 
       {toast ? <p className={`chat-toast${toast.ok ? '' : ' bad'}`} role="status" key={toast.at}>{toast.text}</p> : null}
+
+      {turn && newest ? (
+        <div className="your-turn" role="region" aria-label="Your turn">
+          <p><b>Your turn</b>{turn.more ? `${name} asked ${turn.more + 1} things. The last one: ` : `${name} asked: `}{turn.question}</p>
+          <div className="your-turn-answers">
+            {turn.answers.map((a) => <button key={a.label} type="button" className="turn-chip" onClick={() => fill(a.say)}>{a.label}</button>)}
+            <button type="button" className="turn-chip ghost" onClick={() => { setSkipTurn(newest.at); fill(''); }}>{turn.answers.length ? 'Something else…' : 'Answer in my own words'}</button>
+          </div>
+        </div>
+      ) : null}
 
       {canType ? (
         <div className={`chat-compose${drag ? ' drag' : ''}`}>

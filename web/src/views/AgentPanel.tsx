@@ -5,9 +5,9 @@ import { clock, priced, useCostView, STAMP_NOTE, STATUS, useVoice, type Voice } 
 import { ago, compact, duration, madeLinks, tildify } from '../format.ts';
 import { ClockOut, GoTo, PrChip, Stamp } from '../components.tsx';
 import { post, useAgent, useNow } from '../useSwarmville.ts';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WorkWith } from '../welcome/WorkWith.tsx';
-import { AgentChat } from './Chat.tsx';
+import { AgentChat, HIGH_FIVE } from './Chat.tsx';
 
 const MOMENT: Record<string, { sym: string; cls: string; title: string }> = {
   m_prompt: { sym: '→', cls: 'mo-you', title: 'You asked' },
@@ -33,7 +33,8 @@ export function statusLine(s: Pick<SessionView, 'status' | 'away' | 'runner' | '
   if (s.status === 'running') return { cls: 'running', text: `${STATUS[voice].running}${terminal}` };
   if (s.status === 'idle') return { cls: 'idle', text: s.runner ? 'Ready for your next message' : `${STATUS[voice].idle}${terminal}` };
   const quiet = s.kind === 'bg' || s.scheduled;
-  return { cls: 'ended', text: `Asleep${s.endedAt ? ` since ${ago(s.endedAt, now)}` : ''}${quiet ? '' : ' · a message wakes them'}` };
+  const since = !s.endedAt ? '' : now - s.endedAt < 18 * 3600_000 ? ` since ${clock(s.endedAt)}` : `, clocked out ${ago(s.endedAt, now)}`;
+  return { cls: 'ended', text: `Asleep${since}${quiet ? '' : ' · a message wakes them'}` };
 }
 
 export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk }: { id: string; state: StateView; onClose: () => void; openProject: (id: string) => void; openAgent?: (sessionId: string) => void; openAsk?: (sessionId: string) => void }) {
@@ -41,6 +42,12 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
   const now = useNow(15000);
   const d = useAgent(id, state.generatedAt);
   const [tab, setTab] = useState<'chat' | 'profile'>('chat'); // always opens on the chat
+  const [hop, setHop] = useState(0);
+  useEffect(() => {
+    const f = (e: Event) => { if ((e as CustomEvent).detail?.sessionId === id) setHop(Date.now()); };
+    window.addEventListener(HIGH_FIVE, f);
+    return () => window.removeEventListener(HIGH_FIVE, f);
+  }, [id]);
   const s = d?.session ?? state.sessions.find((x) => x.id === id);
   const dim = <div className="panel-dim" onClick={onClose} aria-hidden />;
   if (!s) return <>{dim}<aside className="panel agent"><button className="ghost close" onClick={onClose} aria-label="Close">×</button><p className="muted">Loading…</p></aside></>;
@@ -53,7 +60,10 @@ export function AgentPanel({ id, state, onClose, openProject, openAgent, openAsk
       {dim}
       <aside className="panel agent" aria-label={`${a.title}`}>
         <header className="agent-head">
-          <AgentAvatar agent={a} mood={moodFor(s)} size={46} live={s.status !== 'ended'} />
+          <span className={`agent-face${hop ? ' hop' : ''}`} key={hop}>
+            <AgentAvatar agent={a} mood={hop && Date.now() - hop < 2000 ? 'shipped' : moodFor(s)} size={46} live={s.status !== 'ended'} />
+            {hop ? <span className="hi5-pop" aria-hidden>✋</span> : null}
+          </span>
           <div className="agent-id">
             <h2>{a.title}</h2>
             <div className="agent-status">
@@ -110,6 +120,7 @@ function Profile({ s, d, state, openProject, openAgent }: { s: SessionView; d: R
       {card ? (
         <section className="scorecard" aria-label="How they’re doing">
           <div className={`verdict-line g-${card.verdict.grade}`}>{card.verdict.text}</div>
+          {d?.highFives ? <p className="hi5-count"><span aria-hidden>✋</span> {d.highFives === 1 ? 'One high-five' : `${d.highFives} high-fives`} from you</p> : null}
           <div className="scores">
             {card.scores.map((sc) => (
               <div key={sc.label} className={`score g-${sc.grade}`} title={sc.help}>
