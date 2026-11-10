@@ -318,12 +318,15 @@ kbd { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radi
 .hand, .work { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; cursor: pointer; transition: transform .12s, box-shadow .12s; }
 .hand:hover, .work:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .hand.focused, .work.focused { outline: 2px solid var(--run); outline-offset: 2px; }
-.hand { display: flex; gap: 14px; border: 1.5px solid color-mix(in srgb, var(--needs) 45%, transparent); }
-.hand-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.hand { display: flex; gap: 16px; padding: 18px 20px; border: 1.5px solid color-mix(in srgb, var(--needs) 45%, transparent); }
+.hand-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.hand-body > .row { margin-top: 4px; }
 .hand-top { display: flex; justify-content: space-between; gap: 10px; }
 .agent-name { font-size: 15.5px; font-weight: 800; }
 .wait { color: var(--needs); font-weight: 800; font-size: 13px; white-space: nowrap; }
 .ask { font-size: 15px; font-weight: 700; }
+/* a question from their last reply: read as their words, three lines at most (the rest is in Show the details) */
+.ask.q { margin: 0; font-weight: 500; font-size: 14.5px; line-height: 1.5; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .work { display: flex; flex-direction: column; gap: 9px; position: relative; }
 /* building cards jiggle briefly every few seconds (offset per agent), then sit still; hover or trouble stops it */
 .work:not(.f-bad):not(:hover) { animation: jiggle 5s ease-in-out infinite; }
