@@ -18,6 +18,7 @@ import { notifyTransitions } from './notify.ts';
 import { stampClosed } from './outcome.ts';
 import { labelNextFocus } from './focus.ts';
 import { addSteer, steerContext, steerPending, steersFor, writeSteerMarker } from './steer.ts';
+import { plainNextOutcome } from './plain.ts';
 import { nameNextProject, nameProjectsBatch, renameProject, setTown, summarizeNextProject } from './naming.ts';
 import { intros, terminalIntro, writeIntros } from './intros.ts';
 import { groupDistricts } from './districts.ts';
@@ -257,7 +258,8 @@ async function resume(sessionId: string): Promise<Opened> {
   const cwd = s.cwd && fs.existsSync(s.cwd) ? s.cwd : root;
   if (!cwd) return { ok: false, via: 'none', message: 'Its folder no longer exists on this machine.' };
   const moved = cwd !== s.cwd ? ' Its worktree is gone, so it opens in the main project folder.' : '';
-  const via = openInTerminal(sessionId, cwd, root ?? cwd, `claude --resume ${sessionId}`, 'Claude (resumed)');
+  const skip = runners.meta(sessionId)?.skip === true; // taken over from Swarmville: it keeps building without asking
+  const via = openInTerminal(sessionId, cwd, root ?? cwd, `claude --resume ${sessionId}${skip ? ' --dangerously-skip-permissions' : ''}`, 'Claude (resumed)');
   return { ok: true, via, message: via === 'vscode' ? `Reopening it in VS Code.${moved}` : `Reopening it in Terminal.${moved}` };
 }
 
@@ -289,13 +291,16 @@ function shipIt(sessionId: string, mode: 'ship' | 'fix'): Opened {
   return { ok: true, via, message: via === 'vscode' ? 'Opening it in VS Code.' : 'Opening it in Terminal. If your Mac asks whether Swarmville may control Terminal, click OK.' };
 }
 
-/** Starts a new Claude Code session in a project with an opening prompt. Plan mode means nothing changes until you approve. */
-function launch(projectId: string, prompt: string, plan: boolean): Opened {
+/**
+ * Starts a new Claude Code session in a project with an opening prompt. Plan mode means nothing changes until you approve.
+ * `skip` (building, fixing, polishing, writing docs) runs it with --dangerously-skip-permissions: no yes/no on every step.
+ */
+function launch(projectId: string, prompt: string, plan: boolean, skip = false): Opened {
   const p = db.prepare('SELECT root FROM projects WHERE id = ?').get(projectId) as Row | undefined;
   if (!p?.root || !fs.existsSync(p.root)) return { ok: false, via: 'none', message: 'That project isn’t on this computer.' };
   const text = prompt.replace(/\s+/g, ' ').trim().slice(0, 2000);
   if (!text) return { ok: false, via: 'none', message: 'Say what you’d like to work on first.' };
-  const command = `claude${plan ? ' --permission-mode plan' : ''} ${shq(text)}`;
+  const command = `claude${plan ? ' --permission-mode plan' : skip ? ' --dangerously-skip-permissions' : ''} ${shq(text)}`;
   const via = openInTerminal(`launch-${crypto.randomUUID()}`, p.root, p.root, command, plan ? 'Claude (planning)' : 'Claude');
   return {
     ok: true, via, command: `cd ${shq(p.root)} && ${command}`,
@@ -304,12 +309,12 @@ function launch(projectId: string, prompt: string, plan: boolean): Opened {
 }
 
 /** Starts a new agent that Swarmville runs itself, in the project's folder: no terminal, you talk to it in the town. */
-function launchHere(projectId: string, prompt: string, plan: boolean, images: RunnerImage[]): Opened & { sessionId?: string } {
+function launchHere(projectId: string, prompt: string, plan: boolean, images: RunnerImage[], skip = false): Opened & { sessionId?: string } {
   const p = db.prepare('SELECT root FROM projects WHERE id = ?').get(projectId) as Row | undefined;
   if (!p?.root || !fs.existsSync(p.root)) return { ok: false, via: 'none', message: 'That project isn’t on this computer.' };
   const text = prompt.replace(/\r\n?/g, '\n').trim().slice(0, 8000);
   if (!text && !images.length) return { ok: false, via: 'none', message: 'Say what you’d like to work on first.' };
-  const r = runners.start({ cwd: p.root, prompt: text, images, plan });
+  const r = runners.start({ cwd: p.root, prompt: text, images, plan, skip: skip && !plan });
   if (!r.ok || !r.sessionId) return { ok: false, via: 'none', message: r.message };
   // the town shows them at once, before Claude's first hook arrives
   db.prepare('INSERT OR IGNORE INTO sessions(id, cwd, started_at, project_id) VALUES(?, ?, ?, ?)').run(r.sessionId, p.root, Date.now(), projectId);
@@ -497,8 +502,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/launch') {
       const body = await readJson(req);
-      if (body.here) return json(res, 200, launchHere(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan, imagesFrom(body.images)));
-      return json(res, 200, launch(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan));
+      if (body.here) return json(res, 200, launchHere(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan, imagesFrom(body.images), body.skip === true));
+      return json(res, 200, launch(String(body.projectId ?? ''), String(body.prompt ?? ''), !!body.plan, body.skip === true));
     }
     if (req.method === 'POST' && p === '/api/notes') {
       const body = await readJson(req);
@@ -668,6 +673,10 @@ async function prLoop() {
 async function focusLoop() {
   try { if (await labelNextFocus(db)) soon(); } catch (e) { console.error('[swarmville] job label failed', e); }
 }
+/** Rewrites each settled job's last message in plain words, for Plain voice. */
+async function plainLoop() {
+  try { if (await plainNextOutcome(db)) soon(); } catch (e) { console.error('[swarmville] plain summary failed', e); }
+}
 async function nameLoop() {
   try { if (await nameProjectsBatch(db) > 0 || await nameNextProject(db)) soon(); else if (await groupDistricts(db)) soon(); else if (await summarizeNextProject(db)) soon(); } catch (e) { console.error('[swarmville] naming failed', e); }
 }
@@ -676,7 +685,7 @@ setInterval(githubLoop, 10 * 60_000);
 function startLoops() {
   setTimeout(prLoop, 5000);
   setInterval(prLoop, 30_000); // each review keeps its own pace (checkPullRequests): every 30s while shipping, minutes otherwise
-  if (!env('NO_NAMING')) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); }
+  if (!env('NO_NAMING')) { setTimeout(nameLoop, 8000); setInterval(nameLoop, 20_000); setInterval(focusLoop, 4000); setInterval(plainLoop, 10_000); }
 }
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { server.close(); db.close(); process.exit(0); });

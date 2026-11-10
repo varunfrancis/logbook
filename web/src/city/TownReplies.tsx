@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { saidOf, useVoice } from '../copy.ts';
 import { createPortal } from 'react-dom';
 import type { SessionView, StateView } from '../../../daemon/types.ts';
 import { bubbleKey as keyOf, townBubbles, type TownBubble as TownBubbleT } from './townBubbles.ts';
@@ -29,6 +30,7 @@ export function TownReplies({ state, scene, openAgent, openId }: { state: StateV
 }
 
 function TownBubble({ b, scene, openAgent, dismiss }: { b: Bubble; scene: CityScene; openAgent: (sessionId: string) => void; dismiss: (s: SessionView) => void }) {
+  const voice = useVoice();
   const { s, kind } = b;
   const [host] = useState(() => { const d = document.createElement('div'); d.className = `town-reply ${kind}`; return d; });
   const [text, setText] = useState('');
@@ -74,7 +76,7 @@ function TownBubble({ b, scene, openAgent, dismiss }: { b: Bubble; scene: CitySc
   ) : (
     <>
       <div className="tr-who"><b>{name}</b><span className="tr-pill ok">Finished</span></div>
-      <p className="tr-q">{didSummary(s.outcome, 110) || 'Done for now.'}</p>
+      <p className="tr-q">{didSummary(saidOf(s, voice), 110) || 'Done for now.'}</p>
       <div className="tr-foot">
         <button type="button" className={`tr-hi5${fived ? ' done' : ''}`} onClick={highFive} disabled={fived} title="A cheer for them. It isn’t sent to them and doesn’t wake them."><span aria-hidden>✋</span> {fived ? 'High-fived!' : 'High-five'}</button>
         <button type="button" onClick={() => openAgent(s.id)}>Open chat ⤢</button>

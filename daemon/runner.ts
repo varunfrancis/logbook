@@ -26,11 +26,13 @@ export type RunnerSpec = {
   prompt: string;
   images?: RunnerImage[];
   plan?: boolean;
+  /** Build without asking: Claude runs with --dangerously-skip-permissions, so no yes/no on every edit or command. */
+  skip?: boolean;
   resume?: boolean; // continue an earlier conversation with this id
 };
 export type RunnerImage = { mediaType: string; data: string }; // base64
 export type RunnerAsk = { requestId: string; toolName: string; input: any; suggestions: unknown[]; at: number };
-export type RunnerMeta = { id: string; pid: number; claudePid: number | null; cwd: string; startedAt: number; status: 'running' | 'exited' | 'released'; exitedAt: number | null };
+export type RunnerMeta = { id: string; pid: number; claudePid: number | null; cwd: string; startedAt: number; status: 'running' | 'exited' | 'released'; exitedAt: number | null; skip?: boolean };
 /** One line of the conversation as the town shows it. Tool lines keep the raw call; the daemon words them. */
 export type RunnerEntry = { at: number; kind: 'you' | 'them' | 'tool' | 'done' | 'note'; text: string; images?: number; tool?: string; input?: unknown; error?: boolean };
 
@@ -50,9 +52,10 @@ function sockPath(dir: string, id: string): string {
   return path.join(short, `${id}.sock`);
 }
 
-export function claudeArgs(spec: Pick<RunnerSpec, 'id' | 'plan' | 'resume'>): string[] {
+export function claudeArgs(spec: Pick<RunnerSpec, 'id' | 'plan' | 'resume' | 'skip'>): string[] {
   return ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--permission-prompt-tool', 'stdio',
-    ...(spec.resume ? ['--resume', spec.id] : ['--session-id', spec.id]), ...(spec.plan ? ['--permission-mode', 'plan'] : [])];
+    ...(spec.resume ? ['--resume', spec.id] : ['--session-id', spec.id]),
+    ...(spec.plan ? ['--permission-mode', 'plan'] : spec.skip ? ['--dangerously-skip-permissions'] : [])];
 }
 
 /** The user message Claude Code reads on stdin. */
@@ -83,7 +86,7 @@ function main(specPath: string) {
   const spec: RunnerSpec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
   try { fs.unlinkSync(specPath); } catch {} // it may hold pasted images: don't keep them around
   const P = runnerPaths(spec.dir, spec.id);
-  const meta: RunnerMeta = { id: spec.id, pid: process.pid, claudePid: null, cwd: spec.cwd, startedAt: Date.now(), status: 'running', exitedAt: null };
+  const meta: RunnerMeta = { id: spec.id, pid: process.pid, claudePid: null, cwd: spec.cwd, startedAt: Date.now(), status: 'running', exitedAt: null, ...(spec.skip ? { skip: true } : {}) };
   const saveMeta = () => { try { fs.writeFileSync(P.meta, JSON.stringify(meta)); } catch {} };
   const conns = new Set<net.Socket>();
   const asks = new Map<string, RunnerAsk>();

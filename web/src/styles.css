@@ -1200,3 +1200,8 @@ code.ask-detail { display: block; }
 .steer-hint { font-size: 12.5px; color: var(--ink-2); }
 .steer-msg { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-2); }
 .steer-msg.bad { color: var(--needs); }
+/* The legend's For sale entry doubles as the switch for the lots. */
+.legend-lots { display: inline-flex; align-items: center; gap: 0; font: inherit; color: inherit; background: none; border: 1px dashed color-mix(in srgb, var(--ink-3) 55%, transparent); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
+.legend-lots small { margin-left: 6px; color: var(--accent); font-weight: 800; }
+.legend-lots:hover { background: var(--surface-2); }
+.legend-lots:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }

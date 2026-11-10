@@ -4,7 +4,7 @@ import type { Db, Row } from './db.ts';
 import { describeTool, type ActionKind } from './describe.ts';
 import { usdOf } from './pricing.ts';
 import { ensureProjectForCwd, touchProject } from './projects.ts';
-import { DATA_DIR, isOwnRun, OWN_PROMPT, PROJECTS_DIR } from './config.ts';
+import { DATA_DIR, isOwnRun, isTempDir, isThrowawayRun, OWN_PROMPT, PROJECTS_DIR } from './config.ts';
 
 /** Parser state carried across incremental reads of one transcript (persisted in offsets.state). */
 export type ParseState = {
@@ -234,6 +234,10 @@ export function purgeOwnRuns(db: Db): number {
   for (const r of db.prepare(`SELECT id, cwd FROM sessions WHERE transcript IS NULL AND COALESCE(prompts, 0) = 0 AND COALESCE(tok_in, 0) + COALESCE(tok_out, 0) = 0 AND cwd IS NOT NULL`).all() as Row[]) {
     if (/\/\.?(logbook-|swarmville-)?namer$/.test(r.cwd)) ids.push(r.id);
   }
+  // Agent SDK runs in throwaway temp folders (recorded before this rule, or first seen through a hook that doesn't say what started it).
+  for (const r of db.prepare("SELECT id, cwd, entrypoint FROM sessions WHERE entrypoint LIKE 'sdk-%' AND cwd IS NOT NULL").all() as Row[]) {
+    if (isThrowawayRun(r.cwd, r.entrypoint)) ids.push(r.id);
+  }
   for (const id of ids) {
     ownSessions.add(id);
     for (const t of ['events', 'segments']) db.prepare(`DELETE FROM ${t} WHERE session_id = ?`).run(id);
@@ -241,7 +245,7 @@ export function purgeOwnRuns(db: Db): number {
   }
   // A project whose folder is a Swarmville (or, from before the rename, Logbook) naming folder and that has no other sessions.
   const empty = db.prepare(`SELECT id, root FROM projects p WHERE root IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.project_id = p.id)`).all() as Row[];
-  for (const p of empty) if (/\/\.?(logbook-|swarmville-)?namer$/.test(p.root)) db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
+  for (const p of empty) if (/\/\.?(logbook-|swarmville-)?namer$/.test(p.root) || isTempDir(p.root)) db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
   return ids.length;
 }
 
@@ -249,6 +253,7 @@ export function purgeOwnRuns(db: Db): number {
 export function applyDelta(db: Db, d: Delta, transcript: string) {
   if (!d.sessionId) return;
   if (isOwnRun(d.cwd)) return; // Swarmville's own helper runs
+  if (isThrowawayRun(d.cwd, d.entrypoint)) { ownSessions.add(d.sessionId); db.prepare('DELETE FROM sessions WHERE id = ?').run(d.sessionId); return; } // an SDK program's one-off request in a temp folder
   // ...wherever they ran: a test copy's folder may be gone by now, but the request still starts the same way
   if (ownSessions.has(d.sessionId)) return;
   if (d.firstPrompt && OWN_PROMPT.test(d.firstPrompt)) { ownSessions.add(d.sessionId); db.prepare('DELETE FROM sessions WHERE id = ?').run(d.sessionId); return; }

@@ -51,7 +51,7 @@ function sleeperView(r: RoutineView): SessionView {
     action: null, actionKind: null, needsMessage: null, ask: null, branch: null, worktree: null, cwd: null, kind: null,
     startedAt: r.lastRunAt, lastEventAt: r.lastEndedAt, endedAt: r.lastEndedAt, endReason: null,
     tokens: 0, bricks: 0, tokensBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, subagents: 0 }, model: null, costUsd: 0, costEstimated: true,
-    linesAdded: null, linesRemoved: null, size: null, commits: 0, prUrl: null, prState: null, prChecks: null, stamp: r.lastStamp, outcome: r.lastOutcome,
+    linesAdded: null, linesRemoved: null, size: null, commits: 0, prUrl: null, prState: null, prChecks: null, stamp: r.lastStamp, outcome: r.lastOutcome, plainOutcome: null,
     lastPrompt: null, firstPrompt: r.prompt, prompts: 0, helperActive: false, stuck: null, collision: null, lastCheck: null, chatter: null, filesChanged: 0,
   };
 }

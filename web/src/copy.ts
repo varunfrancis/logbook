@@ -15,6 +15,9 @@ export const PLAN_NOTE = 'Included in your Claude plan. To see what it would cos
 export const priced = (view: CostView, usd: number) => (view === 'api' ? money(usd) : '$0');
 
 /** What the numbers on screen mean, for hover help. Written for someone who has never seen a terminal. */
+/** What a job did, in the words this voice reads best: the plain rewrite when there is one, else the agent's own. */
+export const saidOf = (s: { outcome: string | null; plainOutcome?: string | null }, voice: Voice) => (voice === 'plain' && s.plainOutcome ? s.plainOutcome : s.outcome);
+
 export const STAT_HELP = {
   bricks: 'Bricks measure how much work the agents did: the more they read, think and write, the more bricks they lay. One brick is 10,000 tokens, the little word-pieces AI reads and writes.',
   shifts: 'Shifts: how many times an agent has worked here. Each conversation with Claude is one shift.',
