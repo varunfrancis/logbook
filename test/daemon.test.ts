@@ -10,7 +10,7 @@ import { consolidateProjects, ensureProjectForCwd, spiral } from '../daemon/proj
 import { execFileSync } from 'node:child_process';
 import { floorsFor, isAway, projectState, scopeOf, sessionStatus, buildingSize } from '../daemon/status.ts';
 import { openDb } from '../daemon/db.ts';
-import { handleHook, isJobNotice, lowerHand } from '../daemon/hooks.ts';
+import { handleHook, isJobNotice, lastReply, lowerHand } from '../daemon/hooks.ts';
 import { addAsk, answerAsk, askSession, asksBySession, describeAsk, dropAsk, hasAsk, questionDecision, settleSession } from '../daemon/asks.ts';
 import { buildState } from '../daemon/state.ts';
 import { isClaude, stopProcess } from '../daemon/stop.ts';
@@ -889,4 +889,61 @@ test('"Go to" looks for the terminal above a background agent, not only its dire
   assert.deepEqual(ancestry(10615, (p) => up[p] ?? null), [10615, 10608, 10579, 10452, 9720, 9682]);
   assert.deepEqual(ancestry(5, () => 5), [5]); // a loop stops
   assert.deepEqual(ancestry(7, () => null), [7]);
+});
+
+test('a turn that ends with a question raises a hand until you reply or they move on', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  const base = { session_id: 'q-1', cwd: dir, transcript_path: path.join(dir, 't.jsonl') };
+  const t0 = Date.now();
+  const view = (t: number) => buildState(db, new Map(), t).sessions[0];
+  handleHook(db, { ...base, hook_event_name: 'SessionStart', source: 'startup' }, t0);
+  handleHook(db, { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'merge the café' }, t0 + 10);
+  handleHook(db, { ...base, hook_event_name: 'Stop', last_assistant_message: 'Tests pass.\n\nneeds input: Should I merge the café branch into `main` and rebuild?' }, t0 + 20);
+  let s = view(t0 + 30);
+  assert.equal(s.status, 'needs_input');
+  assert.equal(s.handKind, 'question');
+  assert.equal(s.needsMessage, 'Should I merge the café branch into main and rebuild?');
+  // Claude Code's "waiting for your input" a minute later doesn't lower it
+  handleHook(db, { ...base, hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input' }, t0 + 60_000);
+  assert.equal(view(t0 + 60_010).status, 'needs_input');
+  // your reply brings it down, and the wait is recorded like any other hand
+  handleHook(db, { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'yes, merge it' }, t0 + 90_000);
+  s = view(t0 + 90_010);
+  assert.equal(s.status, 'running');
+  assert.equal(s.handKind, null);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM segments WHERE session_id = 'q-1' AND kind = 'wait'").get() as any).n, 1);
+  // a plain report is a coffee break
+  handleHook(db, { ...base, hook_event_name: 'Stop', last_assistant_message: 'result: merged as PR #9 and live on 7777.' }, t0 + 100_000);
+  assert.equal(view(t0 + 100_010).status, 'idle');
+  // the agent doing anything else brings a hand down too
+  handleHook(db, { ...base, hook_event_name: 'Stop', last_assistant_message: 'Done. Want me to delete the old branch?' }, t0 + 110_000);
+  assert.equal(view(t0 + 110_010).status, 'needs_input');
+  handleHook(db, { ...base, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git branch -d old' } }, t0 + 120_000);
+  assert.equal(view(t0 + 120_010).status, 'running');
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('without last_assistant_message, the question comes from the end of the transcript', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'swarmville-test-'));
+  const file = path.join(dir, 't.jsonl');
+  const line = (o: object) => JSON.stringify(o) + '\n';
+  fs.writeFileSync(file, line({ type: 'user', message: { role: 'user', content: 'tidy the deploys' } })
+    + line({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: {} }] } })
+    + line({ type: 'user', message: { content: [{ type: 'tool_result', content: 'ok' }] } })
+    + line({ type: 'assistant', message: { content: [{ type: 'text', text: 'Two old deploys are left.\n\nShould I take them down?' }] } })
+    + line({ type: 'assistant', isSidechain: true, message: { content: [{ type: 'text', text: 'subagent notes' }] } }));
+  assert.equal(lastReply(file), 'Two old deploys are left.\n\nShould I take them down?');
+  assert.equal(lastReply(path.join(dir, 'missing.jsonl')), null);
+  const db = openDb(path.join(dir, 'db.sqlite'));
+  handleHook(db, { session_id: 'q-2', cwd: dir, transcript_path: file, hook_event_name: 'Stop' }, Date.now());
+  const s = buildState(db, new Map(), Date.now()).sessions[0];
+  assert.equal(s.status, 'needs_input');
+  assert.equal(s.needsMessage, 'Should I take them down?');
+  // ended on a step with no words after your prompt: nothing to answer
+  fs.appendFileSync(file, line({ type: 'user', message: { role: 'user', content: 'go on' } }) + line({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: {} }] } }));
+  assert.equal(lastReply(file), null);
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
 });

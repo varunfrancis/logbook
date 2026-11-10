@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
-import { parseMarkdown, plainText, type Block, type Inline } from '../markdown.ts';
-import { pickItems } from '../turn.ts';
+import { parseMarkdown, plainText, type Block, type Inline } from '../../../daemon/markdown.ts';
+import { pickItems } from '../../../daemon/turn.ts';
 
 type Opts = { onPick?: (n: number, label: string) => void; picked?: number | null };
 

@@ -1,4 +1,4 @@
-import { parseMarkdown, plainText, type Block, type Inline } from './markdown.ts';
+import { inline, parseMarkdown, plainText, type Block, type Inline } from './markdown.ts';
 
 /*
  * "Your turn": when an agent's reply ends by asking you something, say what they asked and offer answers you can tap.
@@ -44,8 +44,8 @@ export function pickItems(b: Block): string[] | null {
 export function yourTurn(reply: string): Turn | null {
   const blocks = parseMarkdown(reply);
   const tail = blocks.filter((b) => b.t !== 'code' && b.t !== 'table' && b.t !== 'hr').slice(-2);
-  const text = tail.map(blockText).join(' ').replace(/\s+/g, ' ').trim();
-  const sentences = text.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [];
+  // sentences end at . ! or ? and a space (so "Terminal.app" stays whole), and never run across blocks
+  const sentences = tail.flatMap((b) => blockText(b).replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/));
   // a question you're meant to answer comes last (or just before a "let me know"), not mid-report
   const question = sentences.map((s) => s.trim()).slice(-2).filter((s) => s.endsWith('?')).at(-1);
   if (!question || question.length < 8) return null;
@@ -67,4 +67,39 @@ export function yourTurn(reply: string): Turn | null {
   const lastList = [...blocks].reverse().find((b) => b.t !== 'code' && b.t !== 'hr');
   const asked = lastList?.t === 'list' ? lastList.items.filter((it) => /\?/.test(it.map(blockText).join(' '))).length : 0;
   return { question: short(question, 220), answers, more: Math.max(0, asked - 1) };
+}
+
+const VERDICT = /^[\s*_>]*(result|failed|needs input)[*_]*\s*:[*_]*\s*(.*)$/i;
+const WAITING = /\bwaiting (?:for|on) (?:your|you to)\b/i;
+const ANSWERED_THEN = /^(?:once|when) you(?:'ve|’ve| have)? answered\b|^with (?:that|those|these) answered\b/i;
+// generic sign-offs after a finished report, not something you have to answer
+const SIGN_OFF = /^(?:is there )?anything else\b|^(?:do you )?need anything else\b|^any (?:other |more )?questions\b|^(?:does that|did that) (?:help|answer)\b/i;
+
+/**
+ * The question an agent left you with when its turn ended, in plain words, or null if it just reported. A raised hand in
+ * the town: "needs input: …" always counts; a closing `result:` / `failed:` line never does; otherwise it's the question
+ * the "Your turn" card would show, unless it's only a sign-off like "Anything else?".
+ */
+export function askedYou(reply: string | null | undefined): string | null {
+  const lines = String(reply ?? '').trimEnd().split('\n');
+  const last = lines.findLastIndex((l) => VERDICT.test(l.trim()));
+  if (last >= 0) {
+    const [, kind, rest] = lines[last].trim().match(VERDICT)!;
+    if (kind.toLowerCase() === 'needs input') {
+      // "needs input:" with the ask on the lines below, or "needs input: three things:" and a list
+      const said = plainText(inline([rest, ...(rest && !rest.endsWith(':') ? [] : lines.slice(last + 1, last + 6).map((l) => l.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '')))].join(' '))).replace(/\s+/g, ' ').trim();
+      return said ? short(cap(said), 220) : 'Needs your input';
+    }
+    if (last === lines.length - 1) return null; // ended on a report
+  }
+  const rest = lines.slice(last + 1).join('\n').trim();
+  const t = yourTurn(rest);
+  if (t) return SIGN_OFF.test(t.question) ? null : t.question;
+  // "…waiting for your go-ahead on the fix." or questions above a closing "Once you've answered these, I'll …"
+  const paras = rest.split(/\n\s*\n/);
+  const end = paras.at(-1)!.replace(/\s+/g, ' ').trim();
+  const ending = plainText(inline(end.split(/(?<=[.!?])\s+/).at(-1) ?? '')).trim();
+  if (WAITING.test(ending)) return short(cap(ending), 220);
+  if (ANSWERED_THEN.test(end)) return yourTurn(paras.slice(0, -1).join('\n\n'))?.question ?? null;
+  return null;
 }

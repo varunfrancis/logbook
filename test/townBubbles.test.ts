@@ -28,3 +28,12 @@ test('no bubble for terminal agents, busy agents, the open drawer, or after "Lat
   state.sessions[3].lastEventAt = NOW;
   assert.deepEqual(townBubbles(state, NOW, later, 'open').map((b) => b.s.id), ['later']);
 });
+
+test('a raised hand for a question gets the reply bubble; a permission hand does not', () => {
+  const state = { sessions: [
+    s({ id: 'q', status: 'needs_input', handKind: 'question', needsMessage: 'Should I merge it?', outcome: 'needs input: Should I merge it?' }),
+    s({ id: 'perm', status: 'needs_input', handKind: null, needsMessage: 'Claude needs your permission to use Bash', outcome: 'Running the tests.' }),
+    s({ id: 'qterm', runner: undefined, status: 'needs_input', handKind: 'question', needsMessage: 'Which terminal?' }),
+  ] };
+  assert.deepEqual(townBubbles(state, NOW, new Set(), null).map((b) => `${b.s.id}:${b.kind}`), ['q:ask']);
+});
