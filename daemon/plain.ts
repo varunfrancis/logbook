@@ -16,7 +16,10 @@ let running = false;
 
 /** The model's reply → a plain line, or null when it's unusable. */
 export function parsePlainReply(raw: string | null): string | null {
-  const text = raw?.trim().replace(/^(summary|answer)\s*:\s*/i, '').replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, ' ').trim() ?? '';
+  let text = raw?.trim().replace(/^(summary|answer)\s*:\s*/i, '').replace(/\s+/g, ' ').trim() ?? '';
+  // drop quotes only when they wrap the whole reply, so a line that starts with a quoted button name keeps its quote
+  const wrap = text.match(/^(["'`])(.*)\1$/);
+  if (wrap && !wrap[2].includes(wrap[1])) text = wrap[2].trim();
   if (!text || text.length > 280 || /^(sorry|i can(no|')t|i'm unable)/i.test(text)) return null;
   return text;
 }

@@ -9,6 +9,7 @@ import { saidOf } from '../web/src/copy.ts';
 
 test('plain summary: the reply is kept as is, refusals and essays are dropped', () => {
   assert.equal(parsePlainReply('Summary: "Clicking Go to now opens the window you already have. It’s live."'), 'Clicking Go to now opens the window you already have. It’s live.');
+  assert.equal(parsePlainReply('"Go to" now uses the window you already have.'), '"Go to" now uses the window you already have.');
   assert.equal(parsePlainReply('Sorry, I can’t help with that.'), null);
   assert.equal(parsePlainReply('x'.repeat(400)), null);
   assert.equal(parsePlainReply(null), null);
