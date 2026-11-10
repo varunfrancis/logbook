@@ -351,6 +351,9 @@ function chatView(sessionId: string): ChatView {
   return { runner: runners.states().get(sessionId) ?? null, lines, reach: reachOf(sessionId) };
 }
 
+/** High-fives you've given this agent (all their shifts). */
+const highFives = (agentKey: string) => Number(kvGet(db, `highfives:${agentKey}`, 0)) || 0;
+
 /** Where a message typed in the town goes (see ChatReach). */
 function reachOf(sessionId: string): ChatReach {
   if (runners.knows(sessionId)) return 'here';
@@ -435,7 +438,7 @@ const server = http.createServer(async (req, res) => {
       const d = projectDetail(db, state, live, rest);
       return d ? json(res, 200, d) : json(res, 404, { error: 'No project with that id' });
     }
-    const here = p.match(/^\/api\/agent\/([^/]+)\/(chat|send|takeover|interrupt)$/);
+    const here = p.match(/^\/api\/agent\/([^/]+)\/(chat|send|takeover|interrupt|highfive)$/);
     if (here) {
       const [, id, action] = here;
       if (!safeId(id)) return json(res, 400, { ok: false, message: 'Which agent?' });
@@ -454,6 +457,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (action === 'takeover') return json(res, 200, await takeOver(id));
       if (action === 'interrupt') return json(res, 200, { ok: runners.interrupt(id) });
+      if (action === 'highfive') {
+        // a cheer from you: counted on the agent's profile, never sent to the agent (no tokens, doesn't wake them)
+        const key = state.sessions.find((x) => x.id === id)?.agent.key;
+        if (!key) return json(res, 404, { ok: false, message: 'Which agent?' });
+        const n = highFives(key) + 1;
+        kvSet(db, `highfives:${key}`, n);
+        return json(res, 200, { ok: true, count: n });
+      }
     }
     if (p.startsWith('/api/agent/')) {
       const d = agentDetail(db, state, live, decodeURIComponent(p.slice('/api/agent/'.length)));
@@ -463,6 +474,7 @@ const server = http.createServer(async (req, res) => {
       if (inState?.ask) d.session.ask = inState.ask;
       const r = runners.states().get(d.session.id);
       if (r) d.session.runner = r;
+      d.highFives = highFives(d.agent.key);
       return json(res, 200, d);
     }
     if (p === '/api/intros') {

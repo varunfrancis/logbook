@@ -25,6 +25,12 @@ export function CityView({ state, selected, onSelect, onAgent, onGraveyard, focu
     return () => { s.dispose(); scene.current = null; };
   }, []);
   useEffect(() => { scene.current?.setBubble(bubble); }, [bubble]);
+  // a high-five from an agent's chat: they cheer in the town too
+  useEffect(() => {
+    const f = (e: Event) => { const sid = (e as CustomEvent).detail?.sessionId; if (sid) scene.current?.highFive(sid); };
+    window.addEventListener('swarmville:highfive', f);
+    return () => window.removeEventListener('swarmville:highfive', f);
+  }, []);
   useEffect(() => { scene.current?.setTheme(dark); scene.current?.setState(state, showLots); }, [dark]);
   useEffect(() => { scene.current?.setState(state, showLots); }, [state, showLots]);
   useEffect(() => { scene.current?.setSelected(selected); }, [selected]);

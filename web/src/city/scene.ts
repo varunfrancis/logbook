@@ -104,6 +104,8 @@ export class CityScene {
   private disposeFns: (() => void)[] = [];
   private chatEls = new Map<string, HTMLElement>();
   private doingEls = new Map<string, HTMLElement>();
+  /** Where each agent stands, for things that pop up over them (a high-five). */
+  private crewAnchors = new Map<string, { anchor: THREE.Object3D; labels: Label[]; pid: string }>();
   /** What each agent's always-on bubble says: the job they're on, the project, or their current step in 2–3 words. */
   private bubble: Bubble = 'job';
   private projectNames = new Map<string, string>();
@@ -396,6 +398,16 @@ export class CityScene {
     const { right, fwd } = this.axes();
     void fwd;
     this.flyTo({ x: this.v.x + right.x * shift, z: this.v.z + right.z * shift, az: this.az, zoom });
+  }
+
+  /** A high-five from the chat: "✋ High five!" pops up over the agent in the town for a moment. */
+  highFive(sessionId: string) {
+    const c = this.crewAnchors.get(sessionId);
+    if (!c || !c.anchor.parent) return;
+    const el = this.div('hello hi5-town', '<b>✋ High five!</b>');
+    el.dataset.sid = sessionId;
+    this.label(c.labels, el, c.anchor, 1.3, 'hello', c.pid);
+    setTimeout(() => el.remove(), 2800);
   }
 
   dispose() {
@@ -932,6 +944,7 @@ export class CityScene {
       helper.root.scale.setScalar(0.62); helper.root.userData.sid = s.id; parent.add(helper.root);
     }
     const anchor = new THREE.Object3D(); anchor.position.y = crew.height + 0.25; g.add(anchor);
+    this.crewAnchors.set(s.id, { anchor, labels, pid });
     // Always-on label: the job they're on, the project, or their current step (a setting); their name appears when you hover or select the building.
     const next = sleeper ? nextRunText(sleeper.nextAt) : null;
     const doing = sleeper ? (next ? `asleep · up ${next}` : 'asleep') : this.bubbleText(s);
