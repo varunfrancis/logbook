@@ -1,24 +1,57 @@
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { parseMarkdown, plainText, type Block, type Inline } from '../../../daemon/markdown.ts';
 import { pickItems } from '../../../daemon/turn.ts';
+import { splitGreeting, visualize } from '../../../daemon/visual.ts';
+import { VisualBlock } from './Visual.tsx';
 
 type Opts = { onPick?: (n: number, label: string) => void; picked?: number | null };
+type View = 'visual' | 'text';
+
+const VIEW_KEY = 'swarmville.replyView';
+const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === 'text' ? 'text' : 'visual'; } catch { return 'visual'; } };
 
 /**
  * An agent's reply, formatted: headings, lists, code and links as real elements (built from data, never raw HTML).
  * `long`: a long reply opens with its first paragraph as "In short", and gets a jump list when it has several sections.
  * `onPick`: numbered lists of options (each item starts in bold) become cards with a Pick button.
+ * A reply with something to draw (a diagram, a fork, a table of options…) opens as visuals, with a Text switch.
+ * The "Hi, I'm Iggy. You'll see me at …" line agents open with is shown small, never as "In short".
  */
 export function Markdown({ text, className, long, onPick, picked }: { text: string; className?: string; long?: boolean } & Opts) {
+  const isLong = !!long && text.length >= 600;
+  const pickable = !!onPick;
+  const vis = useMemo(() => visualize(text, { long: isLong, pickable }), [text, isLong, pickable]);
+  const [view, setView] = useState<View>(readView);
+  const choose = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch {} };
+  const visual = vis.drawn > 0 && view === 'visual';
+  const cls = `md${visual ? ' md-visual' : ''}${className ? ` ${className}` : ''}`;
+  const top = vis.greeting || vis.drawn > 0 ? (
+    <div className="md-top">
+      {vis.greeting ? <p className="md-hello">{vis.greeting}</p> : <span />}
+      {vis.drawn > 0 ? (
+        <div className="md-view" role="group" aria-label="Show this reply as">
+          <button type="button" aria-pressed={visual} onClick={() => choose('visual')}>Visual</button>
+          <button type="button" aria-pressed={!visual} onClick={() => choose('text')}>Text</button>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+  if (visual) return <div className={cls}>{top}{vis.blocks.map((b, i) => <VisualBlock key={i} b={b} />)}</div>;
+  return <TextReply text={vis.greeting ? splitGreeting(text).rest : text} cls={cls} isLong={isLong} top={top} opts={{ onPick, picked }} />;
+}
+
+/** The reply as formatted text, with "In short" and a jump list when it's long. */
+function TextReply({ text, cls, isLong, top, opts }: { text: string; cls: string; isLong: boolean; top: ReactNode; opts: Opts }) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
   const root = useRef<HTMLDivElement>(null);
-  const isLong = !!long && text.length >= 600;
   const lead = isLong && blocks[0]?.t === 'p' && blocks.length > 1 ? blocks[0] : null;
   const heads = blocks.map((b, i) => (b.t === 'h' ? { i, text: plainText(b.c) } : null)).filter((x): x is { i: number; text: string } => !!x);
   const jump = isLong && text.length >= 1500 && heads.length >= 3 ? heads : [];
   const go = (i: number) => root.current?.querySelector(`[data-block="${i}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const { onPick, picked } = opts;
   return (
-    <div ref={root} className={`md${className ? ` ${className}` : ''}`}>
+    <div ref={root} className={cls}>
+      {top}
       {jump.length ? <nav className="md-jump" aria-label="Jump to a section">{jump.map((h) => <button key={h.i} type="button" onClick={() => go(h.i)}>{h.text}</button>)}</nav> : null}
       {blocks.map((b, i) => (
         b === lead
