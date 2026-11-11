@@ -32,6 +32,7 @@ import type { RunnerImage } from './runner.ts';
 import { findClaude } from './naming.ts';
 import { describeTool } from './describe.ts';
 import { adoptLegacyData, env } from './legacy.ts';
+import { applyWallet, notePayment, pollWallet, walletAction } from './wallet.ts';
 
 // Before the rename to Swarmville, the town lived in ~/.logbook: move it across before opening it (only the daemon does this, never on import).
 adoptLegacyData(DATA_DIR, DATA_DIR === DEFAULT_DATA_DIR ? LEGACY_DATA_DIR : null);
@@ -94,6 +95,7 @@ function refresh() {
   const asks = asksBySession();
   if (asks.size) for (const s of state.sessions) s.ask = s.status === 'needs_input' ? asks.get(s.id) ?? null : null;
   if (here.size) for (const s of state.sessions) { const r = here.get(s.id); if (r) s.runner = r; }
+  try { applyWallet(db, state); } catch (e) { console.error('[swarmville] wallet view failed', e); }
   const { generatedAt, ...rest } = state;
   const hash = crypto.createHash('sha1').update(JSON.stringify(rest)).digest('hex');
   stateJson = JSON.stringify(state);
@@ -125,6 +127,9 @@ function tick() {
     ticking = false;
   }
 }
+
+/** swarmville-wallet, if it runs here: read its summary and redraw when it changed. */
+const walletSoon = () => pollWallet().then((changed) => { if (changed) soon(); }, () => {});
 
 let refreshTimer: NodeJS.Timeout | null = null;
 const soon = () => { if (!refreshTimer) refreshTimer = setTimeout(() => { refreshTimer = null; refresh(); }, 120); };
@@ -430,7 +435,7 @@ const server = http.createServer(async (req, res) => {
         return out ? json(res, 200, out) : void res.writeHead(204).end();
       }
       res.writeHead(204).end();
-      try { const payload = JSON.parse(body); handleHook(db, payload); settleAfter(payload); soon(); } catch {}
+      try { const payload = JSON.parse(body); handleHook(db, payload); settleAfter(payload); if (notePayment(db, payload)) walletSoon(); soon(); } catch {}
       return;
     }
     if (req.method === 'POST' && p.startsWith('/api/') && !sameSite(req)) return json(res, 403, { error: 'Not allowed' });
@@ -547,6 +552,14 @@ const server = http.createServer(async (req, res) => {
       soon();
       return json(res, 200, r);
     }
+    if (req.method === 'POST' && p.startsWith('/api/wallet/')) {
+      // swarmville-wallet: approve or decline a payment, freeze or unfreeze an agent's budget. The wallet checks it all again.
+      const [action, id] = decodeURIComponent(p.slice('/api/wallet/'.length)).split('/');
+      if (action !== 'approve' && action !== 'decline' && action !== 'freeze' && action !== 'unfreeze') return json(res, 400, { ok: false, message: 'Unknown action' });
+      const r = await walletAction(action, String(id ?? ''));
+      await walletSoon();
+      return json(res, 200, r);
+    }
     if (req.method === 'POST' && p.startsWith('/api/reply/')) {
       const body = await readJson(req);
       return json(res, 200, reply(decodeURIComponent(p.slice('/api/reply/'.length)), String(body.text ?? '')));
@@ -619,6 +632,7 @@ function bootStep() {
   tick(); // first full pass: characters, outcomes
   console.log(`[swarmville] indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${state.projects.length} projects, ${state.totals.live} live sessions`);
   setInterval(tick, 2000);
+  walletSoon(); setInterval(walletSoon, 3000);
   firstNames().finally(() => { setup.phase = 'ready'; refresh(); startLoops(); });
 }
 setTimeout(bootStep, 15);

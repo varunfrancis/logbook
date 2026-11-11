@@ -7,6 +7,8 @@ import { post, useNow } from '../useSwarmville.ts';
 import { yourTurn } from '../../../daemon/turn.ts';
 import { inline } from '../../../daemon/markdown.ts';
 import { Inlines } from './Markdown.tsx';
+import { PaymentAsk } from './Wallet.tsx';
+import type { WalletView } from '../../../daemon/types.ts';
 
 /** An agent's words with their links, code and bold kept (built from data, never raw HTML). */
 const Rich = ({ text }: { text: string }) => <Inlines c={inline(text)} />;
@@ -53,9 +55,11 @@ export function useAsk(s: SessionView | undefined) {
 }
 
 /** The choices for what they asked: Approve / Deny, a plan to approve or change, or their questions. */
-export function AskBody({ s, busy, answer, focus = true }: { s: SessionView; busy: boolean; answer: ReturnType<typeof useAsk>['answer']; focus?: boolean }) {
+export function AskBody({ s, busy, answer, focus = true, wallet, onDone }: { s: SessionView; busy: boolean; answer: ReturnType<typeof useAsk>['answer']; focus?: boolean;
+  /** For a payment from swarmville-wallet: the budgets, and where to say it's done (the popup closes itself). */ wallet?: WalletView | null; onDone?: (msg: string) => void }) {
   const a = s.ask;
-  return !a ? <TerminalOnly s={s} />
+  return !a && s.payment ? <PaymentAsk key={s.payment.id} s={s} wallet={wallet} focus={focus} onDone={onDone} />
+    : !a ? <TerminalOnly s={s} />
     : a.questions?.length ? <Questions key={a.id} qs={a.questions} busy={busy} onSend={(answers) => answer('answer', { answers })} />
     : a.tool === 'ExitPlanMode' ? <Plan key={a.id} a={a} busy={busy} focus={focus} onAnswer={answer} />
     : <Permission key={a.id} a={a} busy={busy} focus={focus} onAnswer={answer} />;
@@ -93,7 +97,7 @@ export function AskPopup({ id, state, onClose, openProfile }: { id: string; stat
 
         {done ? <p className="ask-done" role="status">{done}</p>
           : !a && s.handKind === 'question' && s.runner ? <Reply s={s} onSent={(words) => setDone(`Sent “${words.length > 60 ? words.slice(0, 59) + '…' : words}”. ${s.agent.name} is back to work.`)} />
-          : <AskBody s={s} busy={busy} answer={answer} />}
+          : <AskBody s={s} busy={busy} answer={answer} wallet={state.wallet} onDone={setDone} />}
         {err && !done ? <p className="ask-err" role="alert">{err}</p> : null}
 
         {!done ? (

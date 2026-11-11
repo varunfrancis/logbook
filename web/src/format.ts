@@ -132,3 +132,9 @@ export function madeLinks(text: string | null | undefined, max = 4): MadeLink[] 
   }
   return out;
 }
+
+/** Paise as rupees, Indian grouping: 45000 → "₹450", 14950 → "₹149.50". */
+export function inr(paise: number): string {
+  const r = paise / 100;
+  return `${r < 0 ? '−' : ''}₹${Math.abs(r).toLocaleString('en-IN', { minimumFractionDigits: paise % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+}

@@ -79,6 +79,8 @@ export function openDb(file = DB_PATH) {
     -- Messages typed in the town for an agent working in a terminal, handed over at their next step (see steer.ts).
     CREATE TABLE IF NOT EXISTS steers(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, delivered_at INTEGER);
     -- "Ship it": a finished job you sent an agent back to take all the way to review (see ship.ts).
+    -- swarmville-wallet payments and the session whose \`pay\` call made them (see wallet.ts).
+    CREATE TABLE IF NOT EXISTS wallet_payments(payment_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS ships(session_id TEXT PRIMARY KEY, project_id TEXT, cwd TEXT, at INTEGER NOT NULL, last_at INTEGER, mode TEXT, cleared_at INTEGER, merged_at INTEGER);
   `);
   migrate(db);
