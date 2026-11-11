@@ -11,13 +11,14 @@ import { GraveyardPanel } from './views/GraveyardPanel.tsx';
 import { CafePanel } from './views/CafePanel.tsx';
 import { CostPanel } from './views/CostPanel.tsx';
 import { ShippedPanel } from './views/ShippedPanel.tsx';
+import { WalletPanel } from './views/Wallet.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { CityView } from './city/CityView.tsx';
 import { onBreak } from './city/liveJobs.ts';
 import { Settings, TownPicker } from './TownPicker.tsx';
 import { ShareSheet } from './share/ShareSheet.tsx';
 import { bricks, CostContext, PLAN_NOTE, priced, VoiceContext, type Bubble, type CostView, type Voice } from './copy.ts';
-import { compact } from './format.ts';
+import { compact, inr } from './format.ts';
 import { setMusic, useSound } from './audio.ts';
 import { TourPill, useWelcome, Welcome } from './welcome/Welcome.tsx';
 import { ArrivalToasts, Tips } from './welcome/Tips.tsx';
@@ -46,7 +47,7 @@ function useTheme() {
 }
 
 /** `back`: an ask opened from an agent's profile goes back to it when you're done (their chat carries on there). */
-type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cafe' | 'cost' | 'shipped'; id: string; back?: 'agent'; tab?: 'profile' } | null;
+type Sel = { kind: 'project' | 'agent' | 'ask' | 'graveyard' | 'cafe' | 'cost' | 'shipped' | 'wallet'; id: string; back?: 'agent'; tab?: 'profile' } | null;
 
 export function App() {
   const { state, conn } = useSwarmville();
@@ -178,6 +179,12 @@ export function App() {
             </div>
           ) : <div className="summary" />}
           <div className="bar-right">
+            {state?.wallet ? (
+              <button className={`link hide-sm wallet-link${state.wallet.pending.length ? ' due' : ''}`} onClick={() => setSel(sel?.kind === 'wallet' ? null : { kind: 'wallet', id: '' })} aria-pressed={sel?.kind === 'wallet'}
+                title={state.wallet.pending.length ? 'Payments are waiting for your OK' : 'Your agents’ budgets and payments'}>
+                Wallet: {inr(state.wallet.balance)} left{state.wallet.pending.length ? <span className="tab-badge" aria-label={`${state.wallet.pending.length} waiting for you`}>{state.wallet.pending.length}</span> : null}
+              </button>
+            ) : null}
             {t ? <button className="link hide-sm" onClick={() => setSel(sel?.kind === 'cost' ? null : { kind: 'cost', id: '' })} aria-pressed={sel?.kind === 'cost'} title={costView === 'api' ? 'See which projects and agents spent it, at API prices' : PLAN_NOTE}>Today's cost: {priced(costView, t.costToday)}</button> : null}
             <button className={`ghost small music${sound.music ? ' on' : ''}`} onClick={() => setMusic(!sound.music)} aria-pressed={sound.music}
               title={sound.music ? 'Background music is on. Click to turn it off' : 'Background music is off. Click to turn it on'}>{sound.music ? '♪ Music on' : '♪ Music off'}</button>
@@ -199,6 +206,7 @@ export function App() {
           )}
           {state && sel?.kind === 'project' ? <ProjectPanel id={sel.id} state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cost' ? <CostPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
+          {state && sel?.kind === 'wallet' ? <WalletPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'shipped' ? <ShippedPanel state={state} onClose={() => setSel(null)} openProject={open.project} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'cafe' ? <CafePanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}
           {state && sel?.kind === 'graveyard' ? <GraveyardPanel state={state} onClose={() => setSel(null)} openAgent={open.agent} /> : null}

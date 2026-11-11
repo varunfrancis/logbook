@@ -84,6 +84,8 @@ export type SessionView = {
   collision: { with: string; file: string } | null;
   /** Swarmville runs this agent itself (no terminal): 'on' while it works, 'off' once clocked out (a message brings it back). */
   runner?: 'on' | 'off';
+  /** A wallet payment from this agent waiting for your OK (swarmville-wallet); it raises their hand. */
+  payment?: WalletPayment | null;
   lastCheck: { ok: boolean; at: number } | null;
   chatter: string | null;
   filesChanged: number;
@@ -201,7 +203,19 @@ export type StateView = {
   hooks: { lastEventAt: number | null };
   settings: { vscodeConnected: boolean; terminalIntros: boolean; welcome: Welcome };
   setup: Setup;
+  /** swarmville-wallet's budgets and payments, when it runs on this Mac; null or missing otherwise. */
+  wallet?: WalletView | null;
 };
+
+/** A payment through swarmville-wallet. Amounts are paise. `sessionId`/`agent`: the agent that asked, when Swarmville saw the call. */
+export type WalletPayment = {
+  id: string; agentId: string; payeeId: string; payeeName: string; amount: number; reason: string;
+  status: 'pending_approval' | 'approved' | 'processing' | 'paid' | 'failed' | 'rejected';
+  error: string | null; originCwd: string | null; at: number;
+  sessionId: string | null; agent: Agent | null;
+};
+export type WalletAgent = { id: string; balance: number; spentToday: number; dailyCap: number; perTxnCap: number; autoApproveUnder: number; frozen: boolean };
+export type WalletView = { rail: string; agents: WalletAgent[]; pending: WalletPayment[]; recent: WalletPayment[]; balance: number; spentToday: number };
 
 /** Everyone who worked on one project today, judged together. The web turns these into medals. */
 export type CrewDay = {
